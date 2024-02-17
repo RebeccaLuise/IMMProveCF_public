@@ -1,0 +1,202 @@
+---
+title: "GG alluvial plot for genus dominance in sputum, and combine plots for Figure 4"
+author: "Rebecca L. Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr, ggalluvial)
+
+source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_full.R")
+
+# assign colors
+
+library(paletteer)
+dom_palette <- c(paletteer_d("ggthemes::Nuriel_Stone"))
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF")
+
+```
+
+```{r subset per material}
+
+# subset sputum
+ps_full_sputum <- subset_samples(ps_full, material== "Sputum")
+
+# remove zero abundances from  dataset
+ps_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1,
+  prev_detection_threshold = 1, min_total_abundance = 0, min_sample_abundance = 0, tax_level = NA,
+  names_only = FALSE, use_counts = TRUE, undetected = NULL,verbose = TRUE)
+
+# calculate relative abundances
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x))
+ps_sputum_relab <- transform_sample_counts(ps_sputum, function(x) x/sum(x))
+
+```
+
+```{r find dominant genus; most abundant taxa per patient in sputum}
+
+# Analysis on most abundant taxa per patient in sputum
+ps_sputum_glom <- tax_glom(ps_sputum_relab, taxrank = "Genus")
+
+#Get top taxa per patient
+#find.top.taxa2 is sourced from functions.R
+top.sputum<- find.top.taxa2(ps_sputum_glom, "Genus",1)
+top.sputum$Species<- NULL
+
+rslt <- top.sputum[, "taxa"]
+dd <- matrix(unlist(rslt), nrow=1)
+colnames(dd) <- rownames(top.sputum)
+top.sputum <- t(dd)
+
+top.sputum_df <- data.frame(x1 = row.names(top.sputum), top.sputum)%>%
+  mutate(dominantGenus = top.sputum)
+top.sputum_df$top.sputum<- NULL
+
+##Add dominant Genus to ps_sputum_glom sample data
+ps_sputum_glom <- microViz::ps_join(ps_sputum_glom, top.sputum_df, by = "x1")
+```
+
+```{r reshape metadata for ggalluvial}
+
+# extract metadata
+full_metadata <- as(sample_data(ps_sputum_glom), "data.frame")
+
+# pivot wider per visit_sum ( reduce first number of columns for more clearness)
+
+metadata <- full_metadata%>%
+  select(x1, visit_sum, visit_cal_cor,  id.y, id_visit, dominantGenus)
+
+m_count <- metadata%>%
+  group_by(visit_sum)%>%
+  count(dominantGenus)%>%
+  pivot_wider(names_from = visit_sum, values_from = n, names_prefix = "V")
+
+metadata_w <- metadata%>%
+  pivot_wider(names_from = visit_cal_cor, values_from = dominantGenus, names_prefix = "V")%>%
+  mutate(n_observation = c(1:57))
+
+metadata_w%>%count(V1)
+
+metadata_w2 <- metadata%>%
+  select(-c(visit_sum, x1))%>%
+  pivot_wider(names_from = visit_cal_cor, values_from = dominantGenus, names_prefix = "V")%>%
+  mutate(V8V9=coalesce(V8,V9))%>%
+  group_by(id.y) %>% 
+  summarise(across(everything(), ~ max(., na.rm = T)))%>% # merges the rows of same id patients
+  mutate(domGenus = factor(V1, levels=c("Streptococcus", "Staphylococcus", "Fusobacterium", "Prevotella_7", "Rothia", "Pseudomonas", "Eikenella", "Haemophilus", "Achromobacter","Gemella" , "Moraxella", "`missing sample`")))
+  
+```
+
+```{r alluvial plot}
+
+# display only samples with follow up
+fu_id <- metadata%>%
+  filter(visit_cal_cor!=1)%>%
+  select(id.y)%>%
+  filter(id.y!="IMP8")
+
+fu_id <- fu_id$id.y
+
+#in order to have each visits per patient in my dataframe, even if they had no sampling conducted at that timepoint, I need to add a dummie row for it
+
+visit_fictional <- c(1:9)
+
+vist_fic_df <- merge(fu_id, visit_fictional)%>%
+ mutate(id_visit =  paste(x, y, sep="V"))%>%
+  distinct(id_visit, .keep_all = T)
+
+metadata_fic <- metadata%>%
+  filter(id.y%in%fu_id)%>%
+  right_join(vist_fic_df, by="id_visit")%>%
+  mutate(dominantGenus_new = as_factor(case_when(is.na(dominantGenus) ~ "missing sample")))%>%
+  mutate(dominantGenus_new = as_factor(coalesce(dominantGenus, dominantGenus_new)))%>%
+  mutate(visit=as_factor(y))%>%
+  mutate(visit_small = as_factor(case_when(visit=="9"~"8", TRUE~visit)))
+
+ metadata_fic$visit_small <-  fct_relevel(metadata_fic$visit_small, sort)
+
+# for alluvial format I now have to remove the "double" visit 8
+
+id_rm <- c("IMP29V9","IMP5V9", "IMP6V8", "IMP8V8", "IMP21V9", "IMP25V9", "IMP11V8", "IMP26V9", "IMP24V9", "IMP27V9", "IMP33V9", "IMP9V9")
+
+dom_spu <- metadata_fic%>%
+  filter(!id_visit%in%id_rm)%>%
+  ggplot(aes(x = visit_small, stratum = dominantGenus_new, alluvium = x,
+           fill =dominantGenus_new)) +
+  scale_fill_manual(values= dom_palette,guide =
+                         guide_legend(label.theme = element_text(angle = 0, face = "italic", size = 16)))+
+  geom_lode() + 
+  geom_flow(curve_type = "arctangent",width = .3, color="black") +
+  geom_stratum(alpha = 0.6)+
+  theme_pubr()+
+  theme(legend.position="right", text = element_text(size=20))+
+  labs(fill="Dominant genus")+
+  labs(x="Months from treatment start")+
+  labs(y = "n samples")+
+  scale_x_discrete(labels=c("0", "3","6","9","12","15","18","21-24"))
+dom_spu
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.pdf", dom_spu, width = 12, height = 7)
+```
+# combine taxonomic plots
+```{r fig.height=8, fig.width=15.5}
+tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_sputum.rds")
+
+tax_sputum <- tax_sputum+
+  theme_pubclean()+
+  labs(x = "months from treatment start \n compared to baseline samples", y = "")+
+   theme(text = element_text(size = 12),legend.position="bottom", legend.box="vertical", legend.box.just = "left", legend.margin=margin(),axis.text.y = element_text(face = "italic", size = 12),legend.title = element_text(size = 11), legend.text = element_text(size=11),axis.text.x = element_text(size = 12))+
+  #theme(text = element_text(size = 18), axis.text.y = element_text(face = "italic", size = 18),legend.position="bottom",legend.box="vertical", legend.margin=margin(),legend.justification = "left")+
+  #scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85"), guide="none") +
+  scale_shape_manual(name = "", labels = c("decreased", "increased"), values = c(25, 24))+
+  ggtitle("Sputum")+
+ guides(colour = guide_legend(order = 3), 
+              shape = guide_legend(order = 4),scale_fill_gradient2=guide_legend(order = 2), scale_size_continuous=guide_legend(order = 1))#+
+ # geom_text(aes(label=fdr), color = "black", size = 8)
+  
+tax_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_stool_patients.rds")
+
+tax_stool <- tax_stool+
+  theme_pubclean()+
+  theme(text = element_text(size = 12), axis.text.y = element_text(face = "italic", size = 12),axis.text.x = element_text(size = 12), axis.title.x = element_text(size = 12),legend.position="bottom",legend.box="vertical", legend.text = element_text(size=11), legend.title = element_text(size = 11), legend.margin=margin(),legend.box.just = "left")+
+  scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85"), guide="none") +
+  scale_shape_manual(name = "", labels = c("decreased", "increased"), values = c(25, 24), guide="none")+
+  ggtitle("Stool")#+
+  #geom_text(aes(label=fdr), color = "black", size = 8)
+
+dom_spu <- dom_spu+
+   theme(legend.position="right", text = element_text(size=12), legend.justification = "right",legend.text = element_text(size=12))+
+  guides(fill=guide_legend(title.position="top", 
+                                     title.hjust =0.5, ncol = 2))+
+  ggtitle("Sputum")
+
+grid_arranged <- grid.arrange(
+  dom_spu + labs(tag = "B") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  tax_sputum + labs(tag = "A"),
+  tax_stool + labs(tag = "C"),
+  ncol = 2, nrow = 2,
+  heights = c(1, 1.8),
+  widths=c(1,1.1),
+  layout_matrix = rbind(c(2,1),
+                       (c(2,3))
+                       ))
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig4.tiff",grid_arranged, dpi = 600, width = 15.5, height = 8)
+```

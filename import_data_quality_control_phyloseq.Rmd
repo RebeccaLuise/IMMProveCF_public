@@ -1,0 +1,826 @@
+---
+title: "01_Import_data with new clinical and 16 S DATA"
+author: "Rebecca Luise Knoll"
+date: "13 7 2022"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+```
+
+```{r path and packages, include=FALSE}
+setwd("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis")
+getwd() 
+
+# install and load all needed packages
+library(pacman)
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, stringr)
+```
+
+### First filter combined asv and tax files from the Mainz server for IMP and IMMP samples
+
+```{r filter combined asv and tax files from the Mainz server for IMP and IMMP samples, eval=FALSE}
+
+#asvfile <- "/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/Run1-23_ASV_table_decontam_combined.csv"
+#taxfile <- "/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/Run1-23_ASV_taxonomy_decontam_combined.csv"
+#metafile <- "/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/Run1-23_Sample_Metadata_combine.csv"
+
+#asv <- otu_table(read.csv(asvfile, sep = "\t", row.names = 1),taxa_are_rows = FALSE)
+#tax <- read.csv(taxfile, sep = "\t", row.names = 1)
+#tax_matrix <- as(tax, 'matrix')
+#tax <- tax_table(tax_matrix)
+#metadata <- read.csv(metafile, fill = TRUE, sep = "\t")
+#metadata <- subset(metadata, X.SampleID != "")
+#metadata <- metadata[-c(3091:3097),] #remove duplicate rows of a PRIMAL sample
+#rownames(metadata) <- metadata$X.SampleID
+#sample_data <- sample_data(metadata)
+
+#ps_all <- phyloseq(asv, tax, sample_data)
+#view(sample_data(ps_all))
+
+#saveRDS(ps_all, "/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/ps_Run1-23combined.rds")
+
+# subset IMMProveCF and healthy Controls
+ps_IMP <- subset_samples(ps_all, project == "IMP"| project == "IMMP") # IMMP are healthy controls
+ps_IMP<- subset_samples(ps_IMP, exclusion != "True") # exclusion wird im python script erstellt und kennzeichnet, alle die wir nicht auswerten wollen (low read count, doppelte Sequenzierung etc..)
+ps_IMP<- prune_taxa(taxa_sums(ps_IMP) > 0, ps_IMP)
+
+write.table(otu_table(ps_IMP), file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_ASV_table.csv", quote = FALSE, sep = "\t", col.names=NA)
+write.table(tax_table(ps_IMP), file ="/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_ASV_taxonomy.csv", quote = FALSE, sep = "\t", col.names=NA)
+write.table(sample_data(ps_IMP), file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_metadata.csv", quote = FALSE, sep = "\t", col.names=NA)
+
+saveRDS(ps_IMP, "/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/ps_Run1-23_IMMProveCF.rds")
+
+```
+
+
+### Import data
+```{r data, include=FALSE}
+sample_metadata_tbl <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_metadata.csv", delim = NULL, col_names = TRUE, col_types = NULL)
+
+clinicaldata <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/clinicaldata_combined_23102023.csv", locale=locale(encoding="latin1"), delim = NULL, col_names = TRUE, col_types = NULL)
+
+table_decontam_tbl <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_ASV_table.csv", delim = NULL, col_names = TRUE, col_types = NULL) 
+
+taxonomy_decontam_tbl <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_ASV_taxonomy.csv", delim = NULL, col_names = TRUE, col_types = NULL)
+
+qPCR <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/IMP_qPCR_results_form_01.07.csv", delim = NULL, col_names = TRUE, col_types = NULL)
+
+duplicates <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/duplicated_samples_inclusion.csv", delim = NULL, col_names = TRUE, col_types = NULL)
+
+# tree
+```
+
+```{r exclude duplicated samples and correct extraction details}
+sample_metadata_tbl_c <- sample_metadata_tbl %>% clean_names()
+glimpse(sample_metadata_tbl_c)
+
+summary(as_factor(sample_metadata_tbl_c$run_num))
+
+sample_metadata_clean_tbl <- sample_metadata_tbl_c %>%
+  mutate(material = as_factor(material))%>%
+  select(c(1,2,4,7,8,10,11,12,13,14,17,27,29,36,47,50)) # selects only relevant columns
+
+duplicates <- duplicates%>%clean_names()
+
+duplicates <- duplicates%>%
+  select(x1, correct_extract_quant_ng_ul, corrected_extraction_date, study_inclusion)
+
+# Katja has looked through all duplicated samples and indicated with study inclusion whether they should be in- or excluded from the analysis, I merge this info with the sample_metadata
+sample_metadata_clean_tbl <- sample_metadata_clean_tbl%>%
+left_join(duplicates, by= "x1")%>%
+  mutate(study_inclusion = case_when(is.na(study_inclusion)~TRUE, study_inclusion==TRUE ~ TRUE, study_inclusion==FALSE~FALSE))
+
+# set 21IMP9V7Thr & 20IMP9V6Thr inclusion_study==FALSE
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x_sample_id == "21IMP9V7Thr"]<-"FALSE"
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x_sample_id == "20IMP9V6Thr"]<-"FALSE"
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x_sample_id == "19IMP23V3Thr"]<-"FALSE"
+
+# for those samples Katja also corrected some wrong written extraction dates
+# choose default value from corrected_extraction_date in the case that both corrected_extraction_date and delta_ETI_days have values
+sample_metadata_clean_tbl$extraction_date_new[is.na(sample_metadata_clean_tbl$corrected_extraction_date) & !is.na(sample_metadata_clean_tbl$extraction_date)] <-
+    sample_metadata_clean_tbl$corrected_extraction_date[!is.na(sample_metadata_clean_tbl$corrected_extraction_date) & !is.na(sample_metadata_clean_tbl$extraction_date)]
+
+sample_metadata_clean_tbl <- sample_metadata_clean_tbl%>%
+  select(-c(extraction_date, corrected_extraction_date))
+
+```
+
+```{r sample_metadata_clean_tbl}
+#rewrite wrong written labels 
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP17V5Thr"]<-"IMP_17_V5_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP30V7Thr"]<-"IMP_30_V7_Thr"
+
+# IMP 19 had no V2 and labelling got messed up, it has to be rewritten as follows:
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "18IMP19V2St"]<-"18IMP19V3St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id  == "18IMP19V3St"]<-"18IMP19V4St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id  == "18IMP19V4St"]<-"18IMP19V5St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "18IMP19V3St"]<-"IMP_19_V3_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "18IMP19V4St"]<-"IMP_19_V4_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "18IMP19V5St"]<-"IMP_19_V5_St"
+
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP19V2Thr"]<-"20IMP19V3Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "19IMP19V3Thr"]<-"19IMP19V4Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "19IMP19V4Thr"]<-"19IMP19V5Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP19V3Thr"]<-"IMP_19_V3_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "19IMP19V4Thr"]<-"IMP_19_V4_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "19IMP19V5Thr"]<-"IMP_19_V5_Thr"
+
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x_sample_id == "20IMP19V5"]<-"FALSE"#this sample is a stool sample and got resequenced due to the mess earlier inrun 21 with correct labeling as V6St
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x_sample_id == "20IMP19V5Thr"]<-"FALSE"#this sample got resequenced due to the mess earlier in run 21 with correct labeling as V6Thr
+
+# IMP 23 had no V2 and labelling got messed up, it has to be rewritten as follows:
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "19IMP23V3Thr"]<-"19IMP23V4Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "19IMP23V4Thr"]<-"19IMP23V5Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V2St"]<-"20IMP23V3St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V2Thr"]<-"20IMP23V3Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V4"]<-"20IMP23V5St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V5St"]<-"20IMP23V6St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V5Thr"]<-"20IMP23V6Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP23V3Thr"]<-"20IMP23V4Thr"
+
+
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "19IMP23V4Thr"]<- "IMP_23_V4_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V4Thr"]<- "IMP_23_V4_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "19IMP23V5Thr"]<- "IMP_23_V5_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V3St"]<- "IMP_23_V3_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V3Thr"]<- "IMP_23_V3_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V5St"]<- "IMP_23_V5_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V6St"]<- "IMP_23_V6_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP23V6Thr"]<- "IMP_23_V6_Thr"
+
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x1 == "21IMP23V6Thr"]<-"FALSE"#this sample got resequenced due to the mess earlier in run 21 with correct labeling as V6Thr
+
+# other wrong written labels
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "20IMP11V6"]<-"20IMP11V6St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "20IMP15V6"]<-"20IMP15V6St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "20IMP16V5"]<-"20IMP16V5St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "22IMP05V7Thr"]<-"22IMP5V7Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP9V6Thr"]<-"IMP_9_V6_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP5V7Thr"]<-"IMP_5_V7_Thr"
+
+sample_metadata_clean_tbl$study_inclusion[sample_metadata_clean_tbl$x1 == "20IMP5V7Thr"]<-"FALSE"#this sample got resequenced and due to the wrong labelling of "22IMP05V7Thr", was not detected in the duplicate screening
+
+
+# IMP9 had no V6, but V7, has to be rewritten, and V7 is then V8, furthermore some throat samples were sequenced twice, set the ones on run 20 on false 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "22IMP09V6Thr"]<-"22IMP9V6Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP9V6Thr"]<-"IMP_9_V7_Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "22IMP9V7Thr"]<-"22IMP9V8Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP9V8Thr"]<-"IMP_9_V8_Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x1 == "22IMP9V6Thr"]<-"22IMP9V7Thr"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "21IMP9V7St"]<-"21IMP9V8St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "21IMP9V8St"]<-"IMP9_V8_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "21IMP9V6St"]<-"IMP_9_V7_St"
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$label == "IMP_9_V7_St"]<-"21IMP9V7St"
+
+# IMP40 had a Visit 2, but it was marked as visit 3 -> everything was shifted and has now to be rewritten
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "20IMP40V1"]<-"20IMP40V1St" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "21IMP40V3St"]<-"21IMP40V2St" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "21IMP40V3Thr"]<-"21IMP40V2Thr" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "22IMP40V3Thr"]<-"22IMP40V2Thr" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "22IMP40V4St"]<-"22IMP40V3St" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "22IMP40V4Thr"]<-"22IMP40V3Thr" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "22IMP40V5St"]<-"22IMP40V4St" 
+sample_metadata_clean_tbl$x1[sample_metadata_clean_tbl$x_sample_id == "22IMP40V5Thr"]<-"22IMP40V4Thr"
+
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "20IMP40V1St"]<-"IMP_40_V1_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "21IMP40V2St"]<-"IMP_40_V2_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "21IMP40V2Thr"]<-"IMP_40_V2_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP40V2Thr"]<-"IMP_40_V2_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP40V3St"]<-"IMP_40_V3_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP40V4St"]<-"IMP_40_V4_St"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP40V4Thr"]<-"IMP_40_V4_Thr"
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP40V3Thr"]<-"IMP_40_V3_Thr"
+
+# IMP24V9St von Run 22 is V8, was wrong labeled
+sample_metadata_clean_tbl$label[sample_metadata_clean_tbl$x1 == "22IMP24V9St"]<- "IMP_24_V8_St"
+
+# extract visit from label
+sample_metadata_clean_tbl_imp <- sample_metadata_clean_tbl%>%
+  filter(grepl("IMP",x_sample_id))%>%
+  separate(label, c("project","id", "visit", "mat"), "_")%>%
+  mutate(visit =as.factor(visit))
+
+sample_metadata_clean_tbl_control <- sample_metadata_clean_tbl%>%
+  filter(grepl("IMMP",x_sample_id))%>%
+  separate(label, c("id","project","mat","visit"), "_")%>%
+  mutate(visit =as.factor(visit))
+
+sample_metadata_clean_tbl_nc <- sample_metadata_clean_tbl%>%
+  filter(grepl("NK",x_sample_id))%>%
+  separate(label, c("id","project","mat","visit"), "_")%>%
+  mutate(visit =as.factor(visit))
+
+sample_metadata_clean_tbl<- rbind(sample_metadata_clean_tbl_imp, sample_metadata_clean_tbl_control, sample_metadata_clean_tbl_nc )
+
+# correct
+sample_metadata_clean_tbl$material[sample_metadata_clean_tbl$material == "Sputum "]<-"Sputum"
+sample_metadata_clean_tbl$material[sample_metadata_clean_tbl$material =="Sputum  "]<-"Sputum"
+sample_metadata_clean_tbl$visit[sample_metadata_clean_tbl$visit == "V1 "]<-"V1"
+sample_metadata_clean_tbl$visit[sample_metadata_clean_tbl$visit == "V4 "]<-"V4"
+sample_metadata_clean_tbl$mat[sample_metadata_clean_tbl$mat =="Thrt"]<-"Thr"
+sample_metadata_clean_tbl$mat[sample_metadata_clean_tbl$mat =="ST"]<-"St"
+
+summary(as_factor(sample_metadata_clean_tbl$material))
+
+sample_metadata_clean_tbl$material<- fct_relevel(sample_metadata_clean_tbl$material,"Sputum", "Throat", "Stool")
+
+sample_metadata_clean_tbl%>%
+  filter(material=="Sputum")
+
+view(sample_metadata_clean_tbl[,c("x_sample_id","x1","extraction_date_new","visit")])
+
+# view(sample_metadata_clean_tbl[,c("x1","x_sample_id","extraction_date_new","study_inclusion")])
+```
+
+```{r clean qPCR data}
+
+qPCR <- clean_names(qPCR)
+
+qPCR_c <- qPCR%>%
+  select(1:19)
+
+#create merging variable
+qPCR_c$label.new<-gsub(qPCR_c$label, pattern="_", replacement="")
+qPCR_c$label.new <- gsub(qPCR_c$label.new, pattern="Thr", replacement="")
+qPCR_c$label.new <- gsub(qPCR_c$label.new, pattern="St", replacement="")
+qPCR_c$label.new <- gsub(qPCR_c$label.new, pattern="Spu", replacement="")
+qPCR_c$label.new <- gsub(qPCR_c$label.new, pattern=" ", replacement="")
+
+qPCR_c <- qPCR_c%>%
+  mutate(label.new=paste(label.new, material, sep=""))
+
+qPCR_c$label.new <- gsub(qPCR_c$label.new, pattern="stool", replacement="Stool")
+
+qPCR_clean <- qPCR_c%>%
+distinct(label.new, .keep_all = T)
+
+```
+
+```{r clean clinical data}
+#rewrite wrong written labels
+clinicaldata$id[clinicaldata$id == "IMP35 "]<-"IMP35"
+clinicaldata$id[clinicaldata$id == "IMP34 "]<-"IMP34"
+clinicaldata$id[clinicaldata$id == "IMP31 "]<-"IMP31"
+
+clinicaldata <- clinicaldata%>%
+  filter(!is.na(id))
+
+glimpse(clinicaldata)
+
+# create mutation groups
+clinicaldata  <- clinicaldata %>% 
+  mutate(mutation_status= case_when(mutation=="F508delta/F508delta"~ "F508del homozygous", TRUE ~ "F508del heterozygous")) 
+
+clinicaldata_clean  <- clinicaldata %>% 
+  mutate(id= as.factor(id))%>%
+  mutate(sex= as.factor(sex))%>%
+  mutate(visit= as.factor(visit))%>%
+  mutate(mutation= as.factor(mutation))%>%
+  mutate(mutation_status= as.factor(mutation_status))%>%
+  mutate(sao2_percent= as.numeric(sao2_percent))%>%
+  mutate(across(28:115, as.factor))%>%
+  mutate(across(117:186, as.numeric))%>%
+  mutate(across(188:189, as.numeric))%>%
+  mutate(across(191:203, as.numeric))%>%
+  mutate(across(205:211, as.numeric))%>%
+  mutate(across(213:216, as.numeric))%>%
+  mutate(neues_lufu_ger_a_t= as.factor(neues_lufu_ger_a_t))
+
+# clean levels  and coding of medication, 0= none, 1= rarely, 2= intermittent, 3= always
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(lumacaftor_ivacaftor_orkambi=case_when(lumacaftor_ivacaftor_orkambi=="o"~"0", lumacaftor_ivacaftor_orkambi=="1"~"1", lumacaftor_ivacaftor_orkambi=="0"~"0"))#%>%
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(lumacaftor_ivacaftor_orkambi=as.numeric(lumacaftor_ivacaftor_orkambi))
+
+#create column for previous CFTR-modulator therapy
+clinicaldata_clean$cftr_sum <- rowSums(clinicaldata_clean[, c("lumacaftor_ivacaftor_orkambi", "ivacaftor_kalydeco", "tezacaftor_ivacaftor_symkevi")], na.rm = TRUE) # has to be numeric to work
+
+clinicaldata_test <- clinicaldata_clean[, c("lumacaftor_ivacaftor_orkambi", "ivacaftor_kalydeco", "tezacaftor_ivacaftor_symkevi", "cftr_sum", "visit", "id")]
+
+#for(pat in unique(clinicaldata_clean$id)) {
+  #clinicaldata_clean[clinicaldata_clean$id == pat, cftr_prev] <- unique(clinicaldata_clean$ctfr_sum[clinicaldata_clean$id == pat])
+#}
+
+dic_df <- clinicaldata_clean[clinicaldata_clean$visit == 1, c("cftr_sum","id")]
+
+clinicaldata_test <- merge(clinicaldata_clean, dic_df, by = "id")%>%
+  select(-cftr_sum.x)%>%
+  mutate(cftr_prior_v1= cftr_sum.y)%>%
+  select(-cftr_sum.y)%>%
+  mutate(cftr_prior_v1 = case_when(cftr_prior_v1==1 ~"1",cftr_prior_v1==2 ~"1", cftr_prior_v1==0 ~"0"))
+
+glimpse(clinicaldata_test)
+
+clinicaldata_clean<- clinicaldata_test
+
+summary(clinicaldata_clean$delta_kaftrio_start_date_visit_days)
+
+clinicaldata_clean$date_f <- as.Date(clinicaldata_clean$date, format="%m/%d/%Y")
+clinicaldata_clean$kaftrio_start_f <- as.Date(clinicaldata_clean$kaftrio_start, format="%m/%d/%Y")
+clinicaldata_clean$delta_ETI_days = as.numeric(difftime(clinicaldata_clean$date_f, clinicaldata_clean$kaftrio_start_f, units = "days"))
+
+summary(clinicaldata_clean$delta_ETI_days) # problem is that some of the dates are wrong entries, the delta_kaftrio_start_date_visit_days is more trustworthy, hence I only want to replace in there with delta_ETI_days and otherwise keep the entries from delta_kaftrio_start_date_visit_days
+
+# choose default value from delta_kaftrio_start_date_visit_days in the case that both delta_kaftrio_start_date_visit_days and delta_ETI_days have values
+clinicaldata_clean$delta_ETI_merged[!is.na(clinicaldata_clean$delta_kaftrio_start_date_visit_days) & !is.na(clinicaldata_clean$delta_ETI_days)] <-
+    clinicaldata_clean$delta_kaftrio_start_date_visit_days[!is.na(clinicaldata_clean$delta_kaftrio_start_date_visit_days) & !is.na(clinicaldata_clean$delta_ETI_days)]
+
+clinicaldata_clean$delta_ETI_merged[is.na(clinicaldata_clean$delta_kaftrio_start_date_visit_days)] <- clinicaldata_clean$delta_ETI_days[is.na(clinicaldata_clean$delta_kaftrio_start_date_visit_days)]
+
+summary(clinicaldata_clean$delta_ETI_merged)
+
+clinicaldata_clean %>% 
+  filter(is.na(delta_ETI_merged)) %>% 
+  select(id, visit, date, delta_ETI_days) # the 51 NAs come from entries in the table, where the visit has not yet been conducted 
+
+#add a calculated visit out of the clinicaldata_clean$delta_ETI_days
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(visit_cal = case_when(delta_ETI_merged<=1 ~"1", delta_ETI_merged >=2 & delta_ETI_merged<=135 ~"2", delta_ETI_merged >=136 & delta_ETI_merged<=225 ~"3", delta_ETI_merged >=226 & delta_ETI_merged<=315 ~"4", delta_ETI_merged >=316 & delta_ETI_merged<=405 ~"5", delta_ETI_merged >=406 & delta_ETI_merged<=495 ~"6", delta_ETI_merged >=496 & delta_ETI_merged<=585 ~"7", delta_ETI_merged >=586 & delta_ETI_merged<=675 ~"8",
+delta_ETI_merged >= 676 ~"9"))%>%
+  mutate(visit_cal = as_factor(visit_cal))
+
+clinicaldata_clean$visit_cal <- factor(clinicaldata_clean$visit_cal, levels=c('1', '2', '3', '4', '5','6' , '7', '8', '9'))
+
+#because some samples then fall into the same visit for visit_cl for the same patient, change intervals accordingly
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(visit_cal_cor = case_when(delta_ETI_merged<=1 ~"1", delta_ETI_merged >=2 & delta_ETI_merged<=135 ~"2", delta_ETI_merged >=136 & delta_ETI_merged<=225 ~"3", delta_ETI_merged >=226 & delta_ETI_merged<=312 ~"4", delta_ETI_merged >=313 & delta_ETI_merged<=405 ~"5", delta_ETI_merged >=406 & delta_ETI_merged<=495 ~"6", delta_ETI_merged >=496 & delta_ETI_merged<=598 ~"7", delta_ETI_merged >=599 & delta_ETI_merged<=677 ~"8",
+delta_ETI_merged >= 678 & delta_ETI_merged<=767~"9", delta_ETI_merged >= 768 ~ "10"))%>%
+  mutate(visit_cal = as_factor(visit_cal_cor))
+
+clinicaldata_clean$visit_cal_cor <- factor(clinicaldata_clean$visit_cal_cor, levels=c('1', '2', '3', '4', '5','6' , '7', '8', '9','10'))
+
+table(clinicaldata_clean$visit_cal_cor, clinicaldata_clean$id)
+
+clinicaldata_clean%>%
+  select(id, visit, visit_cal, visit_cal_cor, delta_ETI_days)%>%
+  arrange(id, delta_ETI_days)
+
+### at 16.03.2023 the date for the visit of the following have not yet been calculated, but for the moment visit_cal_cor can be assigned
+clinicaldata_clean <- clinicaldata_clean %>% 
+  mutate(id_visit=paste(id,visit, sep = "V"))
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP24V9"]<-"9"
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP28V8"]<-"8"
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP9V8"]<-"8"
+
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP9V6"]<-"6"
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP24V10"]<-"10"
+
+### for some patients the corrected visit intervals cause problems, here I assign the visist which has the smallest delta to the corrected visit_cal_cor
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP26V8"]<-"8"
+clinicaldata_clean$visit_cal_cor[clinicaldata_clean$id_visit == "IMP25V8"]<-"8"
+
+# add visit_sum
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(visit_sum = case_when(visit_cal_cor == "1" ~ "1", visit_cal_cor == "2" ~ "2", visit_cal_cor=="3" | visit_cal_cor=="4" | visit_cal_cor=="5"~ "3-5", visit_cal_cor=="6" | visit_cal_cor=="7" ~ "6-7", visit_cal_cor=="8" | visit_cal_cor=="9"| visit_cal_cor=="10"~ "8-10"))%>%
+  mutate(visit_sum = as.factor(visit_sum))
+
+
+# Sort treatment in new order clean levels  and coding of medication, 0= none, 1= rarely, 2= intermittent, 3= always
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(cortison_oral_b_b = case_when(cortison_oral_b_b ==3 ~1, cortison_oral_b_b== 0 ~0 ))%>%
+  mutate(nasenspray= case_when(nasenspray ==3 ~1, nasenspray== 0 ~0 ))
+
+cols<-c(clinicaldata_clean$dpi_colistin,clinicaldata_clean$azetrom_inhal,clinicaldata_clean$ursodesoxychols_a_ure)
+
+#recode all variables with 3 levels(0,1,2)
+clinicaldata_clean <- clinicaldata_clean%>%
+    mutate(across(c(dpi_colistin, azetronam_inhal, ursodesoxychols_a_ure),
+        ~recode(., "1"="2", "2"="1", "0"="0")))
+
+#recode all variables with 4 levels(0,1,2,3)
+clinicaldata_clean <- clinicaldata_clean%>%
+    mutate(across(c(levofloxacin_inhal,colistin_inhal,tobramycin_inhal,hypertonic_na_cl, tranexams_a_ure),
+        ~recode(., "1"="3", "2"="2", "3"="1", "0"="0")))
+
+#recode all variables with 3 levels(0,1,3) (3= b.Bedarf gets 1)
+clinicaldata_clean <- clinicaldata_clean%>%
+    mutate(across(c(laba_inhal,saba_inhal,dn_ase,mannitol, anticholinergic,cortison_inhal, ppi, adek, vitamin_d, nsaid,acetylcystein, calcium, omega_3_fs, augentropfen),
+        ~recode(., "1"="2", "3"="1", "0"="0")))
+         
+#unclear <- isotonic__cl,hypertonic__cl,saba_inhal,cortison_sal,antihistaminikum,sensp_a1_4lung,pancreatic_enzymes, orale_zusatzhrung,phyto_homeo_oral
+
+# omit columns from data which only have NA's or 0
+#only 0 cortison_dermal,X_cl_oral,fols_a_ure
+#onlyNA laxantien
+clinicaldata_clean <- clinicaldata_clean%>%
+  select(-c(cortison_dermal, fols_a_ure))
+
+glimpse(clinicaldata_clean)
+
+clinicaldata_clean  <- clinicaldata_clean %>% 
+  mutate(across(113:179,as.numeric))
+
+#view(clinicaldata_clean)
+
+# recode conventional microbiological data set, for the microbiological data= 1 means abundant, 2 means few, to put it into a numerical concept I have to recode it as NA=unknown, 0= not detected, 1= few detected, 2= abundant, columns 26:111 are microbiological data
+clinicaldata_clean <- clinicaldata_clean%>%
+    mutate(across(
+    26:111,
+        ~recode(., "1"="2", "2"="1", "0"="0")))
+
+# calculate VO2 max per kg
+
+clinicaldata_clean$vo2peak_ml_min_kg <- (clinicaldata_clean$vo2peak_ml_min/clinicaldata_clean$weight_kg)
+
+#check current collection status
+clinicaldata_clean_collected <- clinicaldata_clean%>%
+  filter(delta_kaftrio_start_date_visit_days!=is.na(delta_kaftrio_start_date_visit_days))
+summary(clinicaldata_clean_collected$visit)
+
+ggplot(clinicaldata_clean_collected, aes(delta_kaftrio_start_date_visit_days))+
+  geom_bar(width = 5)
+
+###
+view(clinicaldata_clean[, c("id", "visit", "visit_cal", "visit_cal_cor", "delta_kaftrio_start_date_visit_days","delta_ETI_merged")])
+```
+
+```{r create new clinical data variables}
+# create pseudo pos y/n and Staph pos y/n variable
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(pseudo_pos_sputum= case_when(pseudomonas_aeruginosa_sputum==1 ~ T, pseudomonas_aeruginosa_sputum==2~ T, pseudomonas_aeruginosa_mucoid_sputum==1 ~ T, pseudomonas_aeruginosa_mucoid_sputum==2 ~ T, pseudomonas_aeruginosa_3_4mrgn_sputum==1~T, pseudomonas_aeruginosa_sputum==0 ~ F, pseudomonas_aeruginosa_mucoid_sputum ==0 ~ F, pseudomonas_aeruginosa_3_4mrgn_sputum==0~F))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(pseudo_pos_throat= case_when(pseudomonas_aeruginosa_rachenabstrich==1 ~ T, pseudomonas_aeruginosa_rachenabstrich==2~ T, pseudomonas_aeruginosa_3_4mrgn_rachenabstrich==1~T, pseudomonas_aeruginosa_rachenabstrich==0 ~ F, pseudomonas_aeruginosa_3_4mrgn_rachenabstrich==0~F))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(staph_pos_throat= case_when(staphylococcus_aureus_rachenabstrich==1 ~ T, staphylococcus_aureus_rachenabstrich==2~ T, staphylococcus_aureus_mrsa_rachenabstrich==1~T, staphylococcus_aureus_rachenabstrich==0 ~ F, staphylococcus_aureus_mrsa_rachenabstrich==0~F))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(staph_pos_sputum= case_when(staphylococcus_aureus_sputum==1 ~ T, staphylococcus_aureus_sputum==2~ T, staphylococcus_aureus_small_colony_variants_sputum==1~T, staphylococcus_aureus_sputum==0 ~ F, staphylococcus_aureus_small_colony_variants_sputum==0~F))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(mibi_staph_pos= case_when(staph_pos_sputum== T | staph_pos_throat== T ~ T, staph_pos_sputum == F | staph_pos_throat== F ~ F))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(mibi_pseudo_pos= case_when(pseudo_pos_sputum== T | pseudo_pos_throat== T ~ T, pseudo_pos_sputum == F | pseudo_pos_throat== F ~ F))
+
+clinicaldata_clean%>%
+  filter(mibi_pseudo_pos!=is.na(mibi_pseudo_pos))%>%
+  ggplot(aes(visit, fill=mibi_pseudo_pos))+
+  geom_bar()
+  
+clinicaldata_clean%>%
+  ggplot(aes(visit, fill=mibi_pseudo_pos))+
+  geom_bar()
+
+clinicaldata_clean%>%
+  ggplot(aes(visit, fill=mibi_staph_pos))+
+  geom_bar()
+
+summary(as.factor(clinicaldata_clean$id))
+
+# calculate total antibiotic burden, as iv and po where collected separately
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(antibioticburden_365prior_visit = (antibioticburden_po_365prior_visit+antibioticburden_iv_365prior_visit))
+
+clinicaldata_clean <- clinicaldata_clean%>%
+  mutate(treatmentdays_365prior_visit = (treatmentdays_po_365prior_visit + treatmentdays_iv_365prior_visit))
+
+```
+```{r clean control metadata}
+
+nutrition_df <- readxl::read_excel("/Users/rebecca/Documents/Forschung/IMMProveCF/KlinischeDaten/Nutrition.xlsx")
+
+nutrition_df <- nutrition_df %>% 
+  mutate(nutrition = case_when(basic_nutrition==1 ~ "Mixed", basic_nutrition== 2 ~ "Vegetarian", basic_nutrition== 3 ~ "Pescarian", basic_nutrition==  4 ~ "Flexitarian", basic_nutrition== 5 ~ "Vegan", basic_nutrition== 6 ~ "Paleo", basic_nutrition== 7 ~ "Ketogen", basic_nutrition== 8 ~ "Glutenfree")) %>% 
+  mutate(nutrition=as_factor(nutrition))
+
+nutrition_df_control <- nutrition_df%>%
+  filter(grepl("IMMP",ID))%>%
+  separate_wider_delim(ID, "_", names=c("id","project"))%>% 
+  mutate(id =as.factor(id))
+  
+control_data <-  read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/KlinischeDaten/IMMProveCF_Kontrollgruppe_Info.csv")
+
+control_data <- control_data%>%
+      separate_wider_delim(`ID `, "_", names=c("id","project"))
+```
+
+```{r merge clinicaldata with sample_metadata}
+#create unique identifier per id/visit in each data set
+
+clinicaldata_clean <- clinicaldata_clean %>% 
+  mutate(id_visit=paste(id,visit, sep = "V"))
+
+# correct wrong entries:
+sample_metadata_clean_tbl$project[sample_metadata_clean_tbl$x1 == "21IMP9V8St"]<-"IMP"
+sample_metadata_clean_tbl$id[sample_metadata_clean_tbl$x1 == "21IMP9V8St"]<-"9"
+sample_metadata_clean_tbl$visit[sample_metadata_clean_tbl$x1 == "21IMP9V8St"]<-"V8"
+sample_metadata_clean_tbl$mat[sample_metadata_clean_tbl$x1 == "21IMP9V8St"]<-"St"
+
+sample_metadata_clean_tbl$project[sample_metadata_clean_tbl$x1 == "23KO34IMPThr"]<-"IMMP"
+sample_metadata_clean_tbl$id[sample_metadata_clean_tbl$x1 == "23KO34IMPThr"]<-"KO34"
+sample_metadata_clean_tbl$visit[sample_metadata_clean_tbl$x1 == "23KO34IMPThr"]<-"NA"
+sample_metadata_clean_tbl$mat[sample_metadata_clean_tbl$x1 == "23KO34IMPThr"]<-"Thr"
+
+sample_metadata_clean_tbl <- sample_metadata_clean_tbl %>% 
+  mutate(id_visit=paste(project,id,visit, sep = ""))
+
+sample_metadata_clean_tbl$id_visit <- gsub("NA","",sample_metadata_clean_tbl$id_visit)
+
+sample_clinical_metadata <- sample_metadata_clean_tbl %>%
+  left_join(clinicaldata_clean, by="id_visit")%>%
+  mutate(id=id.y)%>%
+  mutate(visit=visit.y)
+
+sample_clinical_metadata%>%
+  filter(is.na(visit_sum))%>%
+  select(c(x1, id, visit, id_visit)) # the samples that are displayed here, are the one's that don't have clinical data collected or are control samples, because patients withdraw consent to participate in the study
+
+#clinicaldata_short <- clinicaldata_clean %>% 
+  #select(c(id, age_y, sex, visit, bmi, pseudomos_aeruginosa_sputum, pseudomos_aeruginosa_rachebstrich, staphylococcus_aureus_sputum, staphylococcus_aureus_rachebstrich, lumacaftor_ivacaftor, ab_15dprior_visit, pp_fe_percent, pp_fvc_percent))
+
+sample_clinical_metadata$insulin[sample_clinical_metadata$x1 == "18IMP16V1Spu"]<-0
+
+# rewrite one viist which would be double otherwise in the corrected calculated visits
+sample_clinical_metadata$visit_cal_cor[sample_clinical_metadata$x1 == "21IMP26V8Thr"]<-"8"
+
+glimpse(sample_clinical_metadata)
+
+sample_clinical_metadata <- sample_clinical_metadata%>%
+  mutate(id_visit_mat= paste(project,id.x,visit.x,material, sep = ""))
+
+sample_clinical_metadata$id_visit_mat <- gsub("NA","",sample_clinical_metadata$id_visit_mat)
+
+qPCR_clean<-qPCR_clean%>%
+  select(label.new, quantity_mean)
+
+sample_clinical_metadata <- sample_clinical_metadata %>%
+  left_join(qPCR_clean, by=c("id_visit_mat"="label.new"))
+
+sample_clinical_metadata$quantity_mean <- as.numeric(sample_clinical_metadata$quantity_mean)
+
+### check for duplicates
+sample_clinical_metadata%>%
+  distinct(id_visit_mat, .keep_all = T) %>% 
+  select(x1, id_visit_mat)
+
+sample_clinical_metadata%>%
+  filter(project!="IMP")
+
+# create 1 variable which combine visit 9 and 10 into a single visit 9
+sample_clinical_metadata<-sample_clinical_metadata%>%
+  mutate(visit_cal_9 = case_when(visit_cal_cor=="10"~"9", TRUE~visit_cal_cor))
+
+# create new delta variables
+sample_clinical_metadata <- sample_clinical_metadata%>%
+  mutate(baseline_ppfev1 = case_when(visit_cal_9 =="1"~ pp_fev_percent))%>%
+  group_by(id)%>%
+  fill(baseline_ppfev1)%>%
+  #select(c(id, visit_cal_9, baseline_ppfev1, pp_fev_percent))%>%
+  mutate(delta_ppfev1 = pp_fev_percent-baseline_ppfev1)%>%
+  ungroup()
+
+# change the O TO 0 in the id.x variable
+sample_clinical_metadata  <- sample_clinical_metadata %>% 
+  mutate(id.x = gsub("O", "0",id.x))
+```
+
+```{r merge with control data}
+
+# in the control data sex is coded wrongly, I have to recode 1=2 (for female, and 2=1 for male)
+
+control_data <- clean_names(control_data)
+control_data<-control_data %>% 
+  mutate(sex = as.factor(geschlecht)) %>%
+  mutate(sex= case_when(sex=="1"~"2", sex=="2"~"1"))
+
+control_data_sel <- control_data %>% 
+  mutate(age_y = as.numeric(alter)) %>% 
+  select(id, project, age_y, sex)
+
+sample_clinical_metadata <- sample_clinical_metadata %>% 
+  left_join(control_data_sel, by=c("id.x"="id"))
+
+sample_clinical_metadata$sex <- ifelse(is.na(sample_clinical_metadata$sex.x), 
+                                        as.character(sample_clinical_metadata$sex.y), 
+                                        ifelse(is.na(sample_clinical_metadata$sex.y), 
+                                               as.character(sample_clinical_metadata$sex.x), 
+                                               paste0(sample_clinical_metadata$sex.x, sample_clinical_metadata$sex.y)))
+
+sample_clinical_metadata$age_y <- ifelse(is.na(sample_clinical_metadata$age_y.x), 
+                                        as.character(sample_clinical_metadata$age_y.y), 
+                                        ifelse(is.na(sample_clinical_metadata$sex.y), 
+                                               as.character(sample_clinical_metadata$sex.x), 
+                                               paste0(sample_clinical_metadata$sex.x, sample_clinical_metadata$sex.y)))
+
+sample_clinical_metadata$age_y <- ifelse(is.na(sample_clinical_metadata$age_y.x), 
+                                         as.character(sample_clinical_metadata$age_y.y), 
+                                         ifelse(is.na(sample_clinical_metadata$age_y.y), 
+                                                as.character(sample_clinical_metadata$age_y.x), 
+                                                paste0(sample_clinical_metadata$age_y.x, sample_clinical_metadata$age_y.y)))
+
+sample_clinical_metadata$project <- ifelse(is.na(sample_clinical_metadata$project.x), 
+                                         as.character(sample_clinical_metadata$project.y), 
+                                         ifelse(is.na(sample_clinical_metadata$project.y), 
+                                                as.character(sample_clinical_metadata$project.x), 
+                                                paste0(sample_clinical_metadata$project.x, sample_clinical_metadata$project.y)))
+
+sample_clinical_metadata  <- sample_clinical_metadata %>% 
+  select(-c(project.x, project.y, sex.x, sex.y, age_y.x, age_y.y))
+
+sample_clinical_metadata$age_y<- as.numeric(sample_clinical_metadata$age_y)
+
+# change visit_sum and visit_cal_9 so that also Controls have a valid entry
+
+sample_clinical_metadata <- sample_clinical_metadata %>% 
+  mutate(visit_cal_9= as_factor(case_when(project=="IMMPIMMP"~"Control", TRUE~visit_cal_9))) %>% 
+  mutate(visit_sum= as_factor(case_when(project=="IMMPIMMP"~"Control", TRUE~visit_sum)))
+  
+summary(sample_clinical_metadata$visit_cal_9) # the NA's are the samples without consent
+
+# add nutrition data
+
+nutrition_df <- read_excel("/Users/rebecca/Documents/Forschung/IMMProveCF/KlinischeDaten/Nutrition.xlsx")
+
+nutrition_df <- nutrition_df %>% 
+  mutate(merge_id= gsub("IMP", "", ID)) %>% 
+  mutate(merge_id= gsub("_IMMP", "", merge_id)) 
+
+sample_clinical_metadata <- sample_clinical_metadata %>% 
+  left_join(nutrition_df, by=c("id.x"="merge_id"))
+
+sample_clinical_metadata$basic_nutrition <- factor(
+  sample_clinical_metadata$basic_nutrition,
+  levels = c(1, 2, 3, 4, 5, 6, 7, 8),
+  labels = c("mixed", "vegetarian", "pescarian", "flexitarian", "vegan", "paleo", "ketogen", "glutenfree")
+)
+
+summary(sample_clinical_metadata$basic_nutrition)
+
+```
+
+```{r bristol stool scale}
+sample_clinical_metadata<-sample_clinical_metadata %>% 
+  mutate(bristol= case_when(`StuhlqualitÃ¤t`== 1~2,`StuhlqualitÃ¤t`== 2~4, `StuhlqualitÃ¤t`== 4~5,  `StuhlqualitÃ¤t`== 5~7, `StuhlqualitÃ¤t`== 7~7,  `StuhlqualitÃ¤t`==  6~6,  `StuhlqualitÃ¤t`== 8~8))
+```
+
+
+```{r output clean metadata}
+
+sample_clinical_metadata$bristol <- factor(
+  sample_clinical_metadata$bristol,
+  levels = c(2, 4, 5, 6, 7, 8),
+  labels = c("constipation", "normal", "smooth", "mild diarrhea", "liquid", "slimey")
+)
+
+sample_clinical_metadata<-sample_clinical_metadata %>% 
+  mutate(fat=case_when(`FettstÃ¼hle`==0~"not fatty", `FettstÃ¼hle`==1~"sometimes fatty"
+, `FettstÃ¼hle`==2~"fatty")) %>% 
+  mutate(bristol_fat=paste(bristol, fat, sep="&")) %>% 
+  mutate(bristol_fat=as_factor(bristol_fat))
+
+sample_clinical_metadata$bristol_fat
+# exclude duplicates
+
+sample_clinical_metadata%>% 
+  #as_factor(id_visit_mat) %>% 
+  filter(study_inclusion==TRUE) %>% 
+  count(id_visit_mat)%>% 
+  filter(n>=2)
+
+#This results in following duplicates:
+sample_clinical_metadata_duplicated <- sample_clinical_metadata %>% 
+  filter(id_visit_mat %in% c("IMMPK003Throat", "IMMPK010Throat", "IMMPK011Throat", "IMMPK012Throat", "IMP19V9Throat", "IMP24V8Stool", "IMP41V4Stool")) 
+
+sample_clinical_metadata_duplicated %>% 
+  select(x1, x_sample_id, id_visit_mat, run_num, extraction_date_new)
+
+duplicates_to_be_removed <- c("23IMP19V9Thr", "23IMP24V8St", "23IMP41V4St", "21K003IMMPThr", "21K010IMMPThr", "21K011IMMPThr", "21K012IMMPThr") # this are the x_sample_ids, the Controls were from a batch with a contaminated negative control and the patient samples had already been sequenced on Run 22
+
+sample_clinical_metadata_clean <- sample_clinical_metadata %>% 
+  filter(!(x_sample_id %in% duplicates_to_be_removed))
+
+# exclude those samples were patients withdraw consent
+
+sample_clinical_metadata_clean <- sample_clinical_metadata_clean %>% 
+  filter(!(project=="IMP"&is.na(id)))
+
+sample_clinical_metadata_clean %>% 
+  distinct(id_visit_mat)
+
+
+write_csv(sample_clinical_metadata_clean, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/combined_meta_clinical_dataRun1-23.csv")
+```
+
+```{r subset metadata for Mara}
+
+meta_mara <- sample_clinical_metadata_clean %>% 
+  filter(project=="IMP") %>% 
+  select(c(x1,x_sample_id,material,dna_ng_per_mg_stool,id_visit,visit_cal_cor, visit_sum, delta_ETI_merged, mutation, sex,age_y,BMI,azithromycin_oral,levofloxacin_inhal,tobramycin_inhal,colistin_inhal,azetronam_inhal,dpi_colistin,treatmentdays_po_365prior_visit,treatmentdays_iv_365prior_visit, treatmentdays_365prior_visit, antibioticburden_po_365prior_visit, antibioticburden_365prior_visit, antibioticburden_iv_365prior_visit, ab_15dprior_visit, pp_fev_percent, pp_fvc_percent,baseline_ppfev1, delta_ppfev1))
+
+write_csv(meta_mara, "/Users/rebecca/Documents/Forschung/IMMProveCF/Mara/metadata_IMMProveCF_antibiotics_lungFunction.csv")
+
+```
+
+
+## Create Phyloseq Object
+
+```{r packages 2, include=FALSE}
+
+pacman::p_load(phyloseq, microbiome, textshape, Biostrings)
+
+```
+
+```{r phyloseq}
+# tax_table
+tax_clean_df <- as.data.frame(taxonomy_decontam_tbl)
+rownames(tax_clean_df) <- tax_clean_df$...1
+tax_clean_df$...1 <- NULL
+tax_clean_df<- tax_clean_df%>%
+  mutate(Genus= recode(Genus, "Escherichia-Shigella"="Escherichia_Shigella"))
+tax_matrix <- as.matrix(tax_clean_df)
+
+# otu_table
+table_decontam_df <- as.data.frame(table_decontam_tbl)
+rownames(table_decontam_df) <- table_decontam_df$...1
+table_decontam_df$...1 <- NULL
+req_rows <- sample_metadata_clean_tbl$x_sample_id
+table_decontam_small_df <- table_decontam_df[rownames(table_decontam_df)%in%req_rows, ]
+#table_decontam_small_df[!complete.cases(table_decontam_small_df), ]
+
+# sample_metadata
+sample_metadata_df <- sample_clinical_metadata_clean[sample_clinical_metadata_clean$x_sample_id%in%rownames(table_decontam_df), ]
+sample_metadata_df <- as.data.frame(sample_metadata_df)
+
+rownames(sample_metadata_df) = sample_metadata_df$x_sample_id
+#sample_metadata_df$x_sample_id <- NULL
+
+#tree
+
+# phyloseq
+otu <- otu_table(table_decontam_small_df, taxa_are_rows = FALSE)
+samp <- sample_data(sample_metadata_df)
+tax <- tax_table(tax_matrix)
+
+ps_full <- phyloseq(otu, samp, tax) 
+
+dna <- Biostrings::DNAStringSet(taxa_names(ps_full))
+names(dna) <- taxa_names(ps_full)
+ps_full <- merge_phyloseq(ps_full, dna)
+taxa_names(ps_full) <- paste0("ASV", seq(ntaxa(ps_full)))
+
+#calculate total reads
+sample_data(ps_full)$total_reads <- rowSums(otu_table(ps_full)) # adds library_size to metadata
+
+```
+
+
+```{r filter phyloseq }
+# exclude negative controls
+ps_full_c <- subset_samples(ps_full, material!= c("Culture", "Water")) # excludes 1 NK sample
+summary(sample_data(ps_full_c)$material) # has 649 samples
+
+# visualize library size, hence total read count to justify trimming/rarefaction (see also 02_Cohort_Visualization_PRIEMMA):
+
+#rc <- vegan::rarecurve(t(otu_table(ps_c)), step=50, cex=0.5)
+
+ggplot(sample_data(ps_full_c), aes(material, total_reads, fill= material))+
+  geom_boxplot(outlier.shape = NA)+
+   geom_jitter(size=0.3)+
+  scale_y_log10()+
+  theme_bw()+
+  ggtitle("Library size")+
+  theme(axis.text.x = element_blank())+
+  geom_hline(yintercept = 5000)+
+  geom_hline(yintercept = 2500)
+
+# exclude samples with total_reads < 5000
+ps_5000 <- subset_samples(ps_full_c, total_reads >= 5000) # has 630 samples
+
+view(sample_data(ps_5000)[, c("x1","study_inclusion")])
+
+# exclude duplicated samples according to study_inclusion
+ps_full_clean <- subset_samples(ps_5000, study_inclusion==TRUE) # has 561 samples
+
+summary(as_factor(sample_data(ps_full_clean)$project))
+summary(sample_data(ps_full_clean)$visit.x)
+summary(sample_data(ps_full_clean)$material)
+
+# check for duplicates
+ps_full_clean_md <- as(sample_data(ps_full_clean), "data.frame") #%>% 
+ps_full_clean_md %>%  distinct(id_visit_mat) # no duplicates in the ps
+
+# remove samples with no metadata recorded
+ps_full_clean_md %>% 
+  filter(is.na(sex)) # only one sample has no metadata recorded: 23IMP24V10St
+
+ps_full_clean <- subset_samples(ps_full_clean, !is.na(sex))
+
+# choose only participants which provided at least 1 sputum sample
+#sputum_id <- unique(sample_data(ps_year1_full_sputum)$id)
+#ps_sputum_full <- subset_samples(ps_full_clean, id %in% sputum_id)
+
+### subset CF patients = IMP
+ps_full_IMP <- subset_samples(ps_full_clean, project=="IMP") # has now 477 samples
+```
+
+```{r save rds}
+saveRDS(ps_full_IMP, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+saveRDS(ps_full_clean, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+view(sample_data(ps_full_clean))
+```

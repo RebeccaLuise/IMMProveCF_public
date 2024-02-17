@@ -1,0 +1,261 @@
+---
+title: "starplot stool"
+author: "Rebecca L. Knoll and Theda Bartholomaeus"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yesn
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_full_IMP.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(datarium)
+
+```
+
+```{r subset per material}
+
+# subset per material
+ps_stool <- subset_samples(ps_full, material== "Stool")
+
+# remove zero abundances from each dataset
+ps_stool <- tax_filter(ps_stool, min_prevalence = 1,
+  prev_detection_threshold = 1, min_total_abundance = 0, min_sample_abundance = 0, tax_level = NA,
+  names_only = FALSE, use_counts = TRUE, undetected = NULL,verbose = TRUE)
+
+# calculate relative abundances
+ps_stool_relab <- transform_sample_counts(ps_stool, function(x) x/sum(x))
+
+sample_data(ps_stool_relab)
+
+```
+
+# Starplot for PCoA 
+
+## stool
+
+```{r starplot stool Teil A}
+metadata_stool <- (sample_data(ps_stool_relab))
+metadata_stool <- as(metadata_stool, "data.frame")
+
+##### Create dissimilarity indices
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_stool_relab,
+                             method="bray", weighted=F)
+
+#bray <- vegan::vegdist(t(otu_table(ps_stool_relab), method = "bray", na.rm = T)) Theda calculated distances with this but somehow it will not run for me
+
+bray <- as.matrix(BC_dist)
+  
+# Principal Coordinate Analysis (PCoA)
+  beta <- as.data.frame(cmdscale(bray, k = 2))
+  
+  # Add metadata
+  beta <- base::transform(merge(sample_data(ps_stool_relab), beta, by = 0, all = TRUE), row.names = Row.names, Row.names = NULL)
+  
+beta <- beta%>%
+  select(id.x, visit_sum, V1, V2)
+
+write_csv(beta, "~/Documents/Forschung/IMMProveCF/R_analysis/data/beta_starplot.csv")
+
+time_a <- beta[beta$visit_sum == "1", ]
+time_b <- beta[beta$visit_sum == "2", ]
+time_c <- beta[beta$visit_sum == "3-5", ]
+
+
+# we will toss a - since there not much information 
+# we will put c to 0 so we can see the trajectory 
+# join df zu einem df 
+all <- merge(time_b, time_c, by = "id.x", all = TRUE, suffixes = c(".b",".c"))
+all <- merge(all, time_a, by = "id.x", all = TRUE)
+
+
+# for each donor, center PCoA Dims to the Upper lobe samples
+center <- all
+for (i in c("V1","V1.b","V1.c")){
+  center[,i] <- (all[, i] - all[, "V1"])
+}
+for (i in c("V2","V2.b","V2.c")){
+  center[,i] <- (all[, i] - all[, "V2"])
+}
+center <- center[, c("V1","V1.b","V1.c","V2","V2.b","V2.c", "id.x")]
+
+
+pal.treat  <- c("#803300ff", "#822bc1ff")
+# center <- na.exclude(center) # nur Donoren die alle swabsite haben
+
+# get mean of the to arrow categories (arrows to lower lobe, arrows to stool)
+arrowCentroids <- as.data.frame(matrix(c(mean(na.exclude(center$V1.b)),
+                                         mean(na.exclude(center$V2.b)), 
+                                         mean(na.exclude(center$V1.c)),
+                                         mean(na.exclude(center$V2.c)),
+                                         center$V1[1], center$V2[1]), ncol = 6))
+
+
+# plot centered 
+plot_all <- ggplot(center, aes(x = V1, y = V2)) +
+  geom_point(data = center, aes(x = V1, y = V2), size = 4, alpha = 0.8) + 
+  theme_classic() +
+  #geom_point(data = center, aes(x = V1.b, y = V2.b),color = "#C3BC3FFF", pch=17, size = 3, alpha = 0.8) +
+  #geom_point(data = center, aes(x = V1.c, y = V2.c),color = "#6388B4FF", pch=15, size = 3, alpha = 0.8) +
+  scale_x_continuous(limits = c(-0.4,0.4))+
+  #scale_y_continuous(breaks = c( -0.50, -0.25, 0.00,0.25, 0.5), limits = c(-0.50, 0.50))+
+  geom_segment(data = center,color ="#C3BC3FFF",
+               aes(x = V1,
+                  y = V2,
+                   xend = V1.b,
+                   yend = V2.b,
+                   color = "a to b", alpha = .5),
+               arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_segment(data = center, color = "#6388B4FF",
+              aes(x = V1,
+                y = V2,
+                 xend = V1.c,
+                 yend = V2.c,
+                color = "a to c", alpha = .5),
+               arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_point(data = arrowCentroids, aes(x = V1, y = V2),pch=17, color = "black", size = 6) +
+  geom_point(data = arrowCentroids, aes(x = V3, y = V4), pch=15, color = "black", size = 6) +
+  geom_point(data = arrowCentroids, aes(x = V5, y = V6), color = "black", size = 2) +
+  geom_point(data = arrowCentroids, aes(x = V1, y = V2),pch=17, color = "#C3BC3FFF", size = 5) +
+  geom_point(data = arrowCentroids, aes(x = V3, y = V4), pch=15, color = "#6388B4FF", size = 5) +
+  geom_segment(data = arrowCentroids,
+               aes(x = V5,
+                   y = V6,
+                   xend = V3,
+                   yend = V4,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color = "black") +
+  geom_segment(data = arrowCentroids,
+               aes(x = V5,
+                   y = V6,
+                   xend = V1,
+                   yend = V2,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color ="black") +
+  xlab ("PCo 1") +
+  ylab ("PCo 2") +
+  guides(color = guide_legend(title = "trajectory")) +
+  # scale_color_manual(values = c("#4DBBD5FF", "#00A087FF", "black"))+
+  
+  theme (axis.title.x = element_text (size = 13), 
+         axis.text.x = element_text (size = 13), 
+         axis.text.y = element_text (size = 13), 
+         axis.title.y = element_text (size = 13))
+
+print(plot_all)
+```
+
+```{r starplot stool Teil B}
+
+time_a <- beta[beta$visit_sum == "1", ]
+time_d <- beta[beta$visit_sum == "6-7", ]
+time_e <- beta[beta$visit_sum == "8-10", ]
+
+# we will toss a - since there not much information 
+# we will put c to 0 so we can see the trajectory 
+# join df zu einem df 
+all <- merge(time_d, time_e, by = "id.x", all = TRUE, suffixes = c(".d",".e"))
+all <- merge(all, time_a, by = "id.x", all = TRUE)
+
+
+# for each donor, center PCoA Dims to the Upper lobe samples
+center.2 <- all
+for (i in c("V1","V1.d","V1.e")){
+  center.2[,i] <- (all[, i] - all[, "V1"])
+}
+for (i in c("V2","V2.d","V2.e")){
+  center.2[,i] <- (all[, i] - all[, "V2"])
+}
+center.2 <- center.2[, c("V1","V1.d","V1.e","V2","V2.d","V2.e", "id.x")]
+
+
+
+#center.v <- na.exclude(center.v) # nur Donoren die alle swabsite haben
+
+# get mean of the to arrow categories (arrows to lower lobe, arrows to stool)
+arrowCentroids.2 <- as.data.frame(matrix(c(mean(na.exclude(center.2$V1.d)),
+                                           mean(na.exclude(center.2$V2.d)), 
+                                           mean(na.exclude(center.2$V1.e)),
+                                           mean(na.exclude(center.2$V2.e)),
+                                           center.2$V1[1], center.2$V2[1]), ncol = 6))
+
+# plot centered 
+#plot_all.v <- ggplot(center.v, aes(x = V1, y = V2)) +
+
+
+plot_all+
+  geom_point(data = center.2, aes(x = V1, y = V2), size = 5, alpha = 0.8) + 
+  theme_classic() +
+  #geom_point(data = center.2, aes(x = V1.d, y = V2.d),pch=16, color = "#BB7693FF", size = 3, alpha = 0.8) +
+  #geom_point(data = center.2, aes(x = V1.e, y = V2.e), pch=18,color = "#55AD89FF", size = 3, alpha = 0.8) +
+  scale_x_continuous(limits = c(-0.4,0.4))+
+  # scale_y_continuous(breaks = c( -0.50, -0.25, 0.00,0.25, 0.5), limits = c(-0.50, 0.50))+
+  geom_segment(data = center.2, color = "#BB7693FF", 
+             aes(x = V1,
+             y = V2,
+             xend = V1.d,
+             yend = V2.d,
+             color = "a to b", alpha = .5),
+             arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_segment(data = center.2, color = "#55AD89FF",
+          aes(x = V1,
+         y = V2,
+          xend = V1.e,
+          yend = V2.e,
+         color = "a to c", alpha = .5),
+          arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V5, y = V6), color = "black", size = 2) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "#BB7693FF", size = 5) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "#55AD89FF", size = 5) +
+  geom_segment(data = arrowCentroids.2,
+               aes(x = V5,
+                   y = V6,
+                   xend = V3,
+                   yend = V4,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color = "black") +
+  geom_segment(data = arrowCentroids.2,
+               aes(x = V5,
+                   y = V6,
+                   xend = V1,
+                   yend = V2,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color= "black") +
+  xlab ("PCo 1") +
+  ylab ("PCo 2") +
+  guides(color = guide_legend(title = "trajectory from baseline to")) +
+  theme (axis.title.x = element_text (size = 16), 
+         axis.text.x = element_text (size = 16), 
+         axis.text.y = element_text (size = 16), 
+         axis.title.y = element_text (size = 16),
+         legend.position = "none",
+         title = element_text(size=18))+
+  ggtitle("Stool")-> plot.plot_stool
+
+print(plot.plot_stool)
+saveRDS(plot.plot_stool, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool.rds")
+```
+
+```{r combine plot}
+
+ggarrange(plot.plot_sputum, plot.plot_throat,plot.plot_stool, nrow = 3)
+
+ggsave("~/Documents/Forschung/IMMProveCF/R_analysis/figures/BCdist_centered_all.pdf", height = 12, width = 5)
+
+```

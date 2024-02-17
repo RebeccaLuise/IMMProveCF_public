@@ -1,0 +1,1184 @@
+---
+title: "Evolution of clinical characteristics"
+author: "Rebecca Luise Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,ggtext, dplyr, pagedown)
+
+library(datarium)
+
+# assign colors
+visit_palette <- c("1"="black", "2"="#C3BC3FFF","3"="#6388B4FF", "4"="#6388B4FF", "5"="#6388B4FF", "6"= "#BB7693FF", "7"="#BB7693FF", "8"="#55AD89FF","9"="#55AD89FF") 
+
+```
+
+# Plot delta from baseline and evolution of significantly changed clincal parameters
+
+```{r add deltas to metadata}
+xlabels <- c("0", "3", "6", "9", "12", "15", "18", "21", "24")
+
+full_metadata <- as_data_frame(sample_data(ps_full))
+
+full_metadata_distinct <- full_metadata%>% # to not have multiple data entries per visit/patient 
+  distinct(id_visit, .keep_all = T)%>%
+  filter(!is.na(visit_cal_cor))%>%
+  mutate(baseline_ppfev1 = case_when(visit_cal_9=="1"~ pp_fev_percent))%>%
+  group_by(id)%>%
+  fill(baseline_ppfev1)%>%
+  mutate(delta_ppfev1 = pp_fev_percent-baseline_ppfev1)%>%
+  ungroup()%>%
+  mutate(baseline_abtt_days = case_when(visit_cal_9 == "1" ~ treatmentdays_365prior_visit))%>%
+  group_by(id)%>%
+  fill(baseline_abtt_days)%>%
+  mutate(delta_atb_tt_days = treatmentdays_365prior_visit-baseline_abtt_days)%>%
+  ungroup() %>% 
+  mutate(baseline_chloride = case_when(visit_cal_9 == "1" ~ chlorid_mmol_cl_l))%>%
+  group_by(id)%>%
+  fill(baseline_chloride)%>%
+  mutate(delta_chloride = chlorid_mmol_cl_l-baseline_chloride)%>%
+  ungroup() %>% 
+  mutate(baseline_igG = case_when(visit_cal_9 == "1" ~ ig_g_g_l))%>%
+  group_by(id)%>%
+  fill(baseline_igG)%>%
+  mutate(delta_igG = ig_g_g_l-baseline_igG)%>%
+  ungroup()
+```
+
+```{r delta manuscript plot and stats}
+
+#### delta ppfev1 ####
+lm <- summary(lmerTest::lmer(delta_ppfev1~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(delta_ppfev1)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_Dppfev <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_Dppfev $N_obs <- replace_na(lmm_Dppfev $N_obs, lmm_Dppfev $Total_N_obs[1])
+
+lmm_Dppfev  <- lmm_Dppfev  %>% 
+  mutate(Parameter = "Delta ppFEV1") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+Dppfev1<- full_metadata_distinct%>%
+    ggplot(aes(y=delta_ppfev1, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id), color="black", alpha=0.5)+
+    theme_classic()+
+    theme_classic()+
+    ylab("Delta ppFEV1")+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 43, step.increase = 0.05)
+Dppfev1
+
+#### delta chloride ####
+lm <- summary(lmerTest::lmer(delta_chloride~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(delta_chloride)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_Dchloride <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_Dchloride $N_obs <- replace_na(lmm_Dchloride $N_obs, lmm_Dchloride $Total_N_obs[1])
+
+lmm_Dchloride  <- lmm_Dchloride %>% 
+  mutate(Parameter = "Delta sweat chloride (mmol/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+lm_stats <- lm_stats %>% 
+  filter(Months_after_ETI_start%in%c("3","12","18","24"))
+
+Dchloride<- full_metadata_distinct%>%
+  filter(visit_cal_9%in%c("1","2","5","7","9")) %>% 
+    ggplot(aes(y=delta_chloride, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+        geom_line(aes(group=id), color="black", alpha=0.5)+
+    theme_classic()+
+    theme_classic()+
+    ylab("Delta sweat chloride (mmol/l)")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= c("0","3","12","18","24"))+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 4, step.increase = 0.05)
+Dchloride
+
+
+#### delta IgG ####
+lm <- summary(lmerTest::lmer(delta_igG~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(delta_igG)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_Digg <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_Digg $N_obs <- replace_na(lmm_Digg $N_obs, lmm_Digg$Total_N_obs[1])
+
+lmm_Digg  <- lmm_Digg %>% 
+  mutate(Parameter = "Delta IgG (g/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+Digg<- full_metadata_distinct%>%
+    ggplot(aes(y=delta_igG, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+        geom_line(aes(group=id), color="black", alpha=0.5)+
+    theme_classic()+
+    theme_classic()+
+    ylab("Delta IgG (g/l)")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.4, step.increase = 0.05)
+Digg
+
+#### delta antibiotic treatment days ####
+lm <- summary(lmerTest::lmer(delta_atb_tt_days~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(delta_atb_tt_days)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_Datb <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_Datb $N_obs <- replace_na(lmm_Datb $N_obs, lmm_Datb $Total_N_obs[1])
+
+lmm_Datb  <- lmm_Datb%>% 
+  mutate(Parameter = "Delta antibiotic tt days") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+Datb<- full_metadata_distinct%>%
+    ggplot(aes(y=delta_atb_tt_days, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id), color="black", alpha=0.5)+
+    theme_classic()+
+    theme_classic()+
+    ylab("Delta antibiotic tt days")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 23, step.increase = 0.05)
+Datb
+
+ggarrange(Dchloride, Dppfev1, Digg, Datb, nrow = 1)
+
+lm_stats_1 <- rbind(lmm_Dppfev, lmm_Dchloride, lmm_Digg, lmm_Datb)
+
+kable(lm_stats_1)
+#write_csv(lm_stats_1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_delta_clinical_par.csv")
+```
+
+# combine plots for Figure 1
+```{r combine plots for Figure 1, fig.width=17, fig.height=10}
+
+phylum_bars <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.rds")
+
+library(gridExtra)
+# Arrange the ggplot objects in a grid
+grid_arranged <- grid.arrange(
+  phylum_bars + labs(tag = "A") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  Dchloride + labs(tag = "B"),
+  Dppfev1 + labs(tag = "C"),
+  Digg + labs(tag = "D"),
+  Datb+ labs(tag = "E"),
+  ncol = 4, nrow = 2,
+  heights = c(1.5, 1),
+  widths=c(1.15,1.5,1.5,1.5),
+  layout_matrix = rbind(c(1,1,1,1),
+                        c(2,3,4,5))
+)
+
+# Print or save the arranged plot
+grid_arranged
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/figure1.tiff",grid_arranged, dpi = 600, width = 17, height = 10)
+
+```
+# Plot evolution of clinical parameters and run linear mixed effect models for statistical testing
+```{r clincial parameter plots and stats}
+
+#### Sweat chloride ####
+lm <- summary(lmerTest::lmer(chlorid_mmol_cl_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(chlorid_mmol_cl_l)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_chloride <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_chloride $N_obs <- replace_na(lmm_chloride $N_obs, lmm_chloride $Total_N_obs[1])
+
+lmm_chloride  <- lmm_chloride %>% 
+  mutate(Parameter = "Sweat chloride (mmol/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+Chloride<- full_metadata_distinct%>%
+    ggplot(aes(y=chlorid_mmol_cl_l, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.5))+
+    theme_classic()+
+    theme_classic()+
+    ylab("Sweat chloride (mmol/l)")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 90, step.increase = 0.05)
+Chloride
+
+
+### ppfev1 ###
+
+lm <- summary(lmerTest::lmer(pp_fev_percent~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(pp_fev_percent)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_ppfev <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_ppfev $N_obs <- replace_na(lmm_ppfev $N_obs, lmm_ppfev $Total_N_obs[1])
+
+lmm_ppfev  <- lmm_ppfev  %>% 
+  mutate(Parameter = "ppFEV1") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+ppfev1<- full_metadata_distinct%>%
+    ggplot(aes(y=pp_fev_percent, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("ppFEV1")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.05)
+ppfev1
+
+
+### ppfev1 ###
+
+lm <- summary(lmerTest::lmer(pp_fvc_percent~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(pp_fvc_percent)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_ppfvc  <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_ppfvc$N_obs <- replace_na(lmm_ppfvc$N_obs, lmm_ppfvc$Total_N_obs[1])
+
+lmm_ppfvc  <- lmm_ppfvc   %>% 
+  mutate(Parameter = "ppFEV1") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+ppfvc<- full_metadata_distinct%>%
+    ggplot(aes(y=pp_fvc_percent, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("ppFVC")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.05)
+ppfvc
+
+#### IgG ####
+lm <- summary(lmerTest::lmer(ig_g_g_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(ig_g_g_l)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_igg <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_igg$N_obs <- replace_na(lmm_igg$N_obs, lmm_igg$Total_N_obs[1])
+
+lmm_igg <- lmm_igg%>% 
+  mutate(Parameter = "IgG (g/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+igG <- full_metadata_distinct%>%
+    ggplot(aes(y=ig_g_g_l, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("IgG (g/l)")+
+    xlab("Months from ETI treatment start")+
+    #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,100,200))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 25, step.increase = 0.05)
+igG
+
+#### Interleukin 6 ####
+
+lm <- summary(lmerTest::lmer(interleukin6_pg_ml~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(interleukin6_pg_ml)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_il6 <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_il6$N_obs <- replace_na(lmm_il6$N_obs, lmm_il6$Total_N_obs[1])
+
+lmm_il6  <- lmm_il6  %>% 
+  mutate(Parameter = "Interleukin 6 (pg/ml)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+Il6 <- full_metadata_distinct%>%
+    ggplot(aes(y=interleukin6_pg_ml, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("Interleukin 6 (pg/ml)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+Il6
+#### Interleukin 8 ####
+
+lm <- summary(lmerTest::lmer(interleukin8_pg_ml~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(interleukin8_pg_ml)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_il8 <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_il8$N_obs <- replace_na(lmm_il8$N_obs, lmm_il8$Total_N_obs[1])
+
+lmm_il8  <- lmm_il8  %>% 
+  mutate(Parameter = "Interleukin 8 (pg/ml)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+Il8 <- full_metadata_distinct%>%
+    ggplot(aes(y=interleukin8_pg_ml, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("Interleukin 8 (pg/ml)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+Il8
+#### CRP ####
+
+lm <- summary(lmerTest::lmer(crp_mg_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(crp_mg_l)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_crp <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_crp$N_obs <- replace_na(lmm_crp$N_obs, lmm_crp$Total_N_obs[1])
+
+lmm_crp  <- lmm_crp  %>% 
+  mutate(Parameter = "CRP (mg/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+CRP <- full_metadata_distinct%>%
+    ggplot(aes(y=crp_mg_l, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("CRP (mg/l)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+CRP
+
+#### Calprotectin in stool ####
+
+lm <- summary(lmerTest::lmer(calprotectin_amg_g_stuhl~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(calprotectin_amg_g_stuhl)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_calp <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_calp$N_obs <- replace_na(lmm_calp$N_obs, lmm_calp$Total_N_obs[1])
+
+lmm_calp <- lmm_calp %>% 
+  mutate(Parameter = "Calprotectin (mg/g)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+calp_stool <- full_metadata_distinct%>%
+    ggplot(aes(y=calprotectin_amg_g_stuhl, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("Calprotectin in stool (mg/g)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 3, step.increase = 0.05)
+calp_stool
+
+#### GOT/ASAT liver enzyme ####
+lm <- summary(lmerTest::lmer(got_asat_u_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(got_asat_u_l)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_got <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_got$N_obs <- replace_na(lmm_got$N_obs, lmm_got$Total_N_obs[1])
+
+lmm_got <- lmm_got %>% 
+  mutate(Parameter = "GOT/ASAT (U/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+got<- full_metadata_distinct%>%
+    ggplot(aes(y=got_asat_u_l, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("GOT/ASAT (ul/l)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.05)
+got
+
+#### GPT/ALAT liver enzyme ####
+
+lm <- summary(lmerTest::lmer(gpt_alat_u_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(gpt_alat_u_l)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_gpt <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_gpt$N_obs <- replace_na(lmm_gpt$N_obs, lmm_gpt$Total_N_obs[1])
+
+lmm_gpt <- lmm_gpt %>% 
+  mutate(Parameter = "GPT/ALAT (U/l)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+    
+gpt<- full_metadata_distinct%>%
+    ggplot(aes(y=gpt_alat_u_l, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("GPT/ALAT (ul/l)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.025)
+gpt
+
+### HbA1c ###
+
+lm <- summary(lmerTest::lmer(hb_a1c_percent~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(hb_a1c_percent)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24")) %>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_hba1c <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_hba1c$N_obs <- replace_na(lmm_hba1c$N_obs, lmm_hba1c$Total_N_obs[1])
+
+lmm_hba1c <- lmm_hba1c %>% 
+  mutate(Parameter = "HbA1c (%)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+hba1c<- full_metadata_distinct%>%
+    ggplot(aes(y=hb_a1c_percent, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("HbA1c (%)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_log10()+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.1, step.increase = 0.025)
+hba1c
+
+### Leucocytes ###
+
+lm <- summary(lmerTest::lmer(leukozyten_nl~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
+
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_cal_92"~"3", Months_after_ETI_start=="visit_cal_93"~"6",Months_after_ETI_start=="visit_cal_94"~"9",Months_after_ETI_start=="visit_cal_95"~"12",Months_after_ETI_start=="visit_cal_96"~"15",Months_after_ETI_start=="visit_cal_97"~"18",Months_after_ETI_start=="visit_cal_98"~"21",Months_after_ETI_start=="visit_cal_99"~"24", Months_after_ETI_start=="sex2"~"sex", Months_after_ETI_start=="age_y"~"age_y"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+
+lm_stats
+
+# print lm stats into data frame and add N of observations
+
+# print lm stats into data frame and add N of observations
+nobs_per_visit <- full_metadata_distinct %>%
+  filter(!is.na(leukozyten_nl)) %>% 
+  group_by(visit_cal_9) %>%
+  summarise(N_obs = n()) %>% 
+  mutate(Months_after_ETI_start= case_when(visit_cal_9=="1"~"Baseline (Intercept)", visit_cal_9=="2"~"3", visit_cal_9=="3"~"6",visit_cal_9=="4"~"9",visit_cal_9=="5"~"12",visit_cal_9=="6"~"15",visit_cal_9=="7"~"18",visit_cal_9=="8"~"21",visit_cal_9=="9"~"24"))%>% 
+  mutate(Total_N_obs = sum(N_obs)) 
+
+# Merge the two data frames
+lmm_leukos <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start") 
+# Fill NAs in N_obs with the resulting rowsum of N_obs
+lmm_leukos$N_obs <- replace_na(lmm_leukos$N_obs, lmm_leukos$Total_N_obs[1])
+
+lmm_leukos <- lmm_leukos %>% 
+  mutate(Parameter = "Leukocytes (/nl)") %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
+  select(-visit_cal_9)
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...9)%>%
+  mutate(group2=case_when(Months_after_ETI_start=="3"~ "2", Months_after_ETI_start=="6"~ "3", Months_after_ETI_start=="9"~ "4",Months_after_ETI_start=="12"~ "5", Months_after_ETI_start=="15"~ "6", Months_after_ETI_start=="18"~ "7",Months_after_ETI_start=="21"~ "8", Months_after_ETI_start=="24"~ "9"))%>%
+  filter(group1!="(Intercept)") %>% 
+  filter(!is.na(group2))
+
+leucos<- full_metadata_distinct%>%
+    ggplot(aes(y=leukozyten_nl, x=visit_cal_9))+
+     geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
+    geom_point(color="black", alpha=0.7, width = 0.1)+
+    scale_fill_manual(values=visit_palette)+
+    geom_line(aes(group=id, alpha=0.7))+
+    theme_classic()+
+    theme_classic()+
+    ylab("Leucocytes (/nl)")+
+    xlab("Months from ETI treatment start")+
+    scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 14), legend.position = "none")+
+    #guides(fill='none') +
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.4, step.increase = 0.05)
+leucos
+
+ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, calp_stool, gpt, hba1c, nrow = 2, ncol = 4)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/supp_figure1.tiff", width = 14, height = 7)
+```
+
+```{r}
+
+stats_table <- rbind(lmm_chloride,lmm_Dppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c)
+#write_csv(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_clinical_parameters.csv")
+kable(stats_table)
+```
+

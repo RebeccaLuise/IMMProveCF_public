@@ -1,0 +1,97 @@
+---
+title: "Cohort Characteristics"
+author: "Rebecca Luise Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE)
+```
+
+```{r path and packages, include=FALSE}
+setwd("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF")
+getwd() 
+
+# install and load all needed packages
+library(pacman)
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, stringr, ggpubr)
+library(gtsummary)
+
+visit_palette <- c("1"="black", "2"="#C3BC3FFF","3"="#6388B4FF", "4"="#6388B4FF", "5"="#6388B4FF", "6"= "#BB7693FF", "7"="#BB7693FF", "8"="#55AD89FF","9"="#55AD89FF") 
+```
+
+# Load data
+```{r load data}
+ps <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+data <- as(sample_data(ps), "data.frame")
+
+data  <- data %>% 
+  mutate(sex = case_when(sex==1 ~ "male", sex==2 ~ "female")) %>% 
+  mutate(sex=as_factor(sex))
+
+# this one sample is mismatched within the phyloseq, I remove it
+data <- data %>% 
+  filter(!is.na(sex))
+
+data$visit_cal_9 <- factor(
+  data$visit_cal_9,
+  levels = c("1","2","3","4","5","6","7","8","9","Control"),
+  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+)
+
+data <- data %>% 
+  distinct(id_visit, .keep_all = T)
+
+# create age subgroups
+data$age_y <- as.numeric(data$age_y)
+data  <- data %>% 
+  mutate(age_groups= case_when(age_y>=20~">=20", age_y>=12 & age_y<=19~"12-19",age_y<=11~"<=11")) 
+
+# create new delta variables
+data <- data%>%
+  mutate(baseline_ppfvc = case_when(visit_cal_9 =="Baseline"~ pp_fvc_percent))%>%
+  group_by(id)%>%
+  fill(baseline_ppfvc)%>%
+  mutate(delta_ppfvc = pp_fvc_percent-baseline_ppfvc)%>%
+  ungroup()
+
+data <- data%>%
+  mutate(baseline_chloride = case_when(visit_cal_9 =="Baseline"~ chlorid_mmol_cl_l))%>%
+  group_by(id)%>%
+  fill(baseline_chloride)%>%
+  mutate(delta_chloride = chlorid_mmol_cl_l-baseline_chloride)%>%
+  ungroup()
+```
+
+# Cohort characteristics 
+```{r Cohort characteristics}
+data_sel <- data %>% select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride)
+
+data_sel%>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="no")%>%
+  as_gt() #%>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sel%>% tbl_summary(by=visit_cal_9, type = c( age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous",  delta_ppfev1= "continuous", chlorid_mmol_cl_l= "continuous")) #%>% as_gt() %>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sel %>%
+  group_by(visit_cal_9) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE)
+  ) %>% pivot_wider(
+    names_from = visit_cal_9,
+    values_from = c(min_age, max_age, mean_age, sd_age)
+  )
+````

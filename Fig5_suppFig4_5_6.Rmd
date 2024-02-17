@@ -1,0 +1,870 @@
+---
+title: "MetadeconfoundR full data set"
+author: "Rebecca Luise Knoll"
+date: "last edit `r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, creates phyloseq object per material and per year; load libraries
+
+#renv::install("tillbirkner/MetadeconfoundR")
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+ps <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+samples <- read_csv("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/samples_sequencedTF.csv")
+
+samples %>% 
+  filter(shallow_sequenced==F) %>% 
+  filter(material=="Stool")
+
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
+
+```
+
+```{r subset per sample type}
+
+ps_full_sputum <- subset_samples(ps_full, material== "Sputum")
+ps_full_stool <- subset_samples(ps_full, material== "Stool")
+ps_full_throat <- subset_samples(ps_full, material== "Throat")
+
+
+
+ps_full_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1) # has 632 taxa
+
+set.seed(100)
+ps_full_sputum_rar <- rarefy_even_depth(ps_full_sputum, rngseed=FALSE, sample.size=8000, replace=T, trimOTUs = T, verbose = T) # has 597 taxa
+ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.1) # has 155 taxa
+ps_sputum_filtered_rar <- tax_filter(ps_full_sputum_rar, min_prevalence = 0.1) # has 153 taxa
+
+
+ps_full_throat <- tax_filter(ps_full_throat, min_prevalence = 1) # removes 0s, has 2237 taxa
+ps_full_throat_rar <- rarefy_even_depth(ps_full_throat, rngseed=FALSE, sample.size=5500, replace=T, trimOTUs = T, verbose = T)
+ps_throat_filtered <- tax_filter(ps_full_throat, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 70 taxa
+ps_throat_filtered_rar <- tax_filter(ps_full_throat_rar, min_prevalence = 0.3) # has 70 taxa
+
+
+ps_full_stool <- tax_filter(ps_full_stool, min_prevalence = 1) # removes 0s, has 2341 taxa
+ps_full_stool_rar <- rarefy_even_depth(ps_full_stool, rngseed=FALSE, sample.size=6500, replace=T, trimOTUs = T, verbose = T) # has 1935 taxa
+ps_stool_filtered <- tax_filter(ps_full_stool, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 94 taxa
+ps_stool_filtered_rar <- tax_filter(ps_full_stool_rar, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 90 taxa
+
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x))
+ps_sputum_filtered_relab <- transform_sample_counts(ps_sputum_filtered, function(x) x/sum(x))
+ps_throat_filtered_relab <- transform_sample_counts(ps_throat_filtered, function(x) x/sum(x))
+ps_stool_filtered_relab <- transform_sample_counts(ps_stool_filtered, function(x) x/sum(x))
+
+```
+
+# MetadeconfoundR on alpha diversity
+## MetadeconfoundR for Sputum diversity
+```{r MetadeconfoundR for Sputum diversity unrarefied, fig.height=3, fig.width=5.5}
+alphadiversity_df_sputum <- microbiome::alpha(ps_full_sputum_rar, index = "all")
+alphadiversity_df_sputum$x_sample_id <- rownames(alphadiversity_df_sputum)
+alphadiversity_df_sputum_sel <- alphadiversity_df_sputum %>% 
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp, x_sample_id)
+
+ps_full_sputum_df <- as.data.frame(sample_data(ps_full_sputum))
+
+view(ps_full_sputum_df)
+diversity_df_sputum_metadata<- alphadiversity_df_sputum%>%
+left_join(ps_full_sputum_df, by = "x_sample_id")
+
+xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+
+# create metadata, to make MetadeconfoundR run properly, I need to recode all variables I want to input into MetadeconfoundR into numeric variables and I will select only the relevant variables to reduce computational time
+
+metadata_x_sputum_selected <- diversity_df_sputum_metadata %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
+
+
+xlabels= c("tobramycin_inhal" = "Tobramycin Inhalation", "isotonic_na_cl"="Isotonic NaCl Inhalation", "saba_inhal"="(SABA) Inhaler", "cortison_inhal" = "Cortisone Inhalation", "antihistaminikum"="Oral Antihistamine", "orale_zusatznahrung"="Oral Nutritional Supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic Medication (Oral)", "ab_15dprior_visit"="Antibiotic 15 Days before Visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte Count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total Reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin Inhalation", "azetronam_inhal"="Aztreonam Inhalation", "anticholinergic"="Anticholinergic Inhalation", "dn_ase"="DNAse Inhalation", "cortison_nasal"="Cortisone Nasal Spray", "nasenspray"= "Nasal Spray", "ursodesoxychols_a_ure"="Ursodeoxycholic Acid", "tranexams_a_ure"="Tranexamic Acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N Antibiotic tt Days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI tt Days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin Inhalation",
+"hypertonic_na_cl"="Hypertonic Saline Inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol Inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin Inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
+
+# create a dataframe for the investigated metadata
+# Split each string at the equal sign
+split_values <- strsplit(xlabels, "=")
+
+# Create a data frame with two columns
+metaVariable_df <- data.frame(
+  Column1 = sapply(split_values, `[`, 1),
+  Column2 = sapply(split_values, `[`, 2)
+)
+
+write_csv(metaVariable_df, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/metaVariables_metadeconfoundR.csv")
+
+ylabels<- c("evenness_pielou"="Evenness (Pielou)", "diversity_shannon"="Diversity (Shannon)", "dominance_dbp" ="Dominance (BP)", "observed"="Observed ASVs")
+
+metadata <- metadata_x_sputum_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))#, allopurinol, azithromycin_oral, nmh_enoxaparin, immunsuppressiva, na_ssa,dopaminagonist))
+
+#create other input
+features <- alphadiversity_df_sputum_sel %>% 
+  select(-x_sample_id)
+
+
+library(metadeconfoundR)
+
+sputum_metad_div<- MetaDeconfound(featureMat = features, metaMat = metadata, randomVar = c("id.y"), nnodes=9, returnLong = T)
+
+view(sputum_metad_div)
+
+view(sputum_metad_div %>% 
+  filter(Qs<=0.1&feature=="diversity_shannon") )
+
+view(sputum_metad_div %>% 
+    filter(Qs<=0.1) %>% 
+    filter(abs(Ds)>=0.33)%>% 
+    filter(status!="NS"))
+
+tab_sputum <- BuildHeatmap(sputum_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2, keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "total_reads", "treatmentdays_365prior_visit" ))
+
+tab_sputum <- tab_sputum %>% 
+  mutate(Sample="Sputum")
+
+stats_sputum <- sputum_metad_div %>% 
+    filter(Qs<=0.1) %>% # filters fdr
+    filter(abs(Ds)>=0.2)%>% #filters effect size
+    filter(status!="NS") %>% 
+    mutate(Sample="Sputum")
+
+tab_sputum%>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12, face="italic"), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)
+
+
+metadata %>% 
+  rownames_to_column(var="x_sample_id")%>% 
+  left_join(alphadiversity_df_sputum, by="x_sample_id") %>% 
+  ggplot(aes(x=levofloxacin_inhal, y=diversity_shannon))+
+  #geom_boxplot()+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+metadata %>% 
+  rownames_to_column(var="x_sample_id")%>% 
+  left_join(alphadiversity_df_sputum, by="x_sample_id") %>% 
+  ggplot(aes(x=levofloxacin_inhal, y=chlorid_mmol_cl_l))+
+  #geom_boxplot()+
+  geom_point()+
+  geom_smooth(method = "lm")
+  
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_selected.png", width = 5.5, height = 3)
+```
+
+## MetadeconfoundR for throat diversity
+```{r MetadeconfoundR for throat diversity unrarefied, fig.height=4, fig.width=8}
+
+alphadiversity_df_throat <- microbiome::alpha(ps_full_throat_rar, index = "all")
+alphadiversity_df_throat$x_sample_id <- rownames(alphadiversity_df_throat)
+alphadiversity_df_throat_sel <- alphadiversity_df_throat %>% 
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp, x_sample_id)
+
+ps_full_throat_df <- as.data.frame(sample_data(ps_full_throat))
+
+diversity_df_throat_metadata<- alphadiversity_df_throat%>%
+left_join(ps_full_throat_df, by = "x_sample_id")
+
+# create metadata, to make MetadeconfoundR run properly, I need to recode all variables I want to input into MetadeconfoundR into numeric variables and I will select only the relevant variables to reduce computational time
+
+metadata_x_throat_selected <- diversity_df_throat_metadata %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat)  
+
+metadata <- metadata_x_throat_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))#, allopurinol, azithromycin_oral, nmh_enoxaparin, immunsuppressiva, na_ssa,dopaminagonist))
+
+#create other input
+features <- alphadiversity_df_throat_sel %>% 
+  select(-x_sample_id)
+
+throat_metad_div<- MetaDeconfound(featureMat = features, metaMat = metadata, randomVar = c("id.y"),  nnodes=9, returnLong = T)
+
+tab_throat <- BuildHeatmap(throat_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2, keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "treatmentdays_365prior_visit"))
+
+tab_throat <- tab_throat %>% 
+  mutate(Sample="Throat")
+
+stats_throat <- throat_metad_div%>% 
+    filter(Qs<=0.1) %>% 
+    filter(abs(Ds)>=0.2)%>% 
+    filter(status!="NS") %>% 
+    mutate(Sample="Throat")
+
+tab_throat%>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12, face="italic"), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)
+
+tabyl(metadata, insulin, id.y) # 7 patients had insulin
+tabyl(metadata, ssri, id.y) #  3 patients took SSRIs
+
+tab_all<-rbind(tab_throat, tab_sputum)
+
+tab_all %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12, face="italic"), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  facet_wrap(~Sample, nrow = 8)
+
+```
+
+## MetadeconfoundR for stool diversity
+```{r MetadeconfoundR for stool diversity unrarefied, fig.height=5.5, fig.width=4.5}
+
+alphadiversity_df_stool <- microbiome::alpha(ps_full_stool_rar, index = "all")
+alphadiversity_df_stool$x_sample_id <- rownames(alphadiversity_df_stool)
+alphadiversity_df_stool_sel <- alphadiversity_df_stool %>% 
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp, x_sample_id)
+
+ps_full_stool_df <- as.data.frame(sample_data(ps_full_stool))
+
+diversity_df_stool_metadata<- alphadiversity_df_stool%>%
+left_join(ps_full_stool_df, by = "x_sample_id")
+
+# create metadata, to make MetadeconfoundR run properly, I need to recode all variables I want to input into MetadeconfoundR into numeric variables and I will select only the relevant variables to reduce computational time
+
+metadata_x_stool_selected <- diversity_df_stool_metadata %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
+
+metadata <- metadata_x_stool_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))#, allopurinol, azithromycin_oral, nmh_enoxaparin, immunsuppressiva, na_ssa,dopaminagonist))
+
+#create other input
+features <- alphadiversity_df_stool_sel %>% 
+  select(-x_sample_id)
+
+stool_metad_div<- MetaDeconfound(featureMat = features, metaMat = metadata, nnodes=9,returnLong = T) # randomVar = list("+ (1|id.y)", c("id.y")),
+
+tab_stool<- BuildHeatmap(stool_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2, keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "treatmentdays_365prior_visit"))
+
+view(stool_metad_div)
+
+tab_stool<- tab_stool%>% 
+  mutate(Sample="Stool")
+
+stats_stool <- stool_metad_div%>% 
+    filter(Qs<=0.1) %>% # filters fdr
+    filter(abs(Ds)>=0.2)%>% #filters effect size
+    filter(Ds!="Inf")%>%
+    filter(status!="NS") %>% 
+    mutate(Sample="Stool")
+
+tab_stool %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 3)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10, face="italic"), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  facet_wrap(~Sample, scales = "free_y")
+
+tab_all<-rbind(tab_throat, tab_sputum, tab_stool)
+
+tab_all<-tab_all %>% 
+  select(Sample, everything())
+
+write_csv(tab_all, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/diversity_all_metaD.csv")
+
+stats_all<-rbind(stats_throat, stats_sputum, stats_stool)
+
+stats_all<-stats_all %>% 
+  select(Sample, everything())
+
+write_csv(stats_all, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/rarified_stats_diversity_all_metaD.csv")
+
+tab_all$Sample <- factor(tab_all$Sample, levels = c("Sputum","Throat","Stool"))
+
+diversity_hm<-tab_all %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  facet_wrap(~Sample, nrow=12,scales = "free_y")
+diversity_hm
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/all_diversity_metaD.png", diversity_hm, width = 4.5, height = 5.5)
+
+metadata %>% 
+  filter(!is.na(insulin)) %>% 
+  ggplot(aes(x=as.factor(insulin), y=treatmentdays_365prior_visit))+
+  geom_boxplot()+
+  geom_point()+
+  stat_compare_means()
+
+metadata %>%
+  group_by(insulin) %>%
+  summarise(
+    median_treatmentdays = median(treatmentdays_365prior_visit, na.rm = TRUE),
+    iqr_treatmentdays = IQR(treatmentdays_365prior_visit, na.rm = TRUE),
+    mean_treatmentdays = mean(treatmentdays_365prior_visit, na.rm = TRUE)
+  )
+
+```
+
+## MetadeconfoundR for Sputum glomerulated taxa
+```{r MetadeconfoundR for Sputum glomerulated taxa, fig.width=8, fig.height=10}
+
+# for Sputum glomerulated taxa
+ps_x_sputum_glom <- tax_glom(ps_sputum_filtered_relab, "Genus")
+
+# take metadata from chunk above
+metadata_x_sputum_selected <- diversity_df_sputum_metadata %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat)
+
+metadata <- metadata_x_sputum_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))#, allopurinol, azithromycin_oral, nmh_enoxaparin, immunsuppressiva, na_ssa,dopaminagonist))
+
+#create other input
+features <- as.data.frame(otu_table(ps_x_sputum_glom))
+taxtable <- as.data.frame(tax_table(ps_x_sputum_glom))
+
+#create taxatbale to crorrectly annotate asvs in the heatmap
+taxtable <- taxtable%>%
+  select(Genus)
+features_t <- as.data.frame(t(features))
+
+features_named <- features_t
+features_named <- merge(features_named, taxtable, by = 0)
+row.names(features_named) <- features_named$Genus
+features_named$Row.names <- NULL
+features_named$Genus <- NULL
+features_named <- as.data.frame(t(features_named))
+
+features_named_sputum <- features_named
+
+sputum_metad_glom<- MetaDeconfound(featureMat = features_named,metaMat = metadata, randomVar = c("id.y"),  nnodes=9, returnLong = T)
+
+sputum_metad_glom <- sputum_metad_glom %>% 
+  mutate(Sample="Sputum")
+
+hm_05 <- BuildHeatmap(sputum_metad_glom, intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.45)
+
+view(hm_05)
+
+sputum_hm <- hm_05 %>% 
+  filter(metaVariable!="age_y") %>% 
+  filter(metaVariable!="colistin_inhal") %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  ggtitle("Sputum")
+sputum_hm
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_randomVarID.pdf", width = 18, height = 21)
+
+```
+## Staphylococcus
+```{r direct correlations with sputum rel abundances, fig.height=6, fig.width=6}
+
+metadata_features_combined_sputum <- rownames_to_column(features_named_sputum)%>%
+  left_join(rownames_to_column(ps_full_sputum_df), by=c("rowname"="rowname"))
+
+lm_visit_sum <- summary(lmerTest::lmer(Staphylococcus ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_sputum))
+lm_chloride <- summary(lmerTest::lmer(Staphylococcus ~ chlorid_mmol_cl_l + (1|id), data=metadata_features_combined_sputum))
+lm_full <- summary(lmerTest::lmer(Staphylococcus ~ visit_sum + chlorid_mmol_cl_l + (1|id), data=metadata_features_combined_sputum))
+
+anova(lmerTest::lmer(Staphylococcus ~ visit_sum + chlorid_mmol_cl_l + (1|id), data=metadata_features_combined_sputum), lmerTest::lmer(Staphylococcus ~ chlorid_mmol_cl_l + (1|id), data=metadata_features_combined_sputum))
+
+# a model knowing about sweat chloride and visit_sum does not perform better than a model knowing about sweat chloride alone, hence the effect on Staph abundance is sweat chloride mediated
+
+  coefs <- data.frame(coef(lm_chloride))
+
+  lm_stats <- coefs%>%
+    mutate(p = Pr...t..)
+  
+  lm_stats <- format(lm_stats, digits = 2)
+  lm_stats <- rownames_to_column(lm_stats)%>%
+    mutate(variable=rowname)%>%
+    select(c(variable, Estimate, Std..Error, df, t.value, p))
+  print(lm_stats)
+  
+  lm_stats<- lm_stats[2,]
+  lm_stats$p <- format(as.numeric(lm_stats$p), scientific=F)
+  
+  library(ggtext)
+  
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+
+
+p1 <- metadata_features_combined_sputum %>%
+  ggplot(aes(y = Staphylococcus * 100 + 0.01, x=chlorid_mmol_cl_l)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Sweat chloride mmol/l") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+p1
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.pdf", width = 7.5, height = 7)
+
+
+```
+## Pseudomonas
+
+```{r direct correlations with sputum rel abundances, fig.height=8, fig.width=12}
+
+pseudomonas <- metadata_features_combined_sputum %>%
+  ggplot(aes(y = Pseudomonas * 100 + 0.01, x=leukozyten_nl)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+   breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  scale_x_log10()+
+  xlab("Leucocytes /nl") +
+  ylab("*Pseudomonas* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+pseudomonas
+
+pseu_igg <- metadata_features_combined_sputum %>%
+  ggplot(aes(y = Pseudomonas * 100 + 0.01, x=ig_g_g_l)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  #scale_x_log10()+
+  xlab("IgG g/l") +
+  ylab("*Pseudomonas* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+igg_leuco <- metadata_features_combined_sputum %>%
+  ggplot(aes(y = leukozyten_nl, x=ig_g_g_l)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  #scale_y_log10(
+    #breaks = c(0.01, 0.1, 1, 10, 100),
+    #labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  #scale_x_log10()+
+  xlab("IgG g/l") +
+  ylab("Leucocytes /nl") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+
+leu <- metadata_features_combined_sputum %>%
+  ggplot(aes(y = leukozyten_nl, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("Leucocytes /nl") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+igg <- metadata_features_combined_sputum %>%
+  filter(!is.na(Pseudomonas)) %>% 
+  ggplot(aes(y = ig_g_g_l, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("IgG g/l") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))
+
+pseu_ab <- metadata_features_combined_sputum %>%
+  filter(!is.na(Pseudomonas)) %>% 
+  ggplot(aes(y = Pseudomonas * 100 + 0.01, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Months from treatment start") +
+  ylab("*Pseudomonas* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))
+
+
+summary(lmerTest::lmer(Pseudomonas ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_sputum))
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_sputum))
+summary(lmerTest::lmer(ig_g_g_l ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_sputum))
+
+
+ggarrange(pseudomonas, pseu_igg, pseu_leuco, leu, igg, pseu_ab, labels = c("A","B","C","D","E","F"), nrow = 2, ncol = 3, legend = "bottom", common.legend = T)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation.png", width = 12, height = 8)
+```
+## add in vitro testing results
+```{r}
+
+ic<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/IC25_Annes_Version.rds")
+
+ic<-ic+
+   theme(
+    text = element_text(size = 10),
+    axis.text = element_text(size = 10))+
+  ggtitle("High-throughput testing of bacteria-drug interaction")
+  
+```
+
+
+```{r arrange plots for figure 4, fig.height=13, fig.width=11}
+library(gridExtra)
+# Arrange the ggplot objects in a grid
+grid_arranged <- grid.arrange(
+sputum_hm+ labs(tag = "A") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  diversity_hm + labs(tag = "B"),
+  p1 + labs(tag = "C"),
+  ic + labs(tag = "D"),
+  ncol = 2, nrow = 4,
+  heights = c(0.75, 0.75, 1.2,1.2),
+  widths=c(1.7,1),
+  layout_matrix = rbind(c(1,2),
+                        c(1,2),
+                        c(1,3),
+                        c(4,4))
+)
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/fig4_metaD_diversity_sputum.png",grid_arranged, dpi = 600, width = 11, height = 13)
+```
+
+## MetadeconfoundR for throat glomerulated taxa
+```{r MetadeconfoundR for throat glomerulated taxa, fig.width=7, fig.height=7}
+
+# for throat glomerulated taxa
+ps_x_throat_glom <- tax_glom(ps_throat_filtered_relab, "Genus")
+
+# create metadata, to make MetadeconfoundR run properly, I need to recode all variables I want to input into MetadeconfoundR into numeric variables and I will select only the relevant variables to reduce computational time
+metadata_x_throat <- as(sample_data(ps_full_throat),"data.frame")
+
+metadata_x_throat_selected <- metadata_x_throat %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral, ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
+
+metadata <- metadata_x_throat_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))
+
+#create other input
+features <- as.data.frame(otu_table(ps_x_throat_glom))
+taxtable <- as.data.frame(tax_table(ps_x_throat_glom))
+
+#create taxatbale to crorrectly annotate asvs in the heatmap
+taxtable <- taxtable%>%
+  select(Genus)
+features_t <- as.data.frame(t(features))
+
+features_named <- features_t
+features_named <- merge(features_named, taxtable, by = 0)
+row.names(features_named) <- features_named$Genus
+features_named$Row.names <- NULL
+features_named$Genus <- NULL
+features_named <- as.data.frame(t(features_named))
+
+throat_metad_glom<- MetaDeconfound(featureMat = features_named,metaMat = metadata, randomVar = c("id.y"),  nnodes=9, returnLong = T)
+hm_05 <- BuildHeatmap(throat_metad_glom, intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.3)
+
+throat_metad_glom <- throat_metad_glom %>% 
+  mutate(Sample="Throat")
+
+view(hm_05)
+
+throat_hm <- hm_05 %>% 
+  filter(metaVariable!="colistin_inhal") %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  ggtitle("Throat")
+throat_hm 
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_metaD_randomVarID.png", width = 7, height = 7)
+
+```
+
+## MetadeconfoundR for stool glomerulated taxa
+```{r MetadeconfoundR for stool glomerulated taxa, fig.width=7, fig.height=7}
+
+# for stool glomerulated taxa
+ps_x_stool_glom <- tax_glom(ps_stool_filtered_relab, "Genus")
+
+# create metadata, to make MetadeconfoundR run properly, I need to recode all variables I want to input into MetadeconfoundR into numeric variables and I will select only the relevant variables to reduce computational time
+metadata_x_stool <- as(sample_data(ps_full_stool),"data.frame")
+
+metadata_x_stool_selected <- metadata_x_stool %>%
+  select(sex, x_sample_id, id.y, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral, ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
+
+metadata <- metadata_x_stool_selected
+rownames(metadata) <- metadata$x_sample_id
+metadata$insulin[metadata$x1 == "18IMP16V1Spu"]<-"0"
+glimpse(metadata)
+metadata <- metadata %>%
+  mutate(across(where(is.character), as.numeric))
+metadata$sex<- metadata$sex-1
+
+# exclude variables which only represent 1 patient
+metadata <- metadata %>%
+  select(-c(x_sample_id))
+
+#create other input
+features <- as.data.frame(otu_table(ps_x_stool_glom))
+taxtable <- as.data.frame(tax_table(ps_x_stool_glom))
+
+#create taxatbale to crorrectly annotate asvs in the heatmap
+taxtable <- taxtable%>%
+  select(Genus)
+features_t <- as.data.frame(t(features))
+
+features_named <- features_t
+features_named <- merge(features_named, taxtable, by = 0)
+row.names(features_named) <- features_named$Genus
+features_named$Row.names <- NULL
+features_named$Genus <- NULL
+features_named <- as.data.frame(t(features_named))
+
+stool_metad_glom<- MetaDeconfound(featureMat = features_named,metaMat = metadata, randomVar = c("id.y"),  nnodes=9, returnLong = T)
+hm_05 <- BuildHeatmap(stool_metad_glom, intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.3)
+
+stool_metad_glom <- stool_metad_glom %>% 
+  mutate(Sample="Stool")
+
+view(hm_05)
+
+stool_hm <- hm_05 %>% 
+  filter(metaVariable!="levofloxacin_inhal") %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)+
+  ggtitle("Stool")
+stool_hm 
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_metaD_randomVarID.png", width = 7, height = 7)
+
+
+```
+
+```{r combine metadeconfoundR statistic output tables}
+
+metad_all <- rbind(sputum_metad_glom, throat_metad_glom, stool_metad_glom)
+
+metad_all <- metad_all %>% 
+  select(Sample, everything()) %>% 
+  filter(status!="NS") %>% 
+  filter(status!="NA") 
+  
+write_csv(metad_all, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/metad_all_samples.csv")
+```
+

@@ -1,0 +1,1839 @@
+---
+title: "Calculate Effect size for visits for throat samples across phylogentic levels"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages and colors, include=FALSE}
+
+pacman::p_load(tidyverse, phyloseq, microbiome, knitr, lubridate, ggplotify, gtools, ggplot2, ggpubr, microViz, metadeconfoundR)
+
+```
+
+```{r prepare data}
+# use ps for throat samples only
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+# subset per material
+ps_full_throat <- subset_samples(ps_full, material== "Throat")
+# remove zero abundances from each dataset
+ps_throat <- tax_filter(ps_full_throat, min_prevalence = 0.3) # has to be prevalent in 30% of samples
+
+# vs
+# calculate relative abundances
+ps_throat_relab <- transform_sample_counts(ps_throat, function(x) x/sum(x))
+#ps_throat_relab <-prune_taxa(taxa_sums(ps_throat_relab) > 0.45, ps_throat_relab) # > 40% prevalence over all samples, 107 most abundant ASVs
+
+ps_throat_relab_family <- tax_glom(ps_throat_relab, "Family")
+ps_throat_relab_order <- tax_glom(ps_throat_relab, "Order")
+ps_throat_relab_class <- tax_glom(ps_throat_relab, "Class")
+ps_throat_relab_phylum<- tax_glom(ps_throat_relab, "Phylum")
+```
+
+# ASV/Genus level
+```{r MetadeconfoundR V1vsV2}
+psV1V2 <-
+ phyloseq::subset_samples(ps_throat_relab , visit_cal_9  %in% c("1", "2"))
+
+metadata_V1V2 <- as(sample_data(psV1V2),"data.frame")
+
+metada <- metadata_V1V2%>%
+  mutate(visit_V1V2 = (as.numeric(visit_cal_9))-1)
+
+metada<- cbind(visit_V1V2 =metada$visit_V1V2, subset(metada,select = -c(visit_V1V2))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1V2, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1V2))
+taxtable <- as.data.frame(tax_table(psV1V2))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Genus = paste(row.names(.), Genus, sep = "_")) %>%
+  select(ASV_Genus = ASV_Genus, -Genus)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1V2 <- metad[1]
+corr_p_V1V2 <- metad[2]
+effect_size_V1V2 <- metad[3]
+status_V1V2 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV3-V5}
+psV1_V3V5 <-
+ phyloseq::subset_samples(ps_throat_relab , visit_cal_cor  %in% c("1", "3", "4", "5"))
+
+metadata_V1_V3V5 <- as(sample_data(psV1_V3V5),"data.frame")
+
+metadata_V1_V3V5$visit_cal_cor
+metadata_V1_V3V5$visit_sum
+
+metada <- metadata_V1_V3V5%>%
+  mutate(visit_V1_V3V5 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V3V5 =metada$visit_V1_V3V5, subset(metada,select = -c(visit_V1_V3V5))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V3V5, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V3V5))
+taxtable <- as.data.frame(tax_table(psV1_V3V5))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Genus = paste(row.names(.), Genus, sep = "_")) %>%
+  select(ASV_Genus = ASV_Genus, -Genus)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_pV1_V3V5 <- metad[1]
+corr_pV1_V3V5 <- metad[2]
+effect_sizeV1_V3V5 <- metad[3]
+statusV1_V3V5 <- metad[4]
+```
+```{r MetadeconfoundR V1vsV6-V7}
+psV1_V6V7 <-
+ phyloseq::subset_samples(ps_throat_relab , visit_cal_cor  %in% c("1", "6", "7"))
+
+metadata_V1_V6V7 <- as(sample_data(psV1_V6V7),"data.frame")
+
+metadata_V1_V6V7$visit_cal_cor
+metadata_V1_V6V7$visit_sum
+
+metada <- metadata_V1_V6V7%>%
+  mutate(visit_V1_V6V7 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V6V7 =metada$visit_V1_V6V7, subset(metada,select = -c(visit_V1_V6V7))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V6V7, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V6V7))
+taxtable <- as.data.frame(tax_table(psV1_V6V7))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Genus = paste(row.names(.), Genus, sep = "_")) %>%
+  select(ASV_Genus = ASV_Genus, -Genus)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V6V7 <- metad[1]
+corr_p_V1_V6V7 <- metad[2]
+effect_size_V1_V6V7 <- metad[3]
+status_V1_V6V7 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV8-V9}
+psV1_V8V9 <-
+ phyloseq::subset_samples(ps_throat_relab , visit_cal_9  %in% c("1", "8", "9"))
+
+metadata_V1_V8V9 <- as(sample_data(psV1_V8V9),"data.frame")
+
+metada <- metadata_V1_V8V9%>%
+  mutate(visitV1_V8V9 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_V8V9 =metada$visitV1_V8V9, subset(metada,select = -c(visitV1_V8V9))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_V8V9, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V8V9))
+taxtable <- as.data.frame(tax_table(psV1_V8V9))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Genus = paste(row.names(.), Genus, sep = "_")) %>%
+  select(ASV_Genus = ASV_Genus, -Genus)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V8V9 <- metad[1]
+corr_p_V1_V8V9 <- metad[2]
+effect_size_V1_V8V9 <- metad[3]
+status_V1_V8V9 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsControl}
+psV1_Control <-
+ phyloseq::subset_samples(ps_throat_relab , visit_cal_9  %in% c("1", "Control"))
+
+metadata_V1_Control <- as(sample_data(psV1_Control),"data.frame")
+
+metada <- metadata_V1_Control%>%
+  mutate(visitV1_Control = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_Control =metada$visitV1_Control, subset(metada,select = -c(visitV1_Control))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_Control, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_Control))
+taxtable <- as.data.frame(tax_table(psV1_Control))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+
+taxtable <- taxtable %>%
+  mutate(ASV_Genus = paste(row.names(.), Genus, sep = "_")) %>%
+  select(ASV_Genus = ASV_Genus, -Genus)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada,  nnodes=9)
+
+raw_p_V1_Control <- metad[1]
+corr_p_V1_Control <- metad[2]
+effect_size_V1_Control <- metad[3]
+status_V1_Control <- metad[4]
+```
+
+
+```{r bind effectsize table}
+
+raw_p <- purrr::map2(raw_p_V1V2,raw_pV1_V3V5,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V6V7,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V8V9,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_Control,cbind)
+
+raw_p_df <- bind_rows(raw_p)
+raw_p_df <- data.frame(raw_p_df$Ps)
+raw_p_df  <- raw_p_df %>%
+  rownames_to_column()%>%
+  mutate(p_V1_V2=visit_V1V2)%>%
+  mutate(p_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(p_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(p_V1_V8V9=visitV1_V8V9)%>%
+  mutate(p_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+corr_p <- purrr::map2(corr_p_V1V2,corr_pV1_V3V5,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V6V7,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V8V9,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_Control,cbind)
+
+corr_p_df <- bind_rows(corr_p)
+corr_p_df <- data.frame(corr_p_df$Qs)
+corr_p_df  <- corr_p_df %>%
+  rownames_to_column()%>%
+  mutate(q_V1_V2=visit_V1V2)%>%
+  mutate(q_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(q_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(q_V1_V8V9=visitV1_V8V9)%>%
+  mutate(q_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_size <- purrr::map2(effect_size_V1V2,effect_sizeV1_V3V5,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V6V7,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V8V9,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_Control,cbind)
+
+effect_size_df <- bind_rows(effect_size)
+effect_size_df <- data.frame(effect_size_df$Ds)
+effect_size_df  <- effect_size_df %>%
+  rownames_to_column()%>%
+  mutate(d_V1_V2=visit_V1V2)%>%
+  mutate(d_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(d_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(d_V1_V8V9=visitV1_V8V9)%>%
+  mutate(d_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+
+status <- purrr::map2(status_V1V2,statusV1_V3V5,cbind)
+status <- purrr::map2(status,status_V1_V6V7,cbind)
+status <- purrr::map2(status,status_V1_V8V9,cbind)
+status <- purrr::map2(status,status_V1_Control,cbind)
+
+status_df <- bind_rows(status)
+status_df <- data.frame(status_df$status)
+status_df  <- status_df %>%
+  rownames_to_column()%>%
+  mutate(status_V1_V2=visit_V1V2)%>%
+  mutate(status_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(status_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(status_V1_V8V9=visitV1_V8V9)%>%
+  mutate(status_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_table <- raw_p_df%>%
+  full_join(corr_p_df, by="ASV")%>%
+  full_join(effect_size_df, by="ASV")%>%
+  full_join(status_df, by="ASV")%>%
+  full_join(taxtable, by="ASV")
+
+# without differences to Control
+effect_table_sig <- effect_table%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long <- effect_table_sig%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa=paste(ASV_Genus, "(Genus)"))%>%
+  select(-ASV_Genus)
+```
+
+```{r plot cuneiform }
+effect_table_sig_long$comparison_p <- factor(effect_table_sig_long$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long%>%
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = as.factor (sign (effectSize)), size = abs (effectSize), color=(fdr))) +
+  scale_shape_manual (values = c (25, 24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+
+```{r plot cuneiform with all differences from Controls to baseline }
+# select the entries which have OK_nc in status with all differences to Control
+
+effect_table_sig_control <- effect_table%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc"| status_V1_Control=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_control <- effect_table_sig_control%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa=paste(ASV_Genus, "(Genus)"))%>%
+  select(-ASV_Genus)
+
+effect_table_sig_long_control$comparison_p <- factor(effect_table_sig_long_control$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_control%>%
+  mutate(shape_sign= as.factor(sign(effectSize))) %>% 
+  filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
+  scale_shape_manual (values = c (24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+# Family level
+```{r MetadeconfoundR V1vsV2 family}
+psV1V2 <-
+ phyloseq::subset_samples(ps_throat_relab_family , visit.x  %in% c("V1", "V2"))
+
+metadata_V1V2 <- as(sample_data(psV1V2),"data.frame")
+
+metada <- metadata_V1V2%>%
+  mutate(visit_V1V2 = (as.numeric(visit.x))-1)
+
+metada<- cbind(visit_V1V2 =metada$visit_V1V2, subset(metada,select = -c(visit_V1V2))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1V2, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1V2))
+taxtable <- as.data.frame(tax_table(psV1V2))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Family = paste(row.names(.), Family, sep = "_")) %>%
+  select(ASV_Family = ASV_Family, -Family)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1V2 <- metad[1]
+corr_p_V1V2 <- metad[2]
+effect_size_V1V2 <- metad[3]
+status_V1V2 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV3-V5 family}
+psV1_V3V5 <-
+ phyloseq::subset_samples(ps_throat_relab_family , visit_cal_cor  %in% c("1", "3", "4", "5"))
+
+metadata_V1_V3V5 <- as(sample_data(psV1_V3V5),"data.frame")
+
+metadata_V1_V3V5$visit_cal_cor
+metadata_V1_V3V5$visit_sum
+
+metada <- metadata_V1_V3V5%>%
+  mutate(visit_V1_V3V5 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V3V5 =metada$visit_V1_V3V5, subset(metada,select = -c(visit_V1_V3V5))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V3V5, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V3V5))
+taxtable <- as.data.frame(tax_table(psV1_V3V5))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Family = paste(row.names(.), Family, sep = "_")) %>%
+  select(ASV_Family = ASV_Family, -Family)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_pV1_V3V5 <- metad[1]
+corr_pV1_V3V5 <- metad[2]
+effect_sizeV1_V3V5 <- metad[3]
+statusV1_V3V5 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV6-V7 family}
+psV1_V6V7 <-
+ phyloseq::subset_samples(ps_throat_relab_family , visit_cal_cor  %in% c("1", "6", "7"))
+
+metadata_V1_V6V7 <- as(sample_data(psV1_V6V7),"data.frame")
+
+metadata_V1_V6V7$visit_cal_cor
+metadata_V1_V6V7$visit_sum
+
+metada <- metadata_V1_V6V7%>%
+  mutate(visit_V1_V6V7 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V6V7 =metada$visit_V1_V6V7, subset(metada,select = -c(visit_V1_V6V7))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V6V7, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V6V7))
+taxtable <- as.data.frame(tax_table(psV1_V6V7))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Family = paste(row.names(.), Family, sep = "_")) %>%
+  select(ASV_Family = ASV_Family, -Family)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V6V7 <- metad[1]
+corr_p_V1_V6V7 <- metad[2]
+effect_size_V1_V6V7 <- metad[3]
+status_V1_V6V7 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV8-V9 family}
+psV1_V8V9 <-
+ phyloseq::subset_samples(ps_throat_relab_family, visit_cal_cor  %in% c("1", "8", "9"))
+
+metadata_V1_V8V9 <- as(sample_data(psV1_V8V9),"data.frame")
+
+metadata_V1_V8V9$visit_cal_cor
+metadata_V1_V8V9$visit_sum
+
+metada <- metadata_V1_V8V9%>%
+  mutate(visitV1_V8V9 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_V8V9 =metada$visitV1_V8V9, subset(metada,select = -c(visitV1_V8V9))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_V8V9, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V8V9))
+taxtable <- as.data.frame(tax_table(psV1_V8V9))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Family = paste(row.names(.), Family, sep = "_")) %>%
+  select(ASV_Family = ASV_Family, -Family)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V8V9 <- metad[1]
+corr_p_V1_V8V9 <- metad[2]
+effect_size_V1_V8V9 <- metad[3]
+status_V1_V8V9 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsControl Family}
+psV1_Control <-
+ phyloseq::subset_samples(ps_throat_relab_family , visit_cal_9  %in% c("1", "Control"))
+
+metadata_V1_Control <- as(sample_data(psV1_Control),"data.frame")
+
+metada <- metadata_V1_Control%>%
+  mutate(visitV1_Control = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_Control =metada$visitV1_Control, subset(metada,select = -c(visitV1_Control))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_Control, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_Control))
+taxtable <- as.data.frame(tax_table(psV1_Control))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable %>%
+  mutate(ASV_Family = paste(row.names(.), Family, sep = "_")) %>%
+  select(ASV_Family = ASV_Family, -Family)
+taxtable$ASV <- row.names(taxtable)
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada,  nnodes=9)
+
+raw_p_V1_Control <- metad[1]
+corr_p_V1_Control <- metad[2]
+effect_size_V1_Control <- metad[3]
+status_V1_Control <- metad[4]
+```
+
+```{r bind effectsize table family}
+
+raw_p <- purrr::map2(raw_p_V1V2,raw_pV1_V3V5,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V6V7,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V8V9,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_Control,cbind)
+
+raw_p_df <- bind_rows(raw_p)
+raw_p_df <- data.frame(raw_p_df$Ps)
+raw_p_df  <- raw_p_df %>%
+  rownames_to_column()%>%
+  mutate(p_V1_V2=visit_V1V2)%>%
+  mutate(p_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(p_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(p_V1_V8V9=visitV1_V8V9)%>%
+  mutate(p_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+corr_p <- purrr::map2(corr_p_V1V2,corr_pV1_V3V5,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V6V7,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V8V9,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_Control,cbind)
+
+corr_p_df <- bind_rows(corr_p)
+corr_p_df <- data.frame(corr_p_df$Qs)
+corr_p_df  <- corr_p_df %>%
+  rownames_to_column()%>%
+  mutate(q_V1_V2=visit_V1V2)%>%
+  mutate(q_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(q_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(q_V1_V8V9=visitV1_V8V9)%>%
+  mutate(q_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_size <- purrr::map2(effect_size_V1V2,effect_sizeV1_V3V5,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V6V7,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V8V9,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_Control,cbind)
+
+effect_size_df <- bind_rows(effect_size)
+effect_size_df <- data.frame(effect_size_df$Ds)
+effect_size_df  <- effect_size_df %>%
+  rownames_to_column()%>%
+  mutate(d_V1_V2=visit_V1V2)%>%
+  mutate(d_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(d_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(d_V1_V8V9=visitV1_V8V9)%>%
+  mutate(d_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+status <- purrr::map2(status_V1V2,statusV1_V3V5,cbind)
+status <- purrr::map2(status,status_V1_V6V7,cbind)
+status <- purrr::map2(status,status_V1_V8V9,cbind)
+status <- purrr::map2(status,status_V1_Control,cbind)
+
+status_df <- bind_rows(status)
+status_df <- data.frame(status_df$status)
+status_df  <- status_df %>%
+  rownames_to_column()%>%
+  mutate(status_V1_V2=visit_V1V2)%>%
+  mutate(status_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(status_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(status_V1_V8V9=visitV1_V8V9)%>%
+  mutate(status_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_table_family <- raw_p_df%>%
+  full_join(corr_p_df, by="ASV")%>%
+  full_join(effect_size_df, by="ASV")%>%
+  full_join(status_df, by="ASV")%>%
+  full_join(taxtable, by="ASV")
+
+# select the entries which have OK_nc in status
+effect_table_sig_family <- effect_table_family%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_family <- effect_table_sig_family%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa=paste(ASV_Family, "(Family)"))%>%
+  select(-ASV_Family)
+
+```
+
+```{r plot cuneiform family, eval=FALSE}
+effect_table_sig_long_family$comparison_p <- factor(effect_table_sig_long_family$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_family%>%
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = as.factor (sign (effectSize)), size = abs (effectSize), color=(fdr))) +
+  scale_shape_manual (values = c (25, 24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+```{r plot cuneiform with all differences from Controls to baseline family}
+# select the entries which have OK_nc in status with all differences to Control
+
+effect_table_sig_control <- effect_table_family%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc"| status_V1_Control=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_control_family <- effect_table_sig_control%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa=paste(ASV_Family, "(Family)"))%>%
+  select(-ASV_Family)
+
+effect_table_sig_long_control_family$comparison_p <- factor(effect_table_sig_long_control_family$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_control_family%>%
+  mutate(shape_sign= as.factor(sign(effectSize))) %>% 
+  filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
+  scale_shape_manual (values = c (24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+# Order level
+
+```{r MetadeconfoundR V1vsV2 order}
+psV1V2 <-
+ phyloseq::subset_samples(ps_throat_relab_order , visit.x  %in% c("V1", "V2"))
+
+metadata_V1V2 <- as(sample_data(psV1V2),"data.frame")
+
+metada <- metadata_V1V2%>%
+  mutate(visit_V1V2 = (as.numeric(visit.x))-1)
+
+metada<- cbind(visit_V1V2 =metada$visit_V1V2, subset(metada,select = -c(visit_V1V2))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1V2, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1V2))
+taxtable <- as.data.frame(tax_table(psV1V2))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Order)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1V2 <- metad[1]
+corr_p_V1V2 <- metad[2]
+effect_size_V1V2 <- metad[3]
+status_V1V2 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV3-V5 order}
+psV1_V3V5 <-
+ phyloseq::subset_samples(ps_throat_relab_order , visit_cal_cor  %in% c("1", "3", "4", "5"))
+
+metadata_V1_V3V5 <- as(sample_data(psV1_V3V5),"data.frame")
+
+metadata_V1_V3V5$visit_cal_cor
+metadata_V1_V3V5$visit_sum
+
+metada <- metadata_V1_V3V5%>%
+  mutate(visit_V1_V3V5 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V3V5 =metada$visit_V1_V3V5, subset(metada,select = -c(visit_V1_V3V5))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V3V5, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V3V5))
+taxtable <- as.data.frame(tax_table(psV1_V3V5))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Order)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_pV1_V3V5 <- metad[1]
+corr_pV1_V3V5 <- metad[2]
+effect_sizeV1_V3V5 <- metad[3]
+statusV1_V3V5 <- metad[4]
+```
+```{r MetadeconfoundR V1vsV6-V7 order}
+psV1_V6V7 <-
+ phyloseq::subset_samples(ps_throat_relab_order , visit_cal_cor  %in% c("1", "6", "7"))
+
+metadata_V1_V6V7 <- as(sample_data(psV1_V6V7),"data.frame")
+
+metadata_V1_V6V7$visit_cal_cor
+metadata_V1_V6V7$visit_sum
+
+metada <- metadata_V1_V6V7%>%
+  mutate(visit_V1_V6V7 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V6V7 =metada$visit_V1_V6V7, subset(metada,select = -c(visit_V1_V6V7))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V6V7, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V6V7))
+taxtable <- as.data.frame(tax_table(psV1_V6V7))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Order)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V6V7 <- metad[1]
+corr_p_V1_V6V7 <- metad[2]
+effect_size_V1_V6V7 <- metad[3]
+status_V1_V6V7 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV8-V9 order}
+psV1_V8V9 <-
+ phyloseq::subset_samples(ps_throat_relab_order, visit_cal_cor  %in% c("1", "8", "9"))
+
+metadata_V1_V8V9 <- as(sample_data(psV1_V8V9),"data.frame")
+
+metadata_V1_V8V9$visit_cal_cor
+metadata_V1_V8V9$visit_sum
+
+metada <- metadata_V1_V8V9%>%
+  mutate(visitV1_V8V9 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_V8V9 =metada$visitV1_V8V9, subset(metada,select = -c(visitV1_V8V9))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_V8V9, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V8V9))
+taxtable <- as.data.frame(tax_table(psV1_V8V9))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Order)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V8V9 <- metad[1]
+corr_p_V1_V8V9 <- metad[2]
+effect_size_V1_V8V9 <- metad[3]
+status_V1_V8V9 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsControl Order}
+psV1_Control <-
+ phyloseq::subset_samples(ps_throat_relab_order , visit_cal_9  %in% c("1", "Control"))
+
+metadata_V1_Control <- as(sample_data(psV1_Control),"data.frame")
+
+metada <- metadata_V1_Control%>%
+  mutate(visitV1_Control = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_Control =metada$visitV1_Control, subset(metada,select = -c(visitV1_Control))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_Control, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_Control))
+taxtable <- as.data.frame(tax_table(psV1_Control))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Order)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada,  nnodes=9)
+
+raw_p_V1_Control <- metad[1]
+corr_p_V1_Control <- metad[2]
+effect_size_V1_Control <- metad[3]
+status_V1_Control <- metad[4]
+```
+
+```{r bind effectsize table order}
+
+raw_p <- purrr::map2(raw_p_V1V2,raw_pV1_V3V5,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V6V7,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V8V9,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_Control,cbind)
+
+raw_p_df <- bind_rows(raw_p)
+raw_p_df <- data.frame(raw_p_df$Ps)
+raw_p_df  <- raw_p_df %>%
+  rownames_to_column()%>%
+  mutate(p_V1_V2=visit_V1V2)%>%
+  mutate(p_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(p_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(p_V1_V8V9=visitV1_V8V9)%>%
+  mutate(p_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+corr_p <- purrr::map2(corr_p_V1V2,corr_pV1_V3V5,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V6V7,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V8V9,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_Control,cbind)
+
+corr_p_df <- bind_rows(corr_p)
+corr_p_df <- data.frame(corr_p_df$Qs)
+corr_p_df  <- corr_p_df %>%
+  rownames_to_column()%>%
+  mutate(q_V1_V2=visit_V1V2)%>%
+  mutate(q_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(q_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(q_V1_V8V9=visitV1_V8V9)%>%
+  mutate(q_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_size <- purrr::map2(effect_size_V1V2,effect_sizeV1_V3V5,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V6V7,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V8V9,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_Control,cbind)
+
+effect_size_df <- bind_rows(effect_size)
+effect_size_df <- data.frame(effect_size_df$Ds)
+effect_size_df  <- effect_size_df %>%
+  rownames_to_column()%>%
+  mutate(d_V1_V2=visit_V1V2)%>%
+  mutate(d_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(d_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(d_V1_V8V9=visitV1_V8V9)%>%
+  mutate(d_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+status <- purrr::map2(status_V1V2,statusV1_V3V5,cbind)
+status <- purrr::map2(status,status_V1_V6V7,cbind)
+status <- purrr::map2(status,status_V1_V8V9,cbind)
+status <- purrr::map2(status,status_V1_Control,cbind)
+
+status_df <- bind_rows(status)
+status_df <- data.frame(status_df$status)
+status_df  <- status_df %>%
+  rownames_to_column()%>%
+  mutate(status_V1_V2=visit_V1V2)%>%
+  mutate(status_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(status_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(status_V1_V8V9=visitV1_V8V9)%>%
+  mutate(status_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_table_order <- raw_p_df%>%
+  full_join(corr_p_df, by="ASV")%>%
+  full_join(effect_size_df, by="ASV")%>%
+  full_join(status_df, by="ASV")%>%
+  full_join(taxtable, by="ASV")
+
+# select the entries which have OK_nc in status
+effect_table_sig_order <- effect_table_order%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_order <- effect_table_sig_order%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Order, "(Order)"))%>%
+  select(-Order)
+
+```
+
+```{r plot cuneiform order, eval=FALSE}
+effect_table_sig_long_order$comparison_p <- factor(effect_table_sig_long_order$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_order%>%
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = as.factor (sign (effectSize)), size = abs (effectSize), color=(fdr))) +
+  scale_shape_manual (values = c (25, 24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24"))+
+  labs(x= "months from treatment start")
+```
+
+```{r plot cuneiform with all differences from Controls to baseline order, eval=FALSE}
+# select the entries which have OK_nc in status with all differences to Control
+
+effect_table_sig_control <- effect_table_order%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc"| status_V1_Control=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_control_order<- effect_table_sig_control%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Order, "(Order)"))%>%
+  select(-Order)
+
+effect_table_sig_long_control_order$comparison_p <- factor(effect_table_sig_long_control_order$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_control_order%>%
+  mutate(shape_sign= as.factor(sign(effectSize))) %>% 
+  filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
+  scale_shape_manual (values = c (25,24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+# class level
+
+```{r MetadeconfoundR V1vsV2 class}
+psV1V2 <-
+ phyloseq::subset_samples(ps_throat_relab_class , visit.x  %in% c("V1", "V2"))
+
+metadata_V1V2 <- as(sample_data(psV1V2),"data.frame")
+
+metada <- metadata_V1V2%>%
+  mutate(visit_V1V2 = (as.numeric(visit.x))-1)
+
+metada<- cbind(visit_V1V2 =metada$visit_V1V2, subset(metada,select = -c(visit_V1V2))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1V2, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1V2))
+taxtable <- as.data.frame(tax_table(psV1V2))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Class)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1V2 <- metad[1]
+corr_p_V1V2 <- metad[2]
+effect_size_V1V2 <- metad[3]
+status_V1V2 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV3-V5 class}
+psV1_V3V5 <-
+ phyloseq::subset_samples(ps_throat_relab_class , visit_cal_cor  %in% c("1", "3", "4", "5"))
+
+metadata_V1_V3V5 <- as(sample_data(psV1_V3V5),"data.frame")
+
+metadata_V1_V3V5$visit_cal_cor
+metadata_V1_V3V5$visit_sum
+
+metada <- metadata_V1_V3V5%>%
+  mutate(visit_V1_V3V5 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V3V5 =metada$visit_V1_V3V5, subset(metada,select = -c(visit_V1_V3V5))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V3V5, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V3V5))
+taxtable <- as.data.frame(tax_table(psV1_V3V5))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Class)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_pV1_V3V5 <- metad[1]
+corr_pV1_V3V5 <- metad[2]
+effect_sizeV1_V3V5 <- metad[3]
+statusV1_V3V5 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV6-V7 class}
+psV1_V6V7 <-
+ phyloseq::subset_samples(ps_throat_relab_class , visit_cal_cor  %in% c("1", "6", "7"))
+
+metadata_V1_V6V7 <- as(sample_data(psV1_V6V7),"data.frame")
+
+metadata_V1_V6V7$visit_cal_cor
+metadata_V1_V6V7$visit_sum
+
+metada <- metadata_V1_V6V7%>%
+  mutate(visit_V1_V6V7 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V6V7 =metada$visit_V1_V6V7, subset(metada,select = -c(visit_V1_V6V7))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V6V7, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V6V7))
+taxtable <- as.data.frame(tax_table(psV1_V6V7))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Class)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V6V7 <- metad[1]
+corr_p_V1_V6V7 <- metad[2]
+effect_size_V1_V6V7 <- metad[3]
+status_V1_V6V7 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV8-V9 class}
+psV1_V8V9 <-
+ phyloseq::subset_samples(ps_throat_relab_class, visit_cal_cor  %in% c("1", "8", "9"))
+
+metadata_V1_V8V9 <- as(sample_data(psV1_V8V9),"data.frame")
+
+metadata_V1_V8V9$visit_cal_cor
+metadata_V1_V8V9$visit_sum
+
+metada <- metadata_V1_V8V9%>%
+  mutate(visitV1_V8V9 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_V8V9 =metada$visitV1_V8V9, subset(metada,select = -c(visitV1_V8V9))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_V8V9, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V8V9))
+taxtable <- as.data.frame(tax_table(psV1_V8V9))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Class)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V8V9 <- metad[1]
+corr_p_V1_V8V9 <- metad[2]
+effect_size_V1_V8V9 <- metad[3]
+status_V1_V8V9 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsControl class}
+psV1_Control <-
+ phyloseq::subset_samples(ps_throat_relab_class , visit_cal_9  %in% c("1", "Control"))
+
+metadata_V1_Control <- as(sample_data(psV1_Control),"data.frame")
+
+metada <- metadata_V1_Control%>%
+  mutate(visitV1_Control = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_Control =metada$visitV1_Control, subset(metada,select = -c(visitV1_Control))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_Control, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_Control))
+taxtable <- as.data.frame(tax_table(psV1_Control))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Class)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada,  nnodes=9)
+
+raw_p_V1_Control <- metad[1]
+corr_p_V1_Control <- metad[2]
+effect_size_V1_Control <- metad[3]
+status_V1_Control <- metad[4]
+```
+
+```{r bind effectsize table class}
+
+raw_p <- purrr::map2(raw_p_V1V2,raw_pV1_V3V5,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V6V7,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V8V9,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_Control,cbind)
+
+raw_p_df <- bind_rows(raw_p)
+raw_p_df <- data.frame(raw_p_df$Ps)
+raw_p_df  <- raw_p_df %>%
+  rownames_to_column()%>%
+  mutate(p_V1_V2=visit_V1V2)%>%
+  mutate(p_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(p_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(p_V1_V8V9=visitV1_V8V9)%>%
+  mutate(p_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+corr_p <- purrr::map2(corr_p_V1V2,corr_pV1_V3V5,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V6V7,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V8V9,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_Control,cbind)
+
+corr_p_df <- bind_rows(corr_p)
+corr_p_df <- data.frame(corr_p_df$Qs)
+corr_p_df  <- corr_p_df %>%
+  rownames_to_column()%>%
+  mutate(q_V1_V2=visit_V1V2)%>%
+  mutate(q_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(q_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(q_V1_V8V9=visitV1_V8V9)%>%
+  mutate(q_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_size <- purrr::map2(effect_size_V1V2,effect_sizeV1_V3V5,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V6V7,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V8V9,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_Control,cbind)
+
+effect_size_df <- bind_rows(effect_size)
+effect_size_df <- data.frame(effect_size_df$Ds)
+effect_size_df  <- effect_size_df %>%
+  rownames_to_column()%>%
+  mutate(d_V1_V2=visit_V1V2)%>%
+  mutate(d_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(d_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(d_V1_V8V9=visitV1_V8V9)%>%
+  mutate(d_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+status <- purrr::map2(status_V1V2,statusV1_V3V5,cbind)
+status <- purrr::map2(status,status_V1_V6V7,cbind)
+status <- purrr::map2(status,status_V1_V8V9,cbind)
+status <- purrr::map2(status,status_V1_Control,cbind)
+
+status_df <- bind_rows(status)
+status_df <- data.frame(status_df$status)
+status_df  <- status_df %>%
+  rownames_to_column()%>%
+  mutate(status_V1_V2=visit_V1V2)%>%
+  mutate(status_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(status_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(status_V1_V8V9=visitV1_V8V9)%>%
+  mutate(status_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_table_class <- raw_p_df%>%
+  full_join(corr_p_df, by="ASV")%>%
+  full_join(effect_size_df, by="ASV")%>%
+  full_join(status_df, by="ASV")%>%
+  full_join(taxtable, by="ASV")
+
+# select the entries which have OK_nc in status
+effect_table_sig_class <- effect_table_class%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_class <- effect_table_sig_class%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Class, "(Class)"))%>%
+  select(-Class)
+
+```
+
+```{r plot cuneiform class, eval=FALSE}
+effect_table_sig_long_class$comparison_p <- factor(effect_table_sig_long_class$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_class%>%
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = as.factor (sign (effectSize)), size = abs (effectSize), color=(fdr))) +
+  scale_shape_manual (values = c (24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24"))+
+  labs(x= "months from treatment start")
+```
+
+```{r plot cuneiform with all differences from Controls to baseline class, eval=FALSE}
+# select the entries which have OK_nc in status with all differences to Control
+
+effect_table_sig_control <- effect_table_class%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc"| status_V1_Control=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_control_class<- effect_table_sig_control%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Class, "(Class)"))%>%
+  select(-Class)
+
+effect_table_sig_long_control_class$comparison_p <- factor(effect_table_sig_long_control_class$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_control_class%>%
+  mutate(shape_sign= as.factor(sign(effectSize))) %>% 
+  filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
+  scale_shape_manual (values = c (24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+
+# phylum level
+
+```{r MetadeconfoundR V1vsV2 phylum}
+psV1V2 <-
+ phyloseq::subset_samples(ps_throat_relab_phylum , visit.x  %in% c("V1", "V2"))
+
+metadata_V1V2 <- as(sample_data(psV1V2),"data.frame")
+
+metada <- metadata_V1V2%>%
+  mutate(visit_V1V2 = (as.numeric(visit.x))-1)
+
+metada<- cbind(visit_V1V2 =metada$visit_V1V2, subset(metada,select = -c(visit_V1V2))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1V2, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1V2))
+taxtable <- as.data.frame(tax_table(psV1V2))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Phylum)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1V2 <- metad[1]
+corr_p_V1V2 <- metad[2]
+effect_size_V1V2 <- metad[3]
+status_V1V2 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV3-V5 phylum}
+psV1_V3V5 <-
+ phyloseq::subset_samples(ps_throat_relab_phylum , visit_cal_cor  %in% c("1", "3", "4", "5"))
+
+metadata_V1_V3V5 <- as(sample_data(psV1_V3V5),"data.frame")
+
+metadata_V1_V3V5$visit_cal_cor
+metadata_V1_V3V5$visit_sum
+
+metada <- metadata_V1_V3V5%>%
+  mutate(visit_V1_V3V5 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V3V5 =metada$visit_V1_V3V5, subset(metada,select = -c(visit_V1_V3V5))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V3V5, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V3V5))
+taxtable <- as.data.frame(tax_table(psV1_V3V5))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Phylum)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_pV1_V3V5 <- metad[1]
+corr_pV1_V3V5 <- metad[2]
+effect_sizeV1_V3V5 <- metad[3]
+statusV1_V3V5 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV6-V7 phylum}
+psV1_V6V7 <-
+ phyloseq::subset_samples(ps_throat_relab_phylum , visit_cal_cor  %in% c("1", "6", "7"))
+
+metadata_V1_V6V7 <- as(sample_data(psV1_V6V7),"data.frame")
+
+metadata_V1_V6V7$visit_cal_cor
+metadata_V1_V6V7$visit_sum
+
+metada <- metadata_V1_V6V7%>%
+  mutate(visit_V1_V6V7 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visit_V1_V6V7 =metada$visit_V1_V6V7, subset(metada,select = -c(visit_V1_V6V7))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visit_V1_V6V7, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V6V7))
+taxtable <- as.data.frame(tax_table(psV1_V6V7))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Phylum)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V6V7 <- metad[1]
+corr_p_V1_V6V7 <- metad[2]
+effect_size_V1_V6V7 <- metad[3]
+status_V1_V6V7 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsV8-V9 phylum}
+psV1_V8V9 <-
+ phyloseq::subset_samples(ps_throat_relab_phylum, visit_cal_cor  %in% c("1", "8", "9"))
+
+metadata_V1_V8V9 <- as(sample_data(psV1_V8V9),"data.frame")
+
+metadata_V1_V8V9$visit_cal_cor
+metadata_V1_V8V9$visit_sum
+
+metada <- metadata_V1_V8V9%>%
+  mutate(visitV1_V8V9 = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_V8V9 =metada$visitV1_V8V9, subset(metada,select = -c(visitV1_V8V9))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_V8V9, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_V8V9))
+taxtable <- as.data.frame(tax_table(psV1_V8V9))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Phylum)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+
+raw_p_V1_V8V9 <- metad[1]
+corr_p_V1_V8V9 <- metad[2]
+effect_size_V1_V8V9 <- metad[3]
+status_V1_V8V9 <- metad[4]
+```
+
+```{r MetadeconfoundR V1vsControl phylum}
+psV1_Control <-
+ phyloseq::subset_samples(ps_throat_relab_phylum , visit_cal_9  %in% c("1", "Control"))
+
+metadata_V1_Control <- as(sample_data(psV1_Control),"data.frame")
+
+metada <- metadata_V1_Control%>%
+  mutate(visitV1_Control = (as.numeric(visit_sum))-1)
+
+metada<- cbind(visitV1_Control =metada$visitV1_Control, subset(metada,select = -c(visitV1_Control))) # brings visit into the first column
+
+metada <- metada%>%
+  select(visitV1_Control, id)
+
+# run metadeconfoundR
+features <- as.data.frame(otu_table(psV1_Control))
+taxtable <- as.data.frame(tax_table(psV1_Control))
+
+#create two-column-dataframe containing corresponding "human-readable" names to the "machine-readable" feature names used as row.names in metaDeconfOutput.  
+taxtable <- taxtable%>%
+  select(Phylum)
+taxtable$ASV <- row.names(taxtable)
+taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
+
+### run it
+metad <- MetaDeconfound(featureMat = features, metaMat = metada,  nnodes=9)
+
+raw_p_V1_Control <- metad[1]
+corr_p_V1_Control <- metad[2]
+effect_size_V1_Control <- metad[3]
+status_V1_Control <- metad[4]
+```
+
+```{r bind effectsize table phylum}
+
+raw_p <- purrr::map2(raw_p_V1V2,raw_pV1_V3V5,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V6V7,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_V8V9,cbind)
+raw_p <- purrr::map2(raw_p,raw_p_V1_Control,cbind)
+
+raw_p_df <- bind_rows(raw_p)
+raw_p_df <- data.frame(raw_p_df$Ps)
+raw_p_df  <- raw_p_df %>%
+  rownames_to_column()%>%
+  mutate(p_V1_V2=visit_V1V2)%>%
+  mutate(p_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(p_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(p_V1_V8V9=visitV1_V8V9)%>%
+  mutate(p_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+corr_p <- purrr::map2(corr_p_V1V2,corr_pV1_V3V5,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V6V7,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_V8V9,cbind)
+corr_p <- purrr::map2(corr_p,corr_p_V1_Control,cbind)
+
+corr_p_df <- bind_rows(corr_p)
+corr_p_df <- data.frame(corr_p_df$Qs)
+corr_p_df  <- corr_p_df %>%
+  rownames_to_column()%>%
+  mutate(q_V1_V2=visit_V1V2)%>%
+  mutate(q_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(q_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(q_V1_V8V9=visitV1_V8V9)%>%
+  mutate(q_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_size <- purrr::map2(effect_size_V1V2,effect_sizeV1_V3V5,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V6V7,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_V8V9,cbind)
+effect_size <- purrr::map2(effect_size,effect_size_V1_Control,cbind)
+
+effect_size_df <- bind_rows(effect_size)
+effect_size_df <- data.frame(effect_size_df$Ds)
+effect_size_df  <- effect_size_df %>%
+  rownames_to_column()%>%
+  mutate(d_V1_V2=visit_V1V2)%>%
+  mutate(d_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(d_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(d_V1_V8V9=visitV1_V8V9)%>%
+  mutate(d_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+status <- purrr::map2(status_V1V2,statusV1_V3V5,cbind)
+status <- purrr::map2(status,status_V1_V6V7,cbind)
+status <- purrr::map2(status,status_V1_V8V9,cbind)
+status <- purrr::map2(status,status_V1_Control,cbind)
+
+status_df <- bind_rows(status)
+status_df <- data.frame(status_df$status)
+status_df  <- status_df %>%
+  rownames_to_column()%>%
+  mutate(status_V1_V2=visit_V1V2)%>%
+  mutate(status_V1_V3V5=visit_V1_V3V5)%>%
+  mutate(status_V1_V6V7=visit_V1_V6V7)%>%
+  mutate(status_V1_V8V9=visitV1_V8V9)%>%
+  mutate(status_V1_Control=visitV1_Control)%>%
+  mutate(ASV=rowname)%>%
+  select(-c(1:10))
+
+effect_table_phylum <- raw_p_df%>%
+  full_join(corr_p_df, by="ASV")%>%
+  full_join(effect_size_df, by="ASV")%>%
+  full_join(status_df, by="ASV")%>%
+  full_join(taxtable, by="ASV")
+
+# select the entries which have OK_nc in status
+effect_table_sig_phylum <- effect_table_phylum%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_phylum <- effect_table_sig_phylum%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p_"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Phylum, "(Phylum)"))%>%
+  select(-Phylum)
+
+```
+
+```{r plot cuneiform phylum, eval=FALSE}
+effect_table_sig_long_phylum$comparison_p <- factor(effect_table_sig_long_phylum$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_phylum%>%
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = as.factor (sign (effectSize)), size = abs (effectSize), color=(fdr))) +
+  scale_shape_manual (values = c (24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24"))+
+  labs(x= "months from treatment start")
+```
+
+```{r plot cuneiform with all differences from Controls to baseline phylum, eval=FALSE}
+# select the entries which have OK_nc in status with all differences to Control
+
+effect_table_sig_control <- effect_table_phylum%>%
+  filter(status_V1_V2=="OK_nc"|status_V1_V3V5=="OK_nc"|status_V1_V6V7 =="OK_nc" | status_V1_V8V9=="OK_nc"| status_V1_Control=="OK_nc")
+
+#pivot long format
+
+effect_table_sig_long_control_phylum<- effect_table_sig_control%>%
+  pivot_longer(cols = starts_with("status"), names_to = "comparison_status", values_to = "status")%>%
+  separate(comparison_status, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_status=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  pivot_longer(cols = starts_with("p_"), names_to = "comparison_p", values_to = "raw_p")%>%
+  separate(comparison_p, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_p=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_status)%>%
+  pivot_longer(cols = starts_with("d"), names_to = "comparison_effectSize", values_to = "effectSize")%>%
+  separate(comparison_effectSize, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_effectSize=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_effectSize)%>%
+  pivot_longer(cols = starts_with("q"), names_to = "comparison_q", values_to = "corr_p")%>%
+  separate(comparison_q, c("variable","Visit1", "Visit_Sum"), "_")%>%
+  mutate(comparison_q=paste(Visit1,Visit_Sum, sep="_"))%>%
+  select(-c(variable, Visit1, Visit_Sum))%>%
+  filter(comparison_p==comparison_q)%>%
+  select(-c(comparison_q, comparison_effectSize,comparison_status))%>%
+  mutate(fdr= as_factor(case_when(corr_p <= 0.05 ~ "*", corr_p <= 0.01 ~ "**", corr_p <= 0.001 ~ "***", corr_p <= 0.1 ~ ".")))%>%
+  mutate(taxa= paste(Phylum, "(Phylum)"))%>%
+  select(-Phylum)
+
+effect_table_sig_long_control_phylum$comparison_p <- factor(effect_table_sig_long_control_phylum$comparison_p, levels = c("V1_V2", "V1_V3V5","V1_V6V7","V1_V8V9","V1_Control"))
+
+effect_table_sig_long_control_phylum%>%
+  mutate(shape_sign= as.factor(sign(effectSize))) %>% 
+  filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
+  ggplot(aes (x = comparison_p, y = taxa))+ 
+  geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
+  scale_shape_manual (values = c (25,24)) + 
+  scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
+  scale_color_manual(values=c("gray22","gray1","gray85"))+
+  geom_text (aes (label = stars.pval (corr_p)))+
+  theme_grey() +
+  theme(axis.text.x = element_text(), #angle = 0, hjust = 0, vjust = 1
+       legend.position = "right",axis.text.y = element_text(face = "italic"))+
+  scale_x_discrete(labels=c("3", "6-12", "15-18", "21-24", "Control"))+
+  labs(x= "months from treatment start")
+```
+
+
+# Combine different tax levels into one plot
+```{r Combine different tax levels into one plot, fig.height=5, fig.width=11}
+# combine output tabels
+
+effect_table_sig_all_control <- rbind(effect_table_sig_long_control, effect_table_sig_long_control_family, effect_table_sig_long_control_order,effect_table_sig_long_control_class, effect_table_sig_long_control_phylum)
+
+effect_table_sig_all_control %>%
+  mutate(taxa=gsub("ASV\\d{3}_", "", taxa)) %>% 
+  arrange(ASV) %>%
+  ggplot(aes(x = comparison_p, y = taxa)) + 
+  geom_point(
+    aes(fill = effectSize, shape = as.factor(sign(effectSize)), size = abs(effectSize), color = fdr)
+  ) +
+  scale_size_continuous(name = "Absolute effect size (Cliff's delta)", guide = guide_legend(ncol = 5)) + 
+  scale_shape_manual(name = "", labels = c("decreased","increased"), values = c(25,24),guide = guide_legend(ncol = 2)) + 
+  scale_fill_gradient2(
+    name = "Effect size (Cliff's delta)",
+    low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0) +
+  scale_color_manual(
+    name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"),
+    values = c("gray22", "gray1", "gray85"), guide = guide_legend(ncol = 3)
+  ) +
+  geom_text(aes(label = fdr)) +
+  theme_grey() +
+  theme(
+    axis.text.x = element_text(size = 17),
+    axis.title.x = element_text(size = 17),
+    legend.position = "right",
+    axis.text.y = element_text(face = "italic", size = 16),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 17),
+    legend.key = element_rect(size = 8),
+    legend.key.size = unit(1.5, 'lines')
+  ) +
+  scale_x_discrete(labels = c("3", "6-12", "15-18", "21-24", "Control")) +
+  labs(x = "months from treatment start", y = "")
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_throat_Controls.png", width = 11, height = 5)
+```
+

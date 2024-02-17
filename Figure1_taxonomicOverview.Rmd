@@ -1,0 +1,85 @@
+---
+title: "Taxonomic composition of samples at phylum level"
+author: "Rebecca Luise Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(datarium)
+
+# assign colors
+
+phylum_palette <- c(Firmicutes= "#69b3a2", Fusobacteriota="#6FB899FF", Bacteroidota="#31A1B3FF", Actinobacteriota= "#027B8EFF", Proteobacteria= "#EE6AA7", Campylobacterota= "#CCB22BFF", Cyanobacteria= "#9F8F12FF", Spirochaetota="#97CFD0", Verrucomicrobiota= "#6388B4FF", Desulfobacterota= "#BB7693FF", Patescibacteria= "#767676FF")
+
+```
+
+```{r subset per material}
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x)*100)
+
+```
+
+```{r, check numbers}
+
+full_metadata <- as(sample_data(ps_full), "data.frame")
+
+full_metadata %>% 
+  group_by(project) %>% 
+  count(material)
+
+full_metadata %>% 
+  count(material)
+```
+
+# Taxonomic composition
+```{r first visualization, warning=FALSE, fig.width=17, fig.height=7}
+#relative abundance barplot Phylum level
+
+ps_relab_2 <- prune_taxa(taxa_sums(ps_full_relab) > 2, ps_full_relab) # filter for phyla > 2%
+
+# recode visit_cal_9  so that NA's are labeled as Controls
+sample_data(ps_relab_2)$visit_cal_9 <- factor(
+  sample_data(ps_relab_2)$visit_cal_9,
+  levels = c("1","2","3","4","5","6","7","8","9","Control"),
+  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+)
+
+# create material labels
+material.labs <- c("Sputum N=57", "Throat N=252", "Stool N=251")
+names(material.labs) <- c("Sputum", "Throat", "Stool")
+
+# barplot
+bp_ps_relab2 <- plot_bar(ps_relab_2, "id_visit", fill="Phylum")
+p1 <- bp_ps_relab2+
+  geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+  theme_pubclean()+
+    theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "bottom",axis.text.x = element_blank(),axis.ticks = element_blank())+ #axis.text.x = element_text(size=6, angle=80)
+  scale_fill_manual(values=phylum_palette)+
+  scale_color_manual(values=phylum_palette)+
+  scale_x_discrete(name="Participant")+
+  scale_y_continuous(name="Relative abundance (%)")+
+  facet_grid(rows= vars(material), cols = vars(visit_cal_9), scales ="free_x", space ="free_x", labeller = labeller(material = material.labs))
+p1
+#ggtitle("Taxonomic composition of samples on phylum level (Phyla > 2% relative abundance")
+
+##ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.png", p1, width = 17, height = 7)
+
+#write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.rds")
+```

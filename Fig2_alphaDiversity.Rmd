@@ -1,0 +1,955 @@
+---
+title: "Alpha diversity between Controls and CF"
+author: "Rebecca Luise Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(datarium)
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+```
+
+```{r subset per material}
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x)*100)
+
+#subset materials
+ps_full_sputum <- subset_samples(ps_full_relab, material== "Sputum")
+ps_full_throat <- subset_samples(ps_full_relab, material== "Throat")
+ps_full_stool <- subset_samples(ps_full_relab, material== "Stool")
+
+#subset materials on total counts
+ps_full_sputum_total <- subset_samples(ps_full, material== "Sputum")
+ps_full_throat_total <- subset_samples(ps_full, material== "Throat")
+ps_full_stool_total <- subset_samples(ps_full, material== "Stool")
+```
+
+```{r, check numbers}
+
+full_metadata <- as(sample_data(ps_full), "data.frame")
+
+full_metadata %>% 
+  group_by(project) %>% 
+  count(material)
+
+full_metadata %>% 
+  count(material)
+```
+
+# Alpha diversity sputum unrarefied
+```{r Alpha diversity sputum}
+
+alphadiversity_df_sputum <- microbiome::alpha(ps_full_sputum_total, index = "all")
+alphadiversity_df_sputum$x_sample_id <- rownames(alphadiversity_df_sputum)
+
+ps_full_sputum_total_df <- as.data.frame(sample_data(ps_full_sputum_total))
+
+diversity_df_sputum_metadata <- alphadiversity_df_sputum%>%
+left_join(ps_full_sputum_total_df, by = "x_sample_id")
+
+xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+
+# calculate linear model for visit_sum on alpha diversity and add on boxplots
+
+lm_corrected_pvalues_boxplot <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x ~ visit_sum + age_y + sex + (1|id), data=diversity_df_sputum_metadata))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_sum2"~"3", Months_after_ETI_start=="visit_sum3-5"~"6-12",Months_after_ETI_start=="visit_sum6-7"~"15-18",Months_after_ETI_start=="visit_sum8-10"~ "21-24", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1")
+  
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Baseline (Intercept)"~"(Intercept)", Months_after_ETI_start=="3"~"2", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10"))%>%
+    filter(group2!="(Intercept)") 
+  
+  boxplot <- diversity_df_sputum_metadata%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+  
+  return(list(boxplot = boxplot, lm_stats = lm_stats_print))
+}
+
+# run function on unrarefied data
+shannon <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+p1 <- shannon_boxplot <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+p2 <- observed_boxplot <- observed$boxplot # Access boxplot
+
+ggarrange(shannon_boxplot, observed_boxplot)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_sputum_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+#### create alpha diversity table for non-rarefied data ####
+
+diversity_df_sputum_metadata%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+Sputum_ur_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_sputum_metadata,  caption="Sputum ASV level - unrarefied")
+
+Sputum_ur_tab
+
+# make nice table to export and combine with other sample types
+sputum_tb<- as_tibble(Sputum_ur_tab)%>% 
+  mutate(Control="NA") %>% # has to be added to be rbindable with throat and stool
+  mutate(Sample="Sputum")
+
+sputum_tb_ur<- sputum_tb %>% 
+  select(-Overall, everything(), Overall) %>% 
+  select(Sample, everything())
+
+# create linear mixed model tables
+
+lm_stats_table <- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table
+
+lm_sputum_ur <- lm_stats_table %>% 
+  mutate(Sample="Sputum unrarefied") %>% 
+  select(Sample, everything())
+```
+
+# Alpha diversity sputum rarefied
+Rarefying sample depth to 8000 reads brings onyl very little differences into alpha diversity estimates
+```{r Alpha diversity sputum rarefied}
+set.seed(100)
+ps_full_sputum_rar <- rarefy_even_depth(ps_full_sputum_total, rngseed=FALSE, sample.size=8000, replace=T, trimOTUs = T, verbose = T)
+
+alphadiversity_df_sputum_rar <- microbiome::alpha(ps_full_sputum_rar, index = "all")
+alphadiversity_df_sputum_rar$x_sample_id <- rownames(alphadiversity_df_sputum_rar)
+
+ps_full_sputum_total_df <- as.data.frame(sample_data(ps_full_sputum_total))
+
+diversity_df_sputum_metadata_rar <- alphadiversity_df_sputum_rar%>%
+left_join(ps_full_sputum_total_df, by = "x_sample_id")
+
+xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+
+# run function on rarefied data
+shannon <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata_rar$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+spu_rar_sh <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata_rar$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+spu_rar_obs <- observed$boxplot # Access boxplot
+
+ggarrange(spu_rar_sh, spu_rar_obs)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_sputum_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata_rar$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot(diversity_df_sputum_metadata_rar$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+#### create alpha diversity table for rarefied data ####
+
+diversity_df_sputum_metadata_rar%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+Sputum_rar_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_sputum_metadata_rar,  caption="Sputum ASV level - rarefied")
+
+# make nice table to export and combine with other sample types
+sputum_tb<- as_tibble(Sputum_rar_tab)%>% 
+  mutate(Control="NA") # has to be added to be rbindable with throat and stool
+
+sputum_tb_rar<- sputum_tb %>% 
+  select(-Overall, everything(), Overall) 
+
+Sputum_bind <- cbind(sputum_tb_ur, sputum_tb_rar)
+
+#sjPlot::tab_df(Sputum_bind, title= "Alpha diversity metrics for unrarefied and rarefied samples",  file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/diversity_metrics_sputum.html")
+
+#chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/diversity_metrics_sputum.html") # prints the html file in the same directory as a pdf
+
+# create linear mixed model tables
+lm_stats_table_rar <- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table_rar
+
+lm_sputum_rar <- lm_stats_table_rar %>% 
+  mutate(Sample="Sputum rarefied") %>% 
+  select(Sample, everything())
+```
+
+# Alpha diversity throat unrarefied
+
+```{r Alpha diversity throat}
+alphadiversity_df_throat <- microbiome::alpha(ps_full_throat_total, index = "all")
+alphadiversity_df_throat$x_sample_id <- rownames(alphadiversity_df_throat)
+ps_full_throat_total_df <- as.data.frame(sample_data(ps_full_throat_total))
+
+diversity_df_throat_metadata <- alphadiversity_df_throat%>%
+left_join(ps_full_throat_total_df, by = "x_sample_id")
+
+# I have to change NA to something meaningful for the Controls
+diversity_df_throat_metadata <- diversity_df_throat_metadata%>%
+  mutate(visit_sum = if_else(is.na(visit_sum), "Control", as.character(visit_sum))) %>% 
+  mutate(visit_sum = as_factor(visit_sum)) 
+diversity_df_throat_metadata$visit_sum
+
+diversity_df_throat_metadata <- diversity_df_throat_metadata %>%
+  mutate(visit_sum = factor(visit_sum, levels = c("1", "2", "3-5", "6-7",  "8-10", "Control")))
+
+xlabels <- c("0", "3", "6-12", "15-18", "21-24", "Control")
+
+# calculate linear model for visit_sum on alpha diversity and add on boxplots
+
+lm_corrected_pvalues_boxplot <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x ~ visit_sum + age_y + sex + (1|id.x), data=diversity_df_throat_metadata))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_sum2"~"3", Months_after_ETI_start=="visit_sum3-5"~"6-12",Months_after_ETI_start=="visit_sum6-7"~"15-18",Months_after_ETI_start=="visit_sum8-10"~ "21-24", Months_after_ETI_start=="visit_sumControl"~"Control", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1")
+
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Baseline (Intercept)"~"(Intercept)", Months_after_ETI_start=="3"~"2", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10",Months_after_ETI_start=="Control"~"Control"))%>%
+    filter(group2!="(Intercept)")
+
+  boxplot <- diversity_df_throat_metadata%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+  
+    return(list(boxplot = boxplot, lm_stats = lm_stats_print))
+}
+
+# run function on unrarefied data
+shannon <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+p3 <- shannon_boxplot <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+p4 <- observed_boxplot <- observed$boxplot # Access boxplot
+
+ggarrange(shannon_boxplot, observed_boxplot)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_throat_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+#### create alpha diversity table for non-rarefied data ####
+
+diversity_df_throat_metadata%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+throat_ur_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_throat_metadata,  caption="throat ASV level - unrarefied")
+
+throat_ur_tab
+
+# make nice table to export and combine with other sample types
+throat_tb<- as_tibble(throat_ur_tab)%>% 
+  mutate(Sample="Throat")
+throat_tb_ur<- throat_tb %>% 
+  select(Sample, everything())
+
+# create linear mixed model tables
+lm_stats_table_ur<- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table_ur
+
+lm_throat_ur <- lm_stats_table_ur %>% 
+  mutate(Sample="Throat unrarefied") %>% 
+  select(Sample, everything())
+```
+
+# Alpha diversity throat rarefied
+  Rarefying sample depth to 8000 reads brings onyl very little differences into alpha diversity estimates
+
+```{r Alpha diversity throat rarefied }
+set.seed(100)
+ps_full_throat_rar <- rarefy_even_depth(ps_full_throat_total, rngseed=FALSE, sample.size=5500, replace=T, trimOTUs = T, verbose = T)
+
+alphadiversity_df_throat_rar <- microbiome::alpha(ps_full_throat_rar, index = "all")
+alphadiversity_df_throat_rar$x_sample_id <- rownames(alphadiversity_df_throat_rar)
+
+ps_full_throat_total_df <- as.data.frame(sample_data(ps_full_throat_total))
+
+diversity_df_throat_metadata_rar <- alphadiversity_df_throat_rar%>%
+left_join(ps_full_throat_total_df, by = "x_sample_id")
+
+# I have to change NA to something meaningful for the Controls
+diversity_df_throat_metadata_rar <- diversity_df_throat_metadata_rar%>%
+  mutate(visit_sum = if_else(is.na(visit_sum), "Control", as.character(visit_sum))) %>% 
+  mutate(visit_sum = as_factor(visit_sum)) 
+diversity_df_throat_metadata_rar$visit_sum
+
+diversity_df_throat_metadata_rar <- diversity_df_throat_metadata_rar %>%
+  mutate(visit_sum = factor(visit_sum, levels = c("1", "2", "3-5", "6-7",  "8-10", "Control")))
+
+#shannon
+shannon <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata_rar$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+shannon_thr_rar <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata_rar$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+observed_thr_rar <- observed$boxplot # Access boxplot
+
+ggarrange(shannon_thr_rar, observed_thr_rar)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_throat_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata_rar$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot(diversity_df_throat_metadata_rar$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+#### create alpha diversity table for rarefied data ####
+
+diversity_df_throat_metadata_rar%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+throat_rar_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_throat_metadata_rar,  caption="throat ASV level - rarefied")
+
+throat_rar_tab
+
+# make nice table to export and combine with other sample types
+throat_tb_rar<- as_tibble(throat_rar_tab)
+throat_bind <- cbind(throat_tb_ur, throat_tb_rar)
+
+# create linear mixed model tables
+lm_stats_table_rar <- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table_rar
+
+lm_throat_rar <- lm_stats_table_rar %>% 
+  mutate(Sample="Throat rarefied") %>% 
+  select(Sample, everything())
+
+# run statistics on controls vs all CF samples,
+# in order to make this feasible in a linear model I have to revert the order of visit_sum
+summary(diversity_df_throat_metadata_rar$visit_sum_reorder)
+
+diversity_df_throat_metadata_rar$visit_sum_reorder <- factor(diversity_df_throat_metadata_rar$visit_sum, levels = c("Control", "1", "2", "3-5", "6-7", "8-10"))
+
+summary(lmerTest::lmer(diversity_shannon ~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_throat_metadata_rar))
+
+summary(lmerTest::lmer(observed~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_throat_metadata_rar))
+
+
+# now build a function and integrate results in the boxplots
+
+```
+
+```{r}
+
+lm_corrected_pvalues_boxplot_reorder <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_throat_metadata_rar))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Control (Intercept)", Months_after_ETI_start=="visit_sum_reorder2"~"3", Months_after_ETI_start=="visit_sum_reorder3-5"~"6-12",Months_after_ETI_start=="visit_sum_reorder6-7"~"15-18",Months_after_ETI_start=="visit_sum_reorder8-10"~ "21-24", Months_after_ETI_start=="visit_sum_reorder1"~"Baseline", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","Control","Control","Control","Control","Control","Control","Control")
+
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Control (Intercept)"~"(Intercept)",
+                             Months_after_ETI_start=="3"~"2",
+                             Months_after_ETI_start=="Baseline"~"1", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10"))%>%
+    filter(group2!="(Intercept)")
+
+  boxplot <- diversity_df_throat_metadata_rar%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum_reorder), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05)
+  
+    return(list(boxplot = boxplot, lm_stats = lm_stats_print, lm_stats_sig=lm_stats))
+}
+
+
+#shannon
+shannon <- lm_corrected_pvalues_boxplot_reorder(diversity_df_throat_metadata_rar$diversity_shannon, "Shannon Index")
+shannon_lm_stats_reorder <- shannon$lm_stats # Access lm_stats
+shannon_thr_rar_reorder <- shannon$boxplot # Access boxplot
+shannon_thr_rar_reorder
+observed <- lm_corrected_pvalues_boxplot_reorder(diversity_df_throat_metadata_rar$observed, "Observed ASVs")
+observed_lm_stats_reorder <- observed$lm_stats # Access lm_stats
+observed_thr_rar_reorder <- observed$boxplot # Access boxplot
+observed_thr_rar_reorder
+
+observed$lm_stats_sig
+
+observed_thr_rar_wC <- observed_thr_rar +
+  geom_signif(
+    y_position = c(-14, -6, 2, 10), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("ns", ".", "ns", "*"), 
+    tip_length = -0.03, 
+    vjust = 2.05,
+    size = 0.35
+  )
+observed_thr_rar_wC
+
+shannon$lm_stats_sig
+shannon_thr_rar_wC <- shannon_thr_rar +
+  geom_signif(
+    y_position = c(1.15, 1.3, 1.45, 1.6), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("ns", "ns", "ns", "ns"), 
+    tip_length = -0.03, 
+    vjust = 2.05,
+    size = 0.35
+  )
+shannon_thr_rar_wC 
+
+
+evenness <- lm_corrected_pvalues_boxplot_reorder(diversity_df_throat_metadata_rar$evenness_pielou, "Evenness (Pielou)")
+evenness_lm_stats_reorder <- evenness$lm_stats # Access lm_stats
+
+dominance <- lm_corrected_pvalues_boxplot_reorder(diversity_df_throat_metadata_rar$dominance_dbp, "Dominance Berger Parker")
+dominance_lm_stats_reorder <- dominance$lm_stats # Access lm_stats
+
+
+lm_stats_table_throat_rar_control <- rbind(shannon_lm_stats_reorder, observed_lm_stats_reorder,evenness_lm_stats_reorder,dominance_lm_stats_reorder)
+lm_stats_table_throat_rar_control
+
+lm_throat_rar_control <- lm_stats_table_throat_rar_control %>% 
+  mutate(Sample="Throat rarefied") %>% 
+  select(Sample, everything())
+```
+
+
+# Alpha diversity stool unrarefied
+```{r Alpha diversity stool}
+alphadiversity_df_stool <- microbiome::alpha(ps_full_stool_total, index = "all")
+alphadiversity_df_stool$x_sample_id <- rownames(alphadiversity_df_stool)
+
+ps_full_stool_total_df <- as.data.frame(sample_data(ps_full_stool_total))
+
+diversity_df_stool_metadata <- alphadiversity_df_stool%>%
+left_join(ps_full_stool_total_df, by = "x_sample_id")
+
+# I have to change NA to something meaningful for the Controls
+diversity_df_stool_metadata <- diversity_df_stool_metadata%>%
+  mutate(visit_sum = if_else(is.na(visit_sum), "Control", as.character(visit_sum))) %>% 
+  mutate(visit_sum = as_factor(visit_sum)) 
+
+diversity_df_stool_metadata <- diversity_df_stool_metadata %>%
+  mutate(visit_sum = factor(visit_sum, levels = c("1", "2", "3-5", "6-7",  "8-10", "Control")))
+
+summary(diversity_df_stool_metadata$visit_sum)
+
+lm_corrected_pvalues_boxplot_stool <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x ~ visit_sum + age_y + sex + (1|id.x), data=diversity_df_stool_metadata))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Baseline (Intercept)", Months_after_ETI_start=="visit_sum2"~"3", Months_after_ETI_start=="visit_sum3-5"~"6-12",Months_after_ETI_start=="visit_sum6-7"~"15-18",Months_after_ETI_start=="visit_sum8-10"~ "21-24", Months_after_ETI_start=="visit_sumControl"~"Control", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","1","1","1","1","1","1","1")
+
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Baseline (Intercept)"~"(Intercept)", Months_after_ETI_start=="3"~"2", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10",Months_after_ETI_start=="Control"~"Control"))%>%
+    filter(group2!="(Intercept)")
+
+  boxplot <- diversity_df_stool_metadata%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+  
+    return(list(boxplot = boxplot, lm_stats = lm_stats_print))
+}
+
+### calculate linear model for visit_sum on alpha diversity and add on boxplots ###
+#shannon
+shannon <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+p5 <- shannon_boxplot <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+p6 <- observed_boxplot <- observed$boxplot # Access boxplot
+
+ggarrange(shannon_boxplot, observed_boxplot)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_throat_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+#### create alpha diversity table for non-rarefied data ####
+
+diversity_df_stool_metadata%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+stool_ur_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_stool_metadata,  caption="stool ASV level - rarefied")
+
+stool_ur_tab
+
+# make nice table to export and combine with other sample types
+stool_tb<- as_tibble(stool_ur_tab)%>% 
+  mutate(Sample="Stool")
+stool_tb_ur<- stool_tb %>% 
+  select(Sample, everything())
+
+# create linear mixed model tables
+lm_stats_table_stool<- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table_stool
+
+lm_stool_ur <- lm_stats_table_stool %>% 
+  mutate(Sample="Stool unrarefied") %>% 
+  select(Sample, everything()) 
+```
+
+# Alpha diversity stool rarefied
+#Rarefying sample depth to 6500 reads brings only very little differences into alpha diversity estimates
+```{r Alpha diversity stool rarefied}
+set.seed(100)
+ps_full_stool_rar <- rarefy_even_depth(ps_full_stool_total, rngseed=FALSE, sample.size=6500, replace=T, trimOTUs = T, verbose = T)
+
+summary(sample_data(ps_full_stool_rar)$total_reads)
+
+alphadiversity_df_stool_rar <- microbiome::alpha(ps_full_stool_rar, index = "all")
+alphadiversity_df_stool_rar$x_sample_id <- rownames(alphadiversity_df_stool_rar)
+
+ps_full_stool_rar_df <- as.data.frame(sample_data(ps_full_stool_rar))
+
+diversity_df_stool_metadata_rar <- alphadiversity_df_stool_rar%>%
+left_join(ps_full_stool_rar_df, by = "x_sample_id")
+
+# I have to change NA to something meaningful for the Controls
+diversity_df_stool_metadata_rar <- diversity_df_stool_metadata_rar%>%
+  mutate(visit_sum = if_else(is.na(visit_sum), "Control", as.character(visit_sum))) %>% 
+  mutate(visit_sum = as_factor(visit_sum)) 
+
+diversity_df_stool_metadata_rar <- diversity_df_stool_metadata_rar %>%
+  mutate(visit_sum = factor(visit_sum, levels = c("1", "2", "3-5", "6-7",  "8-10", "Control")))
+
+summary(diversity_df_stool_metadata$visit_sum)
+# calculate linear model for visit_sum on alpha diversity and add on boxplots
+
+### calculate linear model for visit_sum on alpha diversity and add on boxplots ###
+#shannon
+shannon <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata_rar$diversity_shannon, "Shannon Index")
+shannon_lm_stats <- shannon$lm_stats # Access lm_stats
+shannon_stool_rar <- shannon$boxplot # Access boxplot
+
+observed <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata_rar$observed, "Observed ASVs")
+observed_lm_stats <- observed$lm_stats # Access lm_stats
+observed_stool_rar <- observed$boxplot # Access boxplot
+
+ggarrange(shannon_stool_rar, observed_stool_rar)
+###ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_throat_visit_sum.pdf", width = 8, height = 5)
+
+#### Evenness ####
+evenness <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata_rar$evenness_pielou, "Pielou Index")
+evenness_lm_stats <- evenness$lm_stats # Access lm_stats
+evenness_boxplot <- evenness$boxplot # Access boxplot
+
+#### Dominance ####
+
+dominance <- lm_corrected_pvalues_boxplot_stool(diversity_df_stool_metadata_rar$dominance_dbp, "Berger Parker Index")
+dominance_lm_stats <- dominance$lm_stats # Access lm_stats
+dominance_boxplot <- dominance$boxplot # Access boxplot
+
+
+#### create alpha diversity table for non-rarefied data ####
+
+diversity_df_stool_metadata_rar%>%
+  group_by(visit_sum)%>%
+  select(diversity_shannon, observed, evenness_pielou, dominance_dbp)%>%
+  summary
+
+library(table1)
+
+stool_rar_tab <- table1::table1(~diversity_shannon+ observed+evenness_pielou+dominance_dbp | visit_sum, data = diversity_df_stool_metadata_rar,  caption="stool ASV level - rarefied")
+
+stool_rar_tab
+
+# make nice table to export and combine with other sample types
+stool_tb_rar<- as_tibble(stool_rar_tab)
+stool_bind <- cbind(stool_tb_ur, stool_tb_rar)
+
+view(stool_bind)
+
+lm_stats_table_stool_rar <- rbind(shannon_lm_stats, observed_lm_stats,evenness_lm_stats,dominance_lm_stats)
+lm_stats_table_stool_rar
+
+lm_stool_rar <- lm_stats_table_stool_rar %>% 
+  mutate(Sample="Stool rarefied") %>% 
+  select(Sample, everything())
+
+# run statistics on controls vs all CF samples,
+# in order to make this feasible in a linear model I have to revert the order of visit_sum
+summary(diversity_df_stool_metadata_rar$visit_sum_reorder)
+
+diversity_df_stool_metadata_rar$visit_sum_reorder <- factor(diversity_df_stool_metadata_rar$visit_sum, levels = c("Control", "1", "2", "3-5", "6-7", "8-10"))
+
+summary(lmerTest::lmer(diversity_shannon ~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_stool_metadata_rar))
+
+summary(lmerTest::lmer(observed~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_stool_metadata_rar))
+```
+
+```{r}
+# Compare Controls to CF
+lm_corrected_pvalues_boxplot_reorder_stool <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x~ visit_sum_reorder + age_y + sex + (1|id.x), data=diversity_df_stool_metadata_rar))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Control (Intercept)", Months_after_ETI_start=="visit_sum_reorder2"~"3", Months_after_ETI_start=="visit_sum_reorder3-5"~"6-12",Months_after_ETI_start=="visit_sum_reorder6-7"~"15-18",Months_after_ETI_start=="visit_sum_reorder8-10"~ "21-24", Months_after_ETI_start=="visit_sum_reorder1"~"Baseline", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","Control","Control","Control","Control","Control","Control","Control")
+
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Control (Intercept)"~"(Intercept)",
+                             Months_after_ETI_start=="3"~"2",
+                             Months_after_ETI_start=="Baseline"~"1", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10"))%>%
+    filter(group2!="(Intercept)")
+
+  boxplot <- diversity_df_stool_metadata_rar%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum_reorder), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05)
+  
+    return(list(boxplot = boxplot, lm_stats = lm_stats_print, lm_stats_sig=lm_stats))
+}
+
+
+#shannon
+shannon <- lm_corrected_pvalues_boxplot_reorder_stool(diversity_df_stool_metadata_rar$diversity_shannon, "Shannon Index")
+shannon_lm_stats_reorder <- shannon$lm_stats # Access lm_stats
+shannon_st_rar_reorder <- shannon$boxplot # Access boxplot
+shannon_st_rar_reorder
+
+observed <- lm_corrected_pvalues_boxplot_reorder_stool(diversity_df_stool_metadata_rar$observed, "Observed ASVs")
+observed_lm_stats_reorder <- observed$lm_stats # Access lm_stats
+observed_st_rar_reorder <- observed$boxplot # Access boxplot
+observed_st_rar_reorder
+observed$lm_stats_sig
+
+evenness <- lm_corrected_pvalues_boxplot_reorder_stool(diversity_df_stool_metadata_rar$evenness_pielou, "Evenness (Pielou)")
+evenness_lm_stats_reorder <- evenness$lm_stats # Access lm_stats
+
+dominance <- lm_corrected_pvalues_boxplot_reorder_stool(diversity_df_stool_metadata_rar$dominance_dbp, "Dominance Berger Parker")
+dominance_lm_stats_reorder <- dominance$lm_stats # Access lm_stats
+
+
+observed_st_rar_wC <- observed_stool_rar +
+  geom_signif(
+    y_position = c(-30, -10, 10, 30), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("***", "***", "***", "***"), 
+    tip_length = -0.03, 
+    vjust = 2.5,
+    size = 0.35
+  )
+observed_st_rar_wC
+
+shannon$lm_stats_sig
+shannon_st_rar_wC <- shannon_stool_rar +
+  geom_signif(
+    y_position = c(2.15, 2.3, 2.45, 2.6), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("***", "***", "***", "***"),
+    tip_length = -0.03, 
+    vjust = 2.5,
+    size = 0.35
+  )
+shannon_st_rar_wC 
+
+lm_stats_table_stool_rar_control <- rbind(shannon_lm_stats_reorder, observed_lm_stats_reorder,evenness_lm_stats_reorder,dominance_lm_stats_reorder)
+lm_stats_table_stool_rar_control
+
+lm_stool_rar_control <- lm_stats_table_stool_rar_control %>% 
+  mutate(Sample="Stool rarefied") %>% 
+  select(Sample, everything())
+```
+
+# combine summary statistics of alpha diversity
+```{r summary statistics of alpha diversity}
+
+diversity_table <- rbind(Sputum_bind, throat_bind, stool_bind)
+
+colnames(diversity_table) <- c("Sample", "Diversity index", "Baseline unrarefied", "3 months unrarefied", "6-12 months unrarefied", "15-18 months unrarefied", "21-24 months unrarefied", "Control unrarefied", "Overall unrarefied", "x2", "Baseline rarefied", "3 months rarefied", "6-12 months rarefied", "15-18 months rarefied", "21-24 months rarefied", "Control rarefied", "Overall_rarefied")
+
+diversity_table <- diversity_table %>% 
+  select(-x2)
+
+write_csv(diversity_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/alpha_diversity_combined.csv")
+
+# now for the linear models with alpha diversity outcomes
+lm_sputum <- cbind(lm_sputum_ur, lm_sputum_rar)
+lm_throat <- cbind(lm_throat_ur, lm_throat_rar)
+lm_stool <- cbind(lm_stool_ur, lm_stool_rar)
+lmm_diversity <- rbind(lm_sputum,lm_throat, lm_stool)
+
+write_csv(lmm_diversity, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_diversity_combined.csv")
+
+# now for the linear models with alpha diversity outcomes for Controls vs all tiemepoints
+
+lmm_diversity_control <- rbind(lm_throat_rar_control, lm_stool_rar_control)
+
+write_csv(lmm_diversity_control, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_diversity_rar_control.csv")
+
+```
+
+# Figure 2
+```{r combine plots, fig.height=14, fig.width=14}
+
+ggarrange(p1,p2,p3,p4,p5,p6, nrow = 3, ncol = 2)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_combined.png", width = 8, height = 12)
+
+# plots below are derived from the 13_starplot_PCOA files
+sp_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_sputum.rds")
+sp_throat <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_throat.rds")
+sp_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool.rds")
+
+library(gridExtra)
+# Arrange the ggplot objects in a grid
+grid_arranged <- grid.arrange(
+  sp_sputum + labs(tag = "A") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  spu_rar_sh + labs(tag = "B"),
+  spu_rar_obs + labs(tag = "C"),
+  sp_throat + labs(tag = "D"),
+  shannon_thr_rar_wC + labs(tag = "E"),
+  observed_thr_rar_wC+ labs(tag = "F"),
+  sp_stool+ labs(tag = "G"),
+  shannon_st_rar_wC+ labs(tag = "H"),
+  observed_st_rar_wC+ labs(tag = "I"),
+  ncol = 3, nrow = 3,
+  #heights = c(1.5, 1),
+  widths=c(1.25,1,1),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,5,6),
+                        c(7,8,9))
+)
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig2.tiff",grid_arranged, dpi = 600, width = 14, height = 14)
+```
