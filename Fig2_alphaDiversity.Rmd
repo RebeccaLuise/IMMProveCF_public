@@ -951,5 +951,5 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig2.tiff",grid_arranged, dpi = 600, width = 14, height = 14)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig2.tiff",grid_arranged, dpi = 300, width = 14, height = 14)
 ```
