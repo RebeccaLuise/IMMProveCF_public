@@ -538,7 +538,7 @@ lmm_ppfvc  <- left_join(lm_stats, nobs_per_visit, by = "Months_after_ETI_start")
 lmm_ppfvc$N_obs <- replace_na(lmm_ppfvc$N_obs, lmm_ppfvc$Total_N_obs[1])
 
 lmm_ppfvc  <- lmm_ppfvc   %>% 
-  mutate(Parameter = "ppFEV1") %>% 
+  mutate(Parameter = "ppFVC") %>% 
   select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, everything()) %>% 
   select(-visit_cal_9)
 
@@ -1177,8 +1177,10 @@ ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, calp_stool, gpt, hba1c, nrow = 2, n
 
 ```{r}
 
-stats_table <- rbind(lmm_chloride,lmm_Dppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c)
-#write_csv(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_clinical_parameters.csv")
+stats_table <- rbind(lmm_chloride,lmm_ppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c)
+#install.packages("writexl")
+library(writexl)
+write_xlsx(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/SuppMaterial/Supplementary_table_2.xlsx")
 kable(stats_table)
 ```
 
