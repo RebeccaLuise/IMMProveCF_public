@@ -1,0 +1,401 @@
+---
+title: "NaCl in Sputum"
+author: "Rebecca Luise Knoll"
+date: "last edit `r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load packages and define colors
+```{r}
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
+
+id_palette <- c("11"="#4E79A7FF", "13"="#A0CBE8FF", "15"="#F28E2BFF", "16"="#FFBE7DFF", 
+                "17"="#59A14FFF", "24"="#8CD17DFF", "25"="#B6992DFF", "26"="#F1CE63FF", 
+                "27"="#499894FF", "29"="#86BCB6FF", "32"="#E15759FF", "33"="#FF9D9AFF", 
+                "35"="#79706EFF", "5"="#BAB0ACFF", "6"="#D37295FF", "9"="#FABFD2FF", 
+                "21"="#B07AA1FF", "31"="#D4A6C8FF", "8"="black")
+```
+
+# read data
+```{r}
+df <- read_excel("/Users/rebecca/Documents/Forschung/IMMProveCF/2024_09_03_Mohr test Nacl calculations (Nacho).xlsx", sheet = "Results")
+
+ps_sputum_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+df <- clean_names(df)
+
+df <- df %>% 
+  filter(!is.na(eppi_n))
+
+df <- df[2:54, ]
+
+df <- df %>% 
+  select(-c(na_cl_conc, x14)) %>% # those are meaningless
+  rename(na_cl_conc_mmolL_TIT=x15) %>% 
+  rename(comments=x16) %>% 
+  rename(na_cl_conc_mmolL_ISE=x19) %>% 
+  rename(na_cl_conc_mmolL_COND=x23) %>% 
+  rename(confidence_titration=x26) %>% 
+  rename(confidence_anlytics=x27)
+
+df <- df %>%
+  mutate(across(8:21, as.numeric)) %>% 
+  mutate(visit = as_factor(gsub("V", "", sample))) %>% 
+  mutate(visit = factor(visit, levels = sort(as.numeric(levels(factor(visit))))))
+
+```
+# all measures
+```{r}
+df %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_TIT))+
+  geom_boxplot()+
+  geom_point()
+
+df %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_ISE))+
+  geom_boxplot()+
+  geom_point()
+
+df %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_COND))+
+  geom_boxplot()+
+  geom_point()
+```
+
+# only confidence + and ?
+```{r}
+df_titr_PQ <- df %>% 
+  filter(confidence_titration=="+" |confidence_titration=="?") 
+
+df_titr_PQ%>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_TIT))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_TIT ~ sample + (1|patient), data = df_titr_PQ))
+
+df_analytics_PQ <- df%>% 
+  filter(confidence_anlytics=="+" |confidence_anlytics=="?") 
+
+df_analytics_PQ %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_ISE))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_classic()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_ISE ~ sample + (1|patient), data = df_analytics_PQ))
+
+df_analytics_PQ %>% 
+   ggplot(aes(sample, na_cl_conc_mmolL_COND))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+   scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_classic()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_COND~ sample + (1|patient), data = df_analytics_PQ))
+```
+
+# only confidence +
+```{r}
+
+df_titr_P <- df %>% 
+  filter(confidence_titration=="+")
+
+df_titr_P %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_TIT))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_TIT~ sample + (1|patient), data = df_titr_P)) 
+
+df_ana_P <- df %>% 
+  filter(confidence_anlytics=="+") 
+
+df_ana_P%>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_ISE))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_classic()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_ISE ~ sample + (1|patient), data = df_ana_P)) 
+
+df_ana_P %>% 
+filter(confidence_anlytics=="+") %>% 
+   ggplot(aes(sample, na_cl_conc_mmolL_COND))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+   scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_classic()
+
+summary(lmerTest::lmer(na_cl_conc_mmolL_COND ~ sample + (1|patient), data = df_ana_P)) 
+
+```
+```{r}
+df_titr_PQ %>% 
+  ggplot(aes(as.numeric(visit), na_cl_conc_mmolL_TIT))+
+  geom_point()+
+  geom_smooth()
+
+df_analytics_PQ %>% 
+  ggplot(aes(as.numeric(visit), na_cl_conc_mmolL_ISE))+
+  geom_point()+
+  geom_smooth()
+
+df_analytics_PQ %>% 
+  ggplot(aes(as.numeric(visit), na_cl_conc_mmolL_COND))+
+  geom_point()+
+  geom_smooth()
+```
+
+
+# only confidence + and ? by patient
+```{r}
+df %>% 
+  filter(confidence_titration=="+" |confidence_titration=="?") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_TIT))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+
+df %>% 
+  filter(confidence_anlytics=="+" |confidence_anlytics=="?") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_ISE))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+
+df %>% 
+  filter(confidence_anlytics=="+" |confidence_anlytics=="?") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_COND))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+```
+# only confidence + and by patient
+```{r}
+df %>% 
+  filter(confidence_titration=="+") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_TIT))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+
+df %>% 
+  filter(confidence_anlytics=="+") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_ISE))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+
+df %>% 
+  filter(confidence_anlytics=="+") %>% 
+  ggplot(aes(sample, na_cl_conc_mmolL_COND))+
+  geom_boxplot()+
+  geom_point(aes(color = patient))+
+  scale_color_manual(values = id_palette)+
+  geom_line(aes(group = patient), color="grey")+
+  theme_bw()+
+  facet_wrap(~patient)
+```
+
+# test correlation of methods
+
+```{r}
+df_fil <- df %>% 
+  filter(!is.na(confidence_anlytics)) %>% 
+  filter(!is.na(confidence_titration)) %>% 
+  filter(confidence_anlytics!="-")
+
+df_fil %>% 
+  ggplot(aes(na_cl_conc_mmolL_TIT, na_cl_conc_mmolL_ISE))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+df_fil %>% 
+  ggplot(aes(na_cl_conc_mmolL_TIT, na_cl_conc_mmolL_COND))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+df_fil %>% 
+  ggplot(aes(na_cl_conc_mmolL_ISE, na_cl_conc_mmolL_COND))+
+  geom_point()+
+  geom_smooth(method = "lm")
+```
+
+# combine NaCl measurements with microbiome and clinical data
+
+```{r}
+ps_sputum_full <- subset_samples(ps_sputum_full, material=="Sputum")
+ps_sputum_filtered <- tax_filter(ps_sputum_full, min_prevalence = 0.25) # has 91 taxa
+
+ps_sputum_relab <- transform_sample_counts(ps_sputum_filtered, function(x) x/sum(x))
+
+df_fil<- df_fil %>% 
+  mutate(id_visit=paste("IMP", patient, sample, sep = ""))
+
+df_fil_sel <- df_fil %>% 
+  select(eppi_n, patient, visit, id_visit, na_cl_conc_mmolL_COND, na_cl_conc_mmolL_ISE, na_cl_conc_mmolL_TIT, confidence_titration, confidence_anlytics)
+
+# extract Staphylococcus abundance from Sputum
+
+sputum_df <- psmelt(ps_sputum_relab)
+sputum_df <- sputum_df %>% 
+  mutate(Abundance=Abundance*100) # transform relative abundance into percentages
+
+staph_df <- sputum_df%>% 
+  filter(Genus=="Staphylococcus")
+
+df_staph <- df_fil_sel %>% 
+  left_join(staph_df, by="id_visit")
+
+```
+
+# Staphylococcus vs chloride levels in sputum
+
+```{r}
+df_staph %>% 
+  ggplot(aes(chlorid_mmol_cl_l, na_cl_conc_mmolL_COND))+
+  geom_point()+
+  geom_smooth()
+
+  library(ggtext)
+  
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+
+df_staph %>% 
+ggplot(aes(y = Abundance+ 0.01, x=chlorid_mmol_cl_l)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Sweat chloride mmol/l") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+
+df_staph %>% 
+ggplot(aes(y = Abundance+ 0.01, x=na_cl_conc_mmolL_COND)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Chloride mmol/l (conductivity) in Sputum") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+
+df_staph %>% 
+ggplot(aes(y = Abundance+ 0.01, x=na_cl_conc_mmolL_ISE)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Chloride mmol/l (ISE) in Sputum") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+
+df_staph %>% 
+ggplot(aes(y = Abundance+ 0.01, x=na_cl_conc_mmolL_TIT)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Chloride mmol/l (titration) in Sputum") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+```
+
+

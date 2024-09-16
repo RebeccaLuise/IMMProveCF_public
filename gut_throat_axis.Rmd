@@ -1,0 +1,692 @@
+---
+title: "Compare stool and throat samples, of participants who provided both throat and stool at the same timepoint"
+author: "Rebecca Luise Knoll"
+date: "last edit `r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, creates phyloseq object per material and per year; load libraries
+
+ps_throat_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, LongDat,metacoder,agricolae, ape, gridExtra, stargazer)
+
+
+metadata <- as(sample_data(ps_full), "data.frame")
+
+metadata_v1 <- metadata %>% 
+   filter(project=="IMMPIMMP") %>% 
+  filter(visit==1)
+
+id_palette <- c(IMP11="#4E79A7FF",IMP13="#A0CBE8FF",IMP15="#F28E2BFF",IMP16="#FFBE7DFF",IMP17="#59A14FFF",IMP24="#8CD17DFF", IMP25="#B6992DFF",IMP26="#F1CE63FF",IMP27="#499894FF", IMP29="#86BCB6FF", IMP32="#E15759FF",  IMP33="#FF9D9AFF", IMP35="#79706EFF", IMP5="#BAB0ACFF", IMP6="#D37295FF",IMP9="#FABFD2FF",IMP21="#B07AA1FF", IMP31="#D4A6C8FF", IMP8="black")
+
+#source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_sputhr.R")
+
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF")
+```
+
+```{r subset per sample type, include=FALSE}
+material_s_t <- c("Throat", "Stool")
+
+ps_throat_Stool_full <- subset_samples(ps_throat_full, material %in% material_s_t)
+
+ps_throat_full_throat <- subset_samples(ps_throat_full, material== "Throat")
+
+id_visit_throat <- sample_data(ps_throat_full_throat)$id_visit
+
+ps_throat_Stool_full_unique <- subset_samples(ps_throat_full, id_visit %in% id_visit_throat)#includes also stool samples
+ps_throat_Stool_full_unique <- subset_samples(ps_throat_Stool_full_unique, material %in% material_s_t)#includes still throat samples which do not have a paired stool sample
+
+# find those stool samples which have a paired throat sample
+ps_throat_full_stool <- subset_samples(ps_throat_full, material== "Stool")
+ps_throat_Stool_full_unique_3 <- subset_samples(ps_throat_full_stool, id_visit %in% id_visit_throat)#includes also stool samples
+id_visit_unique <- sample_data(ps_throat_Stool_full_unique_3)$id_visit
+
+#filter for only those samples which have both throat and stool from the same timepoint
+ps_throat_Stool_full_unique_2 <- subset_samples(ps_throat_Stool_full_unique, id_visit %in% id_visit_unique)#includes still throat samples which do not have a paired stool sample
+
+summary(sample_data(ps_throat_Stool_full_unique_2)$id) # 15 participants provided both throat & stool samples at the same timepoint
+
+data <- as(sample_data(ps_throat_Stool_full_unique_2), "data.frame")
+
+tabyl(data, id, visit_cal_cor)
+
+#transform to relative abundance
+ps_throat_Stool_full_unique_2_relab <- transform_sample_counts(ps_throat_Stool_full_unique_2 , function(x) x/sum(x))
+```
+
+# Sample overview
+```{r plot sample overview, include=FALSE}
+# plot sample overview
+bp_ps_relab <- plot_bar(ps_throat_Stool_full_unique_2_relab, "id", fill="Phylum")
+
+bp_ps_relab+
+  geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+    theme(legend.key.height= unit(3, 'mm'),
+        legend.key.width= unit(3, 'mm'),legend.text = element_text(size=8), legend.position = "bottom", 
+        axis.ticks = element_blank(), axis.text.x = element_blank())+
+  scale_x_discrete(name="Participant")+
+  scale_y_continuous(name="Relative abundance")+
+  facet_grid(rows= vars(material), cols = vars(visit_cal_cor), scales ="free_x", space ="free_x")
+```
+
+
+# calculate dominant genus and add to data set
+```{r calculate dominant genus and add to data set}
+#Get top taxa per patient
+#find.top.taxa2 is sourced from functions.R
+ps_full <- ps_throat_Stool_full_unique_2_relab# to make loading of the function possible I have to rename the ps
+source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_full.R")
+
+ps_full_throat_glom <- tax_glom(ps_throat_Stool_full_unique_2_relab, taxrank = "Genus")
+
+top.throat<- find.top.taxa2(ps_full_throat_glom, "Genus",1)
+top.throat$Species<- NULL
+
+rslt <- top.throat[, "taxa"]
+dd <- matrix(unlist(rslt), nrow=1)
+colnames(dd) <- rownames(top.throat)
+top.throat <- t(dd)
+
+top.throat_df <- data.frame(x1 = row.names(top.throat), top.throat)%>%
+  mutate(dominantGenus = top.throat)
+top.throat_df$top.throat<- NULL
+
+# add clinical data to p
+
+##Add dominant Genus to ps_full_throat_glom sample data
+ps_throat_Stool_full_unique_2_relab<- microViz::ps_join(ps_throat_Stool_full_unique_2_relab, top.throat_df, by = "x1")
+```
+
+```{r Beta diversity throat & stool samples dominant genus}
+
+ps_throat_Stool_full.ord <- ordinate(ps_throat_Stool_full_unique_2_relab, "MDS", "bray")
+
+plot_ordination(ps_throat_Stool_full_unique_2_relab, ps_throat_Stool_full.ord, color="dominantGenus", shape = "material", label = "visit_cal_cor")+
+  geom_point(aes(label= visit), size=2.5)+
+  scale_color_manual(values=dom_palette)+
+  ggtitle("Beta-diversity of all throat & stool samples provided from the same patient at the same timepoint")
+```
+
+```{r calculate bray curtis distance for all throat & stool samples only v1, eval=FALSE}
+
+ps_throat_Stool_full_unique_v1 <- subset_samples(ps_throat_Stool_full_unique_2, visit == "1")
+
+ps_throat_Stool_full.ord_v1 <- ordinate(ps_throat_Stool_full_unique_v1, "MDS", "bray")
+
+plot_ordination(ps_throat_Stool_full_unique_v1, ps_throat_Stool_full.ord_v1, color="id", shape = "material")+   #stat_ellipse(type = "t")+
+scale_color_manual(values=id_palette)+
+  ggtitle("Beta-diversity of throat & stool samples provided from the same patient at visit 1")
+```
+
+# PERMANOVA
+```{r calculate bray curtis distance for all throat & stool samples and run PERMANOVA}
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_throat_Stool_full_unique_2_relab,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_throat_Stool_full_unique_2_relab),"data.frame")
+
+#vegan::adonis2(Bproject#vegan::adonis2(BC_dist ~ material + visit + id,
+              #permutations = 999, na.action=na.exclude, data = metadata)
+
+# margin
+v1 <- vegan::adonis2(BC_dist ~ material + visit + id + dominantGenus,
+              permutations = 999, na.action=na.exclude, data = metadata, by="margin")
+
+# plot PERMANOVA as pie chart of variance explained
+
+v1_df <- clean_names(as_tibble(v1))
+v1_df$variable<-rownames(v1_df)
+variable_name <- c("sample type" , "sample time point" , "id" , "dominant genus", "residual", "Total")
+
+v1_df <- v1_df%>%
+  mutate(variable=variable_name)%>%
+  mutate(p = case_when(variable=="residual" ~ 0.049, variable=="Total" ~ 0.051, TRUE~pr_f))
+
+# plot R2 only of variables that have a p < 0.05
+
+fill_values <- c("#6FB899FF", "#31A1B3FF", "#EE6AA7","#CCB22BFF","#BAB0ACFF")
+label_name <- c("sample type", "sample time point", "id", "dominant genus", "residual")
+
+p1 <- v1_df %>%
+  mutate(percent = r2 * 100) %>%
+  mutate(text_y = cumsum(percent) - percent/2) %>%
+  filter(p <= 0.05) %>%
+  ggplot(aes(x = "", y = percent, fill = fct_inorder(variable))) +
+  geom_col(width = 1, color = 1, alpha = 0.7) +
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = fill_values, breaks = label_name, labels = label_name) +
+  theme_void() +
+  theme(legend.position = "right", text = element_text(size = 18)) +
+  geom_text(aes(label = paste0(round(percent, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            size = 6) +  # Adjust the size here
+  guides(fill = guide_legend(title = ""))
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/paired_variance_explained.pdf", width = 5, height = 3)
+
+p1
+
+v1_df <- v1_df%>%
+  mutate(p_sig = case_when(pr_f<=0.001 ~ "***", pr_f<=0.01 ~ "**", pr_f<=0.05 ~ "*",pr_f<=0.1 ~ ".",pr_f>=0.1 ~ "ns"))%>%
+  mutate(r2_percent = r2*100)%>%
+  select(variable, df, sum_of_sqs, r2, r2_percent, f, pr_f, p_sig)
+
+#sjPlot::tab_df(v1_df, title= "PERMANOVA of paired throat/stool samples", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/permanova_paired_throat_Stool.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/permanova_paired_throat_Stool.html") # prints the html file in the same directory as a pdf
+```
+
+# PCOA plot
+```{r extract BC_distance between samples}
+BC_dist<- phyloseq::distance(ps_throat_Stool_full_unique_2_relab,
+                             method="bray", weighted=F)
+ordination<- ordinate(ps_throat_Stool_full_unique_2,
+                      method="PCoA", distance= BC_dist)
+
+BC_plot <- plot_ordination(ps_throat_Stool_full_unique_2_relab, ordination, color="id", shape = "material")+
+  geom_point(size=3)+
+  geom_line(aes(group=id_visit), size=1.5, alpha=0.2)+
+  scale_color_manual(values=id_palette)+
+  #geom_text(aes(label=visit), hjust=1.5, vjust=1.5)+
+  theme_classic()+
+  theme(text=element_text(size = 17))#+
+  #ggtitle("Beta-diversity of paired throat/stool samples")
+BC_plot
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Beta_diversityThrSpu_conLine.pdf", BC_plot, width = 8.5, height = 5)
+```
+
+# compare distances between stool and throat
+```{r compare distances between stool and throat}
+##Extract pairwise distances per patient
+BC_dist.throat <- as.matrix(BC_dist)
+BC_dist.throat[lower.tri(BC_dist.throat)] <- 0  # this is needed to remove the 0 latter, to keep only single pairs
+BC_dist.throat_df <- reshape2::melt(BC_dist.throat)
+
+
+tmp1 <- BC_dist.throat_df%>%left_join(metadata, by=c("Var1"="x_sample_id"))%>%
+  select(c(Var1,Var2, value, id, visit_cal_cor, material, id_visit, id_visit_mat, date, delta_ETI_merged))%>%
+  mutate(BC_dist=value)%>%
+  select(-value)%>%
+  mutate(date=as.Date(date, "%m/%d/%y"))
+
+tmp1 <- tmp1%>%
+  mutate(id.x1 =id)%>%
+  mutate(visit.x1 = visit_cal_cor)%>%
+  mutate(material.x1 = material)%>%
+  mutate(id_visit.x1 =id_visit)%>%
+  mutate(id_visit_mat.x1 =id_visit_mat)%>%
+  mutate(date.x1 = date)%>%
+  mutate(delta_ETI_days.x1 = delta_ETI_merged)%>%
+  select(-c(id, visit_cal_cor, material, id_visit, id_visit_mat, date, delta_ETI_merged))
+
+tmp2 <- tmp1%>%
+  left_join(metadata, by=c("Var2"="x_sample_id"))%>%
+  select(c(Var1,Var2, id, visit_cal_cor, material, id_visit, id_visit_mat, BC_dist,id.x1,visit.x1,material.x1,id_visit.x1,id_visit_mat.x1, id.x1, visit.x1, material.x1, id_visit.x1, id_visit_mat.x1, date.x1, date, delta_ETI_days.x1, delta_ETI_merged))%>%
+  mutate(id.x2 =id)%>%
+  mutate(visit.x2 = visit_cal_cor)%>%
+  mutate(material.x2 = material)%>%
+  mutate(id_visit.x2 =id_visit)%>%
+  mutate(id_visit_mat.x2 =id_visit_mat)%>%
+  mutate(id_material.x1 = paste(id.x1,material.x1, sep="_"))%>%
+  mutate(id_material.x2 = paste(id.x2,material.x2, sep="_"))%>%
+  mutate(date=as.Date(date, "%m/%d/%y"))%>%
+  mutate(date.x2 = date)%>%
+  mutate(delta_ETI_days.x2= delta_ETI_merged)%>%
+  select(-c(id, visit_cal_cor, material, id_visit, id_visit_mat, date, delta_ETI_merged))
+
+tmp3 <- tmp2%>%
+  filter(BC_dist!=0)# this removes the same sample distances, and the one from set 0 from above to keep a single pair
+```
+
+# linear models and visu
+```{r linear model taking into account id as random factor, fig.height=8, fig.width=10}
+tmp4 <- tmp3%>%
+  mutate(id_pairs = paste(id.x1, id.x2, sep="_"))%>%
+  mutate(sample_pairs = paste(Var1, Var2, sep="_"))%>%
+  mutate(material_pairs = paste(material.x1, material.x2, sep="_"))%>%
+  mutate(visit_pairs = paste(visit.x1, visit.x2, sep="_"))%>%
+  mutate(date_dif_d = as.numeric(abs(difftime(date.x1, date.x2, units = "days"))))%>%
+  mutate(tt_dif_days = as.numeric(abs(delta_ETI_days.x2-delta_ETI_days.x1))) # defines amount of tt days between 2 visits
+
+tmp4%>%
+  ggplot(aes(tt_dif_days, visit_pairs))+
+  geom_point()
+
+tmp5 <- tmp4%>%
+  pivot_wider(names_from  = "material_pairs", values_from = "BC_dist")%>%
+  mutate(id_pair_y = case_when(id.x1==id.x2 ~ 1, id.x1!=id.x2 ~ 0))%>%
+  mutate(visit_pair_y = case_when(visit.x1==visit.x2 ~ 1, visit.x1!=visit.x2 ~ 0))%>%
+  mutate(visit_id_pair_y = as_factor(case_when(visit_pair_y==1 & id_pair_y== 1~ 0, visit_pair_y==1 & id_pair_y== 0~ 2,visit_pair_y==0 & id_pair_y== 1~ 1,visit_pair_y==0 & id_pair_y== 0~ 3)))%>%
+  mutate(BC_dist_SD = sd(BC_dist))
+
+BC_dist_SD_written <- 0.1363626
+
+xlabels <- c("Intra_ID_ST", "Intra_ID_DT", "Inter_ID_ST", "Inter_ID_DT")
+
+p2 <- tmp5%>%
+  ggplot(aes(visit_id_pair_y,Throat_Stool, fill=visit_id_pair_y, alpha=0.7))+
+  geom_boxplot(outlier.shape = NA) +
+  geom_point(alpha=0.5)+
+  theme_classic()+
+  scale_fill_manual(values = c("#31A1B3FF", "#6FB899FF","#765085","#CCB22BFF"))+
+  ylab("BC distance between samples")+
+  theme(legend.position = "none",text=element_text(size=18), axis.text.x = element_text(angle = 40, hjust = 1))+ #
+  scale_x_discrete(labels= xlabels)+
+  xlab("")
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IntraID_BCdist.pdf",p2,  width = 8, height = 7)
+
+# #save permanova pie chart + boxplot into 1 graphical element
+ggarrange(p1,p2, nrow = 1)
+
+# this is the same plot as above, now let's run the correct statistics
+lm1 <- summary(lmerTest::lmer(Throat_Stool ~ id_pair_y + visit_pair_y + (1|id.x1) + (1|id.x2), data=tmp5))
+
+lm1_df<- data.frame(coef(lm1))
+
+lm1_df <- lm1_df%>%
+  mutate(p = Pr...t..)%>%
+  select(-Pr...t..)%>%
+  rownames_to_column()%>%
+    mutate(variable=rowname)%>%
+  mutate(p_sig = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".",p>=0.1 ~ "ns"))%>%
+  select(-rowname)%>%
+  select(variable, everything())
+
+#sjPlot::tab_df(lm1_df, title= "Comparison of BC distance between throat/stool sample for same and different time points intra-/and interindividual (lmer(throat_Stool_BC ~ id_pair_y + visit_pair_y + (1|id.x1) + (1|id.x2))", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lm_throat_Stool_BC_dist.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lm_throat_Stool_BC_dist.html") # prints the html file in the same directory as a pdf
+
+# now let's see if the distance between stool samples can actually predict distance between throat samples
+tmp6 <- tmp2%>%
+  mutate(id_pairs = paste(id.x1, id.x2, sep="_"))%>%
+  mutate(sample_pairs = paste(Var1, Var2, sep="_"))%>%
+  mutate(material_pairs = paste(material.x1, material.x2, sep="_"))%>%
+  mutate(visit_pairs = paste(visit.x1, visit.x2, sep="_"))%>%
+  mutate(id_pair_y = as_factor(case_when(id.x1==id.x2 ~ 1, id.x1!=id.x2 ~ 0)))%>%
+  mutate(visit_pair_y = as_factor(case_when(visit.x1==visit.x2 ~ 1, visit.x1!=visit.x2 ~ 0)))%>%
+  mutate(visit_id_pair_y = as_factor(case_when(visit_pair_y==1 & id_pair_y== 1~ 0, visit_pair_y==1 & id_pair_y== 0~ 2,visit_pair_y==0 & id_pair_y== 1~ 1,visit_pair_y==0 & id_pair_y== 0~ 3)))%>%
+  mutate(BC_dist_SD = sd(BC_dist))%>%
+  mutate(date_dif_d = as.numeric(abs(difftime(date.x1, date.x2, units = "days"))))%>%
+  mutate(tt_dif_days = as.numeric(abs(delta_ETI_days.x2-delta_ETI_days.x1))) %>%  # defines amount of tt days between 2 visits
+select(-c(sample_pairs,visit.x1,visit.x2,Var1,Var2, id.x1,id.x2,id_visit.x1, id_visit.x2, id_visit_mat.x1, id_visit_mat.x2, material.x1, material.x2, id_material.x1, id_material.x2, date.x1, date.x2, delta_ETI_days.x2, delta_ETI_days.x1))%>%
+  filter(BC_dist!=0) %>% 
+  pivot_wider(names_from  = "material_pairs", values_from = "BC_dist")
+
+tmp6%>%
+  ggplot(aes(tt_dif_days, Stool_Stool, color=id_pair_y))+
+  geom_point()+
+  scale_color_manual(values = c("#7CA2D4","#FDA9DF"), labels= c("Inter-individual", "Intra-individual"))+
+  stat_smooth(method = "lm")+
+  stat_cor(method = "spearman")+
+  theme_bw()
+
+tmp6%>%
+  ggplot(aes(tt_dif_days, Throat_Throat, color=id_pair_y))+
+  scale_color_manual(values = c("#7CA2D4","#FDA9DF"), labels= c("Inter-individual", "Intra-individual"))+
+  geom_point()+
+  stat_smooth(method = "lm")+
+  stat_cor(method = "spearman")+
+  theme_bw()
+
+tmp6%>%
+  ggplot(aes(Stool_Stool,Throat_Throat,color=id_pair_y))+
+  geom_point(aes(color=id_pair_y))+
+  stat_smooth(method = "lm")+
+  stat_cor(method = "spearman")+
+  theme_bw()+
+  scale_color_manual(values = c("#7CA2D4","#FDA9DF"), labels= c("Inter-individual", "Intra-individual"))+
+  ylab("BC distance between throat sample pairs")+
+  theme(legend.position = "bottom", legend.title = element_blank(), text=element_text(size=16))+
+  xlab("BC distance between stool sample pairs")
+
+##gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/BCdist_pairs.pdf", width = 10, height = 7)
+
+tmp6%>%
+  ggplot(aes(Stool_Stool,Throat_Throat,color=id_pair_y))+
+  geom_point(aes(color=id_pair_y))+
+  facet_grid(vars(visit_pair_y))+
+  stat_smooth(method = "lm")+
+  stat_cor(method = "spearman")+
+  theme_bw()+
+  scale_color_manual(values = c("#7CA2D4","#FDA9DF"), labels= c("Inter-individual", "Intra-individual"))+
+  ylab("BC distance between throat sample pairs")+
+  theme(legend.position = "bottom", legend.title = element_blank(), text=element_text(size=16))+
+  xlab("BC distance between stool sample pairs")
+
+## now the statistics
+summary(lmerTest::lmer(Throat_Throat ~ Stool_Stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6))
+summary(lmerTest::lmer(Stool_Stool ~ Throat_Throat + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6))
+# if we predict throat from stool the time variable between samples has an sig impact on the prediction
+# if we predict stool from throat, time does not matter, probably because there is no sig difference in BC dist over time 
+
+labels <- c(`1`="Intra-id, \n different sample time points", `2`="Inter-id, \n same sample time points",`3`="Inter-id, \n  different sample time points")
+p3 <- tmp6%>%
+  ggplot(aes(Stool_Stool,Throat_Throat))+
+  geom_point(aes(color=tt_dif_days))+
+  scale_colour_continuous(type = "viridis")+
+  geom_smooth(method="lm", aes(group=id_pair_y), color="black")+
+  theme(legend.position = "right")+
+  facet_grid(rows=vars(id_pair_y), cols = vars(visit_pair_y))+
+  theme_classic()
+p3
+
+p4 <- tmp6%>%
+  filter(visit_id_pair_y!=0)%>%
+  ggplot(aes(Stool_Stool,Throat_Throat))+
+  geom_point(aes(color=tt_dif_days), size=2, alpha=0.7)+
+  scale_colour_continuous(type = "viridis")+
+  geom_smooth(method="lm", color="black")+
+  facet_grid(~visit_id_pair_y, labeller = as_labeller(labels), scales = "free_x")+
+  theme_classic()+
+  theme(legend.position = "bottom", text = element_text(size = 18), legend.title = element_text(size = 16) )+
+  labs(color = "Delta in tt days btwn sample time points")
+p4
+
+tmp6 %>%
+  filter(visit_id_pair_y != 0) %>%
+  ggplot(aes(Stool_Stool, Throat_Throat)) +
+  geom_point(aes(color = tt_dif_days), size = 2, alpha = 0.7) +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", color = "black") +
+  facet_grid(visit_id_pair_y ~ ., labeller = as_labeller(labels), scales = "free_y", space = "free_y", switch = "y") +
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 18)) +
+  labs(color = "Delta between sample time points in tt days")
+
+p6 <- tmp6 %>%
+  filter(visit_id_pair_y != 0) %>%
+  ggplot(aes(Stool_Stool, Throat_Throat)) +
+  geom_point(aes(color = tt_dif_days), size = 2, alpha = 0.7) +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", color = "black") +
+  facet_wrap(visit_id_pair_y ~ ., labeller = as_labeller(labels), ncol = 1) + #, scales = "free_y", space = "free_y"
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 18)) +
+  labs(color = "Delta in tt days btwn sample time points")
+p6
+##gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Correlation_BCdist_groups.pdf", width = 9, height = 6)
+
+tmp6 %>% 
+  filter(id_pairs=="IMP11_IMP11") %>% 
+  filter(visit_pairs=="2_3"|visit_pairs=="3_2")
+```
+
+```{r include in above model the time between samples in days}
+# do run same test above for filtered group according to the facet_wrap visit_id_pair_y
+
+#`1`="Intra-id, \n different sample time points"
+
+tmp6_1<-tmp6%>%
+  filter(visit_id_pair_y==1)
+
+lm1 <- summary(lmerTest::lmer(Throat_Throat ~ Stool_Stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_1))
+
+lm1_df<- data.frame(coef(lm1))
+
+lm1_df <- lm1_df%>%
+  mutate(p = Pr...t..)%>%
+  select(-Pr...t..)%>%
+  rownames_to_column()%>%
+    mutate(variable=rowname)%>%
+  mutate(p_sig = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".",p>=0.1 ~ "ns"))%>%
+  select(-rowname)%>%
+  select(variable, everything())
+
+#sjPlot::tab_df(lm1_df, title= "Intra-id, \n different sample time points lmer(Throat_Throat ~ stool_stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_1)", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/intraID_throat_Stool_BC_dist.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/intraID_throat_Stool_BC_dist.html") # prints the html file in the same directory as a pdf
+
+#`2`="Inter-id, \n same sample time points"
+tmp6_2<-tmp6%>%
+  filter(visit_id_pair_y==2)
+
+lm2 <- summary(lmerTest::lmer(Throat_Throat ~ Stool_Stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_2))
+
+lm2_df<- data.frame(coef(lm2))
+
+lm2_df <- lm2_df%>%
+  mutate(p = Pr...t..)%>%
+  select(-Pr...t..)%>%
+  rownames_to_column()%>%
+    mutate(variable=rowname)%>%
+  mutate(p_sig = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".",p>=0.1 ~ "ns"))%>%
+  select(-rowname)%>%
+  select(variable, everything())
+
+#sjPlot::tab_df(lm2_df, title= "Inter-id, same sample time points lmer(Throat_Throat ~ stool_stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_2)", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/interID_ST_throat_Stool_BC_dist.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/interID_ST_throat_Stool_BC_dist.html") # prints the html file in the same directory as a pdf
+
+#`3`="Inter-id, \n  different sample time points"
+tmp6_3<-tmp6%>%
+  filter(visit_id_pair_y==3)
+
+lm3 <- summary(lmerTest::lmer(Throat_Throat ~ Stool_Stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_3))
+
+lm3_df<- data.frame(coef(lm3))
+
+lm3_df <- lm3_df%>%
+  mutate(p = Pr...t..)%>%
+  select(-Pr...t..)%>%
+  rownames_to_column()%>%
+    mutate(variable=rowname)%>%
+  mutate(p_sig = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".",p>=0.1 ~ "ns"))%>%
+  select(-rowname)%>%
+  select(variable, everything())
+
+#sjPlot::tab_df(lm3_df, title= "Inter-id, different sample time points lmer(Throat_Throat ~ stool_stool + tt_dif_days + (1|id_pairs)+ (1|visit_pairs), data=tmp6_3)", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/interID_DT_throat_Stool_BC_dist.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/interID_DT_throat_Stool_BC_dist.html") # prints the html file in the same directory as a pdf
+
+```
+
+# comparative trees from relative abundances with metacoder
+
+I tested whether there is a difference in using total abundances in the beginning and then transforming them to proprotions as suggested in the tutorial, buv it seems to me that there is no major difference in signficance in abundantial differences, that's why I kept working with relative abundances 
+
+## compare throat and stool in trees; run differential testing for all visits
+```{r differential tree per patient and sample time point, warning=FALSE}
+ps_throat_Stool_full_unique_2 <- tax_filter(ps_throat_Stool_full_unique_2, min_prevalence = 1)
+
+#transform to relative abundance
+ps_throat_Stool_full_unique_2_relab <- transform_sample_counts(ps_throat_Stool_full_unique_2 , function(x) x/sum(x))
+
+ps_throat_Stool_full_unique_2_relab_genus <- tax_glom(ps_throat_Stool_full_unique_2_relab, taxrank = "Genus")
+
+tax_data <- as.data.frame(tax_table(ps_throat_Stool_full_unique_2_relab_genus))
+
+tax_data<- tax_data%>%
+  mutate(k_Kingdom = paste("k",Kingdom, sep="_"))%>%
+  mutate(p_Phylum = paste("p",Phylum, sep="_"))%>%
+  mutate(c_Class = paste("c",Class, sep="_"))%>%
+  mutate(o_Order = paste("o",Order, sep="_"))%>%
+  mutate(f_Family= paste("f", Family, sep = "_"))%>%
+  mutate(g_Genus= paste("g", Genus, sep = "_"))%>% 
+  mutate(s_Species= paste("s", Species, sep = "_"))%>%
+  mutate(lineage = paste(k_Kingdom, p_Phylum, c_Class, o_Order, f_Family, g_Genus, sep = ";"))%>%
+  select(-c(k_Kingdom, p_Phylum, c_Class, o_Order, f_Family, g_Genus, s_Species))%>%
+  rownames_to_column("ASV_ID")
+
+otu_data <- as.data.frame(t(otu_table(ps_throat_Stool_full_unique_2_relab_genus)))%>%
+  rownames_to_column("ASV_ID")
+
+otu_data <- left_join(otu_data, tax_data,
+                      by = c("ASV_ID" = "ASV_ID"))
+
+sample_data <- as.data.frame(sample_data(ps_throat_Stool_full_unique_2_relab_genus))
+
+obj <- parse_tax_data(otu_data,
+                      class_cols = "lineage",
+                      class_sep = ";",
+                      class_regex = "^([a-z]{0,1})_{0,2}(.*)$",
+                      class_key = c("tax_rank" = "taxon_rank", "name" = "taxon_name"))
+
+head(taxon_names(obj))
+head(obj$data$class_data)
+
+names(obj$data) <- "otu_counts"
+
+obj$data$tax_abund <- calc_taxon_abund(obj, "otu_counts",
+                                       cols = sample_data$x1,
+                                       groups = sample_data$material)
+
+#print(obj$data$tax_abund)
+#print(otu_data)
+sample_data <- as_tibble(sample_data(ps_throat_Stool_full_unique_2_relab_genus))
+#print(sample_data)
+
+obj <- parse_tax_data(otu_data,
+                      class_cols = "lineage", # the column that contains taxonomic information
+                      class_sep = ";", # The character used to separate taxa in the classification
+                      class_regex = "^([a-z]{0,1})_{0,2}(.*)$", # Regex identifying where the data for each taxon is
+                      class_key = c(tax_rank = "info", # A key describing each regex capture group
+                                    tax_name = "taxon_name"))
+
+#Removing low-abundance counts: Recall that the abundance matrix contains samples in columns and OTUs in rows. Each cell is the number of times an OTU was observed in a sample. Some of these cells may contain a low number of observations. These low-abundance sequences might be the result of sequencing error, so typically we remove any counts/OTUs with less than some number of reads. Lets set all counts with less than 5 reads to zero, overwriting the original table:
+obj$data$tax_data <- zero_low_counts(obj, dataset = "tax_data", min_count = 0.01)# the otu table is already in relative abundances
+
+#By setting low abundance counts to zero we might have created OTUs that no longer contain any observations. We can check as follows.
+
+no_reads <- rowSums(obj$data$tax_data[,sample_data$x1]) == 0
+sum(no_reads)
+
+#filter out the zero counts
+obj <- filter_obs(obj, data = "tax_data", ! no_reads, drop_taxa = TRUE)
+#print(obj)
+
+#Getting per-taxon information: Currently, we have values for the abundance of each OTU, not each taxon. To get information on the taxa, we can sum the abundance per-taxon and add the results to the taxmap object in a new table:
+obj$data$tax_abund <- calc_taxon_abund(obj, "tax_data",
+                                       cols = sample_data$x1)
+
+#print(obj)
+
+#We can also easily calculate the number of samples that have reads for each taxon:
+obj$data$tax_occ <- calc_n_samples(obj, "tax_abund", groups = sample_data$material)
+
+# compare difference in abundances between groups
+obj$data$diff_table <- compare_groups(obj, dataset = "tax_abund",
+                                      cols = sample_data$x1, # What columns of sample data to use
+                                      groups = sample_data$material) # What category each sample is assigned to
+print(obj$data$diff_table)
+
+# we need to correct for multiple comparisons:
+obj$data$diff_table$wilcox_p_value <- p.adjust(obj$data$diff_table$wilcox_p_value,
+                                               method = "fdr")
+range(obj$data$diff_table$wilcox_p_value, finite = TRUE) # there are still sig. differences
+range(obj$data$diff_table$log2_median_ratio, finite = TRUE) 
+
+set.seed(999)
+# taxa more abundant in throat are colored in green, those more abundant in stool in purple
+heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs, # n_obs is a function that calculates, in this case, the number of OTUs per taxon
+          node_color = log2_median_ratio, # A column from `obj$data$diff_table`
+          node_color_interval = c(-2, 2), # The range of `log2_median_ratio` to display
+          node_color_range = c("purple", "gray", "darkgreen"), # The color palette used
+          node_size_axis_label = "OTU count",
+          node_color_axis_label = "Log 2 ratio of median proportions",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford",
+          title="all samples without adjustment",
+          output_file = "diff_sputhr_relab.pdf") # The layout algorithm that initializes node locations
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/diff_tree stool_throat_all_woSig.pdf", width = 10, height = 7)
+
+# print only colors with sig. differences
+obj$data$diff_table$log2_median_ratio[obj$data$diff_table$wilcox_p_value > 0.05] <- 0
+print(obj$data$diff_table)
+
+set.seed(1)
+tree_plot <- heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs, # n_obs is a function that calculates, in this case, the number of OTUs per taxon
+          node_color = log2_median_ratio, # A column from `obj$data$diff_table`
+          node_color_interval = c(-2, 2), # The range of `log2_median_ratio` to display
+          node_color_range = c("#EE6AA7", "gray","#31A1B3FF"), # The color palette used
+          node_size_axis_label = "Genus count",
+          node_color_axis_label = "Log 2 ratio of median proportions",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford",
+          #title="significant differences",
+          output_file = "diff_sputhr_relab_sig.pdf") # The layout algorithm that initializes node locations
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/diff_tree stool_throat_all_Sig.pdf", tree_plot, width = 12, height = 7)
+```
+
+# Venn diagramm of overlapping ASVS between materials
+## all visits
+```{r Venn diagramm of overlapping ASVS between materials }
+
+library(MicEco)
+library(microViz)
+
+ps_throat_Stool_full_unique_2 <- tax_filter(ps_throat_Stool_full_unique_2, min_prevalence = 1)
+
+#transform to relative abundance
+ps_throat_Stool_full_unique_2_relab <- transform_sample_counts(ps_throat_Stool_full_unique_2 , function(x) x/sum(x))
+
+ps_throat_Stool_full_unique_2_relab_genus <- tax_glom(ps_throat_Stool_full_unique_2_relab, taxrank = "Genus")
+
+list_shared_genus <- ps_venn(ps_throat_Stool_full_unique_2_relab_genus, group = "material", plot = F)
+
+library(eulerr)
+# Fit a diagram with circles
+combo <- c(Throat = 101, Stool = 93, "Throat&Stool" = 144)
+fit1 <- euler(combo)
+
+# Investigate the fit
+fit1
+
+# Customize colors, remove borders, bump alpha, color labels white
+venn1 <- plot(fit1, quantities = T,
+     fills = list(fill = c("#31A1B3FF", "#EE6AA7"), alpha = 0.8),
+     labels = list(col = "black", font = 2, cex=1.5, ps=1.5))
+
+#gg#save("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Venn_all_sputhr.pdf", venn1, width = 7, height = 5)
+
+venn_gg<-as_ggplot(venn1) 
+venn_gg
+```
+
+# combine plots for figure 6 
+```{r arrange plots for figure 6, fig.height=22, fig.width=16}
+library(gridExtra)
+# Arrange the ggplot objects in a grid
+grid_arranged <- grid.arrange(NULL,
+#tree_plot+ labs(tag = "A") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  venn_gg+ labs(tag = "B"),
+  BC_plot + labs(tag = "C"),
+  p1 + labs(tag = "D"),
+  p4 + labs(tag = "E"),
+  p2 + labs(tag = "F"),
+  ncol = 7, nrow = 3,
+  heights = c(1.5, 1, 1.25),
+  #widths=c(1,1,1,1),
+  layout_matrix = rbind(c(1,1,1,1,1,2,2),
+                        c(3,3,3,3,4,4,4),
+                        c(5,5,5,5,5,6,6))
+)
+
+# Print or #save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/gut_throat.png",grid_arranged, dpi = 300, width = 19, height = 24)
+```

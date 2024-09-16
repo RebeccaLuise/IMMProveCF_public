@@ -38,10 +38,6 @@ data  <- data %>%
   mutate(sex = case_when(sex==1 ~ "male", sex==2 ~ "female")) %>% 
   mutate(sex=as_factor(sex))
 
-# this one sample is mismatched within the phyloseq, I remove it
-data <- data %>% 
-  filter(!is.na(sex))
-
 data$visit_cal_9 <- factor(
   data$visit_cal_9,
   levels = c("1","2","3","4","5","6","7","8","9","Control"),
@@ -50,6 +46,9 @@ data$visit_cal_9 <- factor(
 
 data <- data %>% 
   distinct(id_visit, .keep_all = T)
+
+data %>% 
+  count(visit_cal_cor)
 
 # create age subgroups
 data$age_y <- as.numeric(data$age_y)
@@ -94,4 +93,22 @@ data_sel %>%
     names_from = visit_cal_9,
     values_from = c(min_age, max_age, mean_age, sd_age)
   )
-````
+```
+
+```{r}
+data_sel <- data %>% select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride, staph_pos_sputum, staph_pos_throat, pseudo_pos_sputum, pseudo_pos_throat)
+
+data_sel %>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="ifany")%>%
+  as_gt() %>%
+  gt::gtsave(filename = "characteristics_allVisits_mibi.docx")
+
+summary(lmerTest::lmer(staph_pos_sputum ~ visit_cal_9 + age_y + sex+(1|id), data = data))
+summary(lmerTest::lmer(staph_pos_throat ~ visit_cal_9 + age_y + sex+(1|id), data = data))
+summary(lmerTest::lmer(pseudo_pos_throat ~ visit_cal_9 + age_y + sex + (1|id), data = data))
+summary(lmerTest::lmer(pseudo_pos_sputum ~ visit_cal_9 + age_y + sex + (1|id), data = data))
+
+summary(lmerTest::lmer(staph_pos_sputum ~ visit_sum + age_y + sex+(1|id), data = data))
+summary(lmerTest::lmer(staph_pos_throat ~ visit_sum + age_y + sex+(1|id), data = data))
+summary(lmerTest::lmer(pseudo_pos_throat ~ visit_sum + age_y + sex + (1|id), data = data))
+summary(lmerTest::lmer(pseudo_pos_sputum ~ visit_sum + age_y + sex + (1|id), data = data))
+```

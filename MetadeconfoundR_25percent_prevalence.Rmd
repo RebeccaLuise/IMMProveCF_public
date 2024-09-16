@@ -21,13 +21,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #renv::install("tillbirkner/MetadeconfoundR")
 ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
 
-ps <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
-
 samples <- read_csv("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/samples_sequencedTF.csv")
-
-samples %>% 
-  filter(shallow_sequenced==F) %>% 
-  filter(material=="Stool")
 
 pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
 
@@ -43,20 +37,19 @@ ps_full_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1) # has 632 taxa
 
 set.seed(100)
 ps_full_sputum_rar <- rarefy_even_depth(ps_full_sputum, rngseed=FALSE, sample.size=8000, replace=T, trimOTUs = T, verbose = T) # has 597 taxa
-ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.1) # has 155 taxa
-ps_sputum_filtered_rar <- tax_filter(ps_full_sputum_rar, min_prevalence = 0.1) # has 153 taxa
-
+ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.25) # has 101 taxa
+ps_sputum_filtered_rar <- tax_filter(ps_full_sputum_rar, min_prevalence = 0.25) # has 39 taxa
 
 ps_full_throat <- tax_filter(ps_full_throat, min_prevalence = 1) # removes 0s, has 2237 taxa
 ps_full_throat_rar <- rarefy_even_depth(ps_full_throat, rngseed=FALSE, sample.size=5500, replace=T, trimOTUs = T, verbose = T)
-ps_throat_filtered <- tax_filter(ps_full_throat, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 70 taxa
-ps_throat_filtered_rar <- tax_filter(ps_full_throat_rar, min_prevalence = 0.3) # has 70 taxa
+ps_throat_filtered <- tax_filter(ps_full_throat, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 107 taxa
+ps_throat_filtered_rar <- tax_filter(ps_full_throat_rar, min_prevalence = 0.25) # has 70 taxa
 
 
 ps_full_stool <- tax_filter(ps_full_stool, min_prevalence = 1) # removes 0s, has 2341 taxa
 ps_full_stool_rar <- rarefy_even_depth(ps_full_stool, rngseed=FALSE, sample.size=6500, replace=T, trimOTUs = T, verbose = T) # has 1935 taxa
-ps_stool_filtered <- tax_filter(ps_full_stool, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 94 taxa
-ps_stool_filtered_rar <- tax_filter(ps_full_stool_rar, min_prevalence = 0.3) # has to be prevalent in 30% of samples = 90 taxa
+ps_stool_filtered <- tax_filter(ps_full_stool, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 124 taxa
+ps_stool_filtered_rar <- tax_filter(ps_full_stool_rar, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 123 taxa
 
 ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x))
 ps_sputum_filtered_relab <- transform_sample_counts(ps_sputum_filtered, function(x) x/sum(x))
@@ -88,7 +81,7 @@ metadata_x_sputum_selected <- diversity_df_sputum_metadata %>%
 
 
 xlabels= c("tobramycin_inhal" = "Tobramycin Inhalation", "isotonic_na_cl"="Isotonic NaCl Inhalation", "saba_inhal"="(SABA) Inhaler", "cortison_inhal" = "Cortisone Inhalation", "antihistaminikum"="Oral Antihistamine", "orale_zusatznahrung"="Oral Nutritional Supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic Medication (Oral)", "ab_15dprior_visit"="Antibiotic 15 Days before Visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte Count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total Reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin Inhalation", "azetronam_inhal"="Aztreonam Inhalation", "anticholinergic"="Anticholinergic Inhalation", "dn_ase"="DNAse Inhalation", "cortison_nasal"="Cortisone Nasal Spray", "nasenspray"= "Nasal Spray", "ursodesoxychols_a_ure"="Ursodeoxycholic Acid", "tranexams_a_ure"="Tranexamic Acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N Antibiotic tt Days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI tt Days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin Inhalation",
-"hypertonic_na_cl"="Hypertonic Saline Inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol Inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= " Fecal calprotectin (μg/g )", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin Inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
+"hypertonic_na_cl"="Hypertonic Saline Inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol Inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin Inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
 
 # create a dataframe for the investigated metadata
 # Split each string at the equal sign
@@ -136,7 +129,7 @@ view(sputum_metad_div %>%
     filter(abs(Ds)>=0.33)%>% 
     filter(status!="NS"))
 
-tab_sputum <- BuildHeatmap(sputum_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.1, d_cutoff = 0.2) #keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "total_reads", "treatmentdays_365prior_visit" )
+tab_sputum <- BuildHeatmap(sputum_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2, keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "total_reads", "treatmentdays_365prior_visit" ))
 
 tab_sputum <- tab_sputum %>% 
   mutate(Sample="Sputum")
@@ -147,7 +140,7 @@ stats_sputum <- sputum_metad_div %>%
     filter(status!="NS") %>% 
     mutate(Sample="Sputum")
 
-hm_div_sputum <- tab_sputum%>% 
+tab_sputum%>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
@@ -160,9 +153,7 @@ geom_tile(aes(fill = Ds), color = "black") +
   ylab("")+
   scale_x_discrete(labels = xlabels)+
   scale_y_discrete(labels = ylabels)
-hm_div_sputum
 
-saveRDS(hm_div_sputum, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/hm_div_sputum.rds")
 
 metadata %>% 
   rownames_to_column(var="x_sample_id")%>% 
@@ -180,6 +171,7 @@ metadata %>%
   geom_point()+
   geom_smooth(method = "lm")
   
+
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_selected.png", width = 5.5, height = 3)
 ```
 
@@ -325,7 +317,7 @@ tab_stool %>%
 geom_tile(aes(fill = Ds), color = "black") + 
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
-  geom_text(aes(label=stars), color = "black", size = 3)+
+  geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10, face="italic"), legend.position = "right")+
   xlab("")+
   ylab("")+
@@ -355,7 +347,7 @@ diversity_hm<-tab_all %>%
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
             scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
-                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+                limits = c(min(stool_metad_div$Ds), max(stool_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
   xlab("")+
@@ -382,10 +374,29 @@ metadata %>%
     mean_treatmentdays = mean(treatmentdays_365prior_visit, na.rm = TRUE)
   )
 
+tab_stool_2<- BuildHeatmap(stool_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.1, d_cutoff = 0.2, keepMeta = c("delta_ETI_merged", "cortison_oral", "treatmentdays_365prior_visit"))
+
+stool_div_hm <- tab_stool_2%>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal()+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(stool_metad_div$Ds), max(stool_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10, face="italic"), legend.position = "right")+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)
+
+stool_div_hm
+
+saveRDS(stool_div_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/stool_div_hm.rds")
 ```
 
 ## MetadeconfoundR for Sputum glomerulated taxa
-```{r MetadeconfoundR for Sputum glomerulated taxa, fig.width=8, fig.height=10}
+```{r MetadeconfoundR for Sputum glomerulated taxa, fig.width=8, fig.height=8}
 
 # for Sputum glomerulated taxa
 ps_x_sputum_glom <- tax_glom(ps_sputum_filtered_relab, "Genus")
@@ -436,13 +447,13 @@ view(hm_05)
 
 sputum_hm <- hm_05 %>% 
   filter(metaVariable!="age_y") %>% 
-  #filter(metaVariable!="colistin_inhal") %>% 
+  filter(metaVariable!="colistin_inhal") %>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
             scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
-                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+                limits = c(min(sputum_metad_glom$Ds), max(sputum_metad_glom$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
   xlab("")+
@@ -452,7 +463,7 @@ geom_tile(aes(fill = Ds), color = "black") +
   ggtitle("Sputum")
 sputum_hm
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_randomVarID.pdf", width = 18, height = 21)
-saveRDS(sputum_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metad.rds")
+saveRDS(sputum_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/sputum_metaD_25percentprevalence.rds")
 ```
 ## Staphylococcus
 ```{r direct correlations with sputum rel abundances, fig.height=6, fig.width=6}
@@ -487,6 +498,7 @@ anova(lmerTest::lmer(Staphylococcus ~ visit_sum + chlorid_mmol_cl_l + (1|id), da
 visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
 x2labels <- c("0", "3", "6-12", "15-18", "21-24")
 
+
 p1 <- metadata_features_combined_sputum %>%
   ggplot(aes(y = Staphylococcus * 100 + 0.01, x=chlorid_mmol_cl_l)) +
   geom_point(aes(color = visit_sum), size = 4) +
@@ -512,7 +524,6 @@ p1 <- metadata_features_combined_sputum %>%
   guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
 p1
 
-saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/staph_sweat_chloride.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.pdf", width = 7.5, height = 7)
 
 
@@ -781,6 +792,7 @@ geom_tile(aes(fill = Ds), color = "black") +
   ggtitle("Throat")
 throat_hm 
 
+saveRDS(throat_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/throat_metaD_25percentprevalence.rds")
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_metaD_randomVarID.png", width = 7, height = 7)
 
 ```
@@ -834,29 +846,54 @@ stool_metad_glom <- stool_metad_glom %>%
 view(hm_05)
 
 stool_hm <- hm_05 %>% 
-  filter(metaVariable!="levofloxacin_inhal") %>% 
+  #filter(metaVariable!="levofloxacin_inhal") %>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
             scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
-                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+                limits = c(min(stool_metad_glom$Ds), max(stool_metad_glom$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "right")+
   xlab("")+
   ylab("")+
-  scale_x_discrete(labels = xlabels)+
-  scale_y_discrete(labels = ylabels)+
-  ggtitle("Stool")
+  scale_x_discrete(labels = xlabels)
+  #scale_y_discrete(labels = ylabels)+
 stool_hm 
+
+saveRDS(stool_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/stool_metaD_25percentprevalence.rds")
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_metaD_randomVarID.png", width = 7, height = 7)
 
+# use of PPI does not have an impact on calprotectin
+summary(lmerTest::lmer(calprotectin_amg_g_stuhl~ppi+(1|id.y), data = metadata))
 
+# BMI does not have an impact on calprotectin
+summary(lmerTest::lmer(calprotectin_amg_g_stuhl~BMI+(1|id.y), data = metadata))
+
+# but calprotectin has an impact on BMI
+summary(lmerTest::lmer(BMI~calprotectin_amg_g_stuhl+(1|id.y), data = metadata))
+# but the estimate is practically 0, so this is not clinically meaningful
+metadata %>% 
+  ggplot(aes(BMI, calprotectin_amg_g_stuhl))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+# but the estimate is practically 0, so this is not clinically meaningful
+metadata %>% 
+  ggplot(aes(delta_ETI_merged,calprotectin_amg_g_stuhl))+
+  geom_point()+
+  geom_smooth(method = "lm")
+
+# but treatment time has an impact on BMI for the stool cohort
+summary(lmerTest::lmer(BMI~delta_ETI_merged+(1|id.y), data = metadata))
+metadata %>% 
+  ggplot(aes(delta_ETI_merged,BMI))+
+  geom_point()+
+  geom_smooth(method = "lm")
 ```
 
 ```{r combine metadeconfoundR statistic output tables}
-
 metad_all <- rbind(sputum_metad_glom, throat_metad_glom, stool_metad_glom)
 
 metad_all <- metad_all %>% 
@@ -867,3 +904,67 @@ metad_all <- metad_all %>%
 write_csv(metad_all, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/metad_all_samples.csv")
 ```
 
+## Escherichia in stool
+```{r direct correlations with sputum rel abundances, fig.height=6, fig.width=6}
+
+metadata_features_combined_stool <- rownames_to_column(features_named)%>%
+  left_join(rownames_to_column(ps_full_stool_df), by=c("rowname"="rowname"))
+
+lm_visit_sum <- summary(lmerTest::lmer(Escherichia_Shigella ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_stool))
+lm_cal <- summary(lmerTest::lmer(Escherichia_Shigella ~ calprotectin_amg_g_stuhl + (1|id), data=metadata_features_combined_stool))
+lm_full <- summary(lmerTest::lmer(Escherichia_Shigella ~ visit_sum + calprotectin_amg_g_stuhl + (1|id), data=metadata_features_combined_stool))
+
+metadata_features_combined_stool$calprotectin_amg_g_stuhl
+
+anova(lmerTest::lmer(Escherichia_Shigella ~ visit_sum + calprotectin_amg_g_stuhl + (1|id), data=metadata_features_combined_stool), lmerTest::lmer(Escherichia_Shigella ~ calprotectin_amg_g_stuhl + (1|id), data=metadata_features_combined_stool))
+
+# a model knowing about calprotectin and visit_sum does not perform better than a model knowing about calprotectin alone, hence the effect on Escherichia abundance is calprotectin mediated
+
+  coefs <- data.frame(coef(lm_cal))
+
+  lm_stats <- coefs%>%
+    mutate(p = Pr...t..)
+  
+  lm_stats <- format(lm_stats, digits = 2)
+  lm_stats <- rownames_to_column(lm_stats)%>%
+    mutate(variable=rowname)%>%
+    select(c(variable, Estimate, Std..Error, df, t.value, p))
+  print(lm_stats)
+  
+  lm_stats<- lm_stats[2,]
+  lm_stats$p <- format(as.numeric(lm_stats$p), scientific=F)
+  
+  library(ggtext)
+  
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+
+
+p1 <- metadata_features_combined_stool %>%
+  ggplot(aes(y = Escherichia_Shigella * 100 + 0.01, x=calprotectin_amg_g_stuhl)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_log10()+
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+   labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Fecal calprotectin (mg/g)") +
+  ylab("*Escherichia_Shigella* (%)") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 130, y = 55, label = "p=0.012, Ds=0.57", size = 5) +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+p1
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_esch_cale_stool.pdf", width = 4.5, height = 5)
+
+saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/cor_esch_cale_stool.rds")
+```

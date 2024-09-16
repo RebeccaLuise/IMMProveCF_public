@@ -21,12 +21,12 @@ ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds
 # subset per material
 ps_full_throat <- subset_samples(ps_full, material== "Throat")
 # remove zero abundances from each dataset
-ps_throat <- tax_filter(ps_full_throat, min_prevalence = 0.3) # has to be prevalent in 30% of samples
+#ps_throat <- tax_filter(ps_full_throat, min_prevalence = 0.3) # has to be prevalent in 30% of samples
 
 # vs
 # calculate relative abundances
-ps_throat_relab <- transform_sample_counts(ps_throat, function(x) x/sum(x))
-#ps_throat_relab <-prune_taxa(taxa_sums(ps_throat_relab) > 0.45, ps_throat_relab) # > 40% prevalence over all samples, 107 most abundant ASVs
+ps_throat_relab <- transform_sample_counts(ps_full_throat, function(x) x/sum(x))
+ps_throat_relab <-prune_taxa(taxa_sums(ps_throat_relab) > 0.4, ps_throat_relab) # > 40% prevalence over all samples, 107 most abundant ASVs
 
 ps_throat_relab_family <- tax_glom(ps_throat_relab, "Family")
 ps_throat_relab_order <- tax_glom(ps_throat_relab, "Order")
@@ -374,7 +374,7 @@ effect_table_sig_long_control%>%
   filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
   ggplot(aes (x = comparison_p, y = taxa))+ 
   geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
-  scale_shape_manual (values = c (24)) + 
+  scale_shape_manual (values = c (25,24)) + 
   scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
   scale_color_manual(values=c("gray22","gray1","gray85"))+
   geom_text (aes (label = stars.pval (corr_p)))+
@@ -1188,7 +1188,7 @@ taxtable$ASV <- row.names(taxtable)
 taxtable<- cbind(ASV=taxtable$ASV,subset(taxtable,select = -c(ASV)))
 
 ### run it
-metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar = list("+ (1|id)", c("id")),  nnodes=9)
+metad <- MetaDeconfound(featureMat = features, metaMat = metada, randomVar =  c("id"),  nnodes=9)
 
 raw_p_V1_V6V7 <- metad[1]
 corr_p_V1_V6V7 <- metad[2]
@@ -1785,7 +1785,7 @@ effect_table_sig_long_control_phylum%>%
   filter(shape_sign!=0) %>% #fiter out effect sizes that have no direction
   ggplot(aes (x = comparison_p, y = taxa))+ 
   geom_point (aes (fill = effectSize, shape = shape_sign, size = abs (effectSize), color=(fdr)))+
-  scale_shape_manual (values = c (25,24)) + 
+  scale_shape_manual (values = c (24,25)) + 
   scale_fill_gradient2 (low = "blue", high = "red", mid = "white", midpoint = 0) +
   scale_color_manual(values=c("gray22","gray1","gray85"))+
   geom_text (aes (label = stars.pval (corr_p)))+

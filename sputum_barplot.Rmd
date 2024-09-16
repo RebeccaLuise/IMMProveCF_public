@@ -1,0 +1,117 @@
+---
+title: "Sputum barplots"
+author: "Rebecca Luise Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(datarium)
+
+# assign colors
+
+phylum_palette <- c(Firmicutes= "#69b3a2", Fusobacteriota="#6FB899FF", Bacteroidota="#31A1B3FF", Actinobacteriota= "#027B8EFF", Proteobacteria= "#EE6AA7", Campylobacterota= "#CCB22BFF", Cyanobacteria= "#9F8F12FF", Spirochaetota="#97CFD0", Verrucomicrobiota= "#6388B4FF", Desulfobacterota= "#BB7693FF", Patescibacteria= "#767676FF")
+
+color_palette <- c("#BB7693FF", "#6FB899FF", "#31A1B3FF", "#027B8EFF","#6388B4FF" , "#CCB22BFF", "#9F8F12FF", "#97CFD0","#EE6AA7" ,"#69b3a2" , "#8175AA",  "#9FDED0", "#EEB22BFF", "#767676FF")
+
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF", Veillonella="#EEB22BFF", Porphyromonas="#9FDED0", Granulicatella="#6388B4FF", Neisseria="#767676FF")
+
+```
+
+```{r subset per material}
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x)*100)
+
+# subset per material
+ps_full_sputum <- subset_samples(ps_full, material== "Sputum")
+
+# calculate relative abundances
+ps_sputum_relab <- transform_sample_counts(ps_full_sputum, function(x) x/sum(x))
+ps_sputum_relab <-prune_taxa(taxa_sums(ps_sputum_relab) > 0.40, ps_sputum_relab) # > 40% prevalence over all samples, 24 most abundant ASVs
+ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.5) # has 40 taxa
+
+ps_sputum_relab_family <- tax_glom(ps_sputum_relab, "Family")
+ps_sputum_relab_order <- tax_glom(ps_sputum_relab, "Order")
+ps_sputum_relab_class <- tax_glom(ps_sputum_relab, "Class")
+ps_sputum_relab_phylum<- tax_glom(ps_sputum_relab, "Phylum")
+```
+
+```{r, check numbers}
+
+full_metadata <- as(sample_data(ps_sputum_relab), "data.frame")
+
+full_metadata %>% 
+  group_by(project) %>% 
+  count(material)
+
+full_metadata %>% 
+  count(material)
+
+unique(full_metadata$id.x)
+
+id_rm <- c("11", "24", "25","26", "27", "29", "33",  "5",  "6",  "9",  "21") # those are the id's that have repeated measures (rm)
+id_v1 <-c("13", "15" ,"16", "17" , "31", "32", "35", "8" ) # those have only one sample
+```
+
+# Taxonomic composition
+```{r first visualization, warning=FALSE, fig.width=20, fig.height=7}
+#relative abundance barplot Phylum level
+
+#ps_relab_2 <- prune_taxa(taxa_sums(ps_full_relab) > 2, ps_full_relab) # filter for phyla > 2%
+
+# recode visit_cal_9  so that NA's are labeled as Controls
+sample_data(ps_sputum_relab)$visit_cal_9 <- factor(
+  sample_data(ps_sputum_relab)$visit_cal_9,
+  levels = c("1","2","3","4","5","6","7","8","9","Control"),
+  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+)
+
+ps_sputum_rm <- subset_samples(ps_sputum_relab, id.x %in% id_rm)
+
+bp_rm <- plot_bar(ps_sputum_rm, "visit_cal_9", fill="Genus")
+p1 <- bp_rm+
+  geom_bar(aes(color=Genus, fill=Genus, y = Abundance * 100), stat="identity", position="stack")+
+  theme_pubclean()+
+    theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "none",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
+  scale_fill_manual(values=dom_palette)+
+  scale_color_manual(values=dom_palette)+
+  scale_x_discrete(name="Sample time point")+
+  scale_y_continuous(name="Relative abundance (%)", limits = c(0, 100))+
+  facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
+p1
+
+ps_sputum_v1 <- subset_samples(ps_sputum_relab, id.x %in% id_v1)
+
+bp_v1 <- plot_bar(ps_sputum_v1, "visit_cal_9", fill="Genus")
+p2 <- bp_v1+
+  geom_bar(aes(color=Genus, fill=Genus, y = Abundance * 100), stat="identity", position="stack")+
+  theme_pubclean()+
+    theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "right",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
+  scale_fill_manual(values=dom_palette)+
+  scale_color_manual(values=dom_palette)+
+  scale_x_discrete(name="Sample time point")+
+  scale_y_continuous(name="Relative abundance (%)", limits = c(0, 100))+
+  facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
+p2
+
+ggarrange(p1,p2, nrow = 1, widths = c(2.5,1), labels = c("A","B"))
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.png", width = 20, height = 7)
+```

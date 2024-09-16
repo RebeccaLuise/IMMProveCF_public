@@ -1,0 +1,1881 @@
+---
+title: "CF-Control distance analysis, 2"
+author: "Rebecca L. Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load libraries and run functions script}
+library(microViz)
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(dendextend)
+library(vegan)
+
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_full.R")
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF", `Burkholderia-Caballeronia-Paraburkholderia` = "#E5C494")
+```
+
+```{r, prepare data}
+
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x)*100)
+
+#subset materials
+ps_full_throat <- subset_samples(ps_full_relab, material== "Throat")
+ps_full_stool <- subset_samples(ps_full_relab, material== "Stool")
+
+ps_full_throat_glom <- tax_glom(ps_full_throat, taxrank = "Genus")
+ps_full_stool_glom <- tax_glom(ps_full_stool, taxrank = "Genus")
+```
+
+# Analysis on most abundant taxa per patient in throat
+```{r}
+#Get top taxa per patient
+#find.top.taxa2 is sourced from functions.R
+top.throat<- find.top.taxa2(ps_full_throat_glom, "Genus",1)
+top.throat$Species<- NULL
+
+rslt <- top.throat[, "taxa"]
+dd <- matrix(unlist(rslt), nrow=1)
+colnames(dd) <- rownames(top.throat)
+top.throat <- t(dd)
+
+top.throat_df <- data.frame(x1 = row.names(top.throat), top.throat)%>%
+  mutate(dominantGenus = top.throat)
+top.throat_df$top.throat<- NULL
+
+# add clinical data to p
+
+##Add dominant Genus to ps_full_throat_glom sample data
+ps_full_throat_glom_j <- microViz::ps_join(ps_full_throat_glom, top.throat_df, by = "x1")
+
+##Add dominant Genus to ps_full_throat sample data
+ps_full_throat_j <- microViz::ps_join(ps_full_throat, top.throat_df, by = "x1")
+
+# Control's dominant taxa
+summary(as_factor(sample_data(ps_full_throat_j)$dominantGenus[sample_data(ps_full_throat_j)$project=="IMMPIMMP"]))
+
+# Patients's dominant taxa
+summary(as_factor(sample_data(ps_full_throat_j)$dominantGenus[sample_data(ps_full_throat_j)$project!="IMMPIMMP"]))
+
+ ### plot principal component analysis by dominant Genus
+PCA_all_visit_throat_dominantGenus <- plot_ordination(ps_full_throat_j, ordinate(ps_full_throat_j, "MDS"), color = "dominantGenus", shape="visit_sum")
+
+xlabels <- c("0","3","6-12","15-18","21-24","Control")
+
+PCA_all_visit_throat_dominantGenus+
+  geom_line(aes(group=id.x), color="grey")+
+  geom_point(size = 4)+
+  ggtitle("Variation by dominant Genus")+
+  scale_color_manual(values = dom_palette)+
+  scale_shape_manual(values = c(15, 16, 17, 18, 12, 23),labels = xlabels)+
+  theme_bw()+
+  theme(text=element_text(size=24), legend.position = "right", legend.text = element_text(size=16), legend.title = element_text(size=18))+
+  guides(color = guide_legend(title = "dominant genus"))+
+   guides(shape = guide_legend(title = "months from treatment start"))
+
+### plot principal component analysis by visit_sum
+PCA_all_visit_throat_dominantGenus <- plot_ordination(ps_full_throat_j, ordinate(ps_full_throat_j, "MDS"), color = "visit_sum", shape="project")
+
+project_label <- c("Control","CF")
+
+xlabels <- c("0", "3", "6-12", "15-18", "21-24", "Control")
+
+p1 <- PCA_all_visit_throat_dominantGenus +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = visit_sum_palette, labels = xlabels) +
+  scale_shape_manual(values = c(15, 16), labels = project_label) +
+  theme_classic() +
+  theme(text = element_text(size = 18), legend.position = "none", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 2))+
+  stat_ellipse()
+p1
+
+p1_leg <- PCA_all_visit_throat_dominantGenus +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = visit_sum_palette, labels = xlabels) +
+  scale_shape_manual(values = c(15, 16), labels = project_label) +
+  theme_classic() +
+  theme(text = element_text(size = 16), legend.position = "bottom", legend.text = element_text(size = 16)) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 6),shape = guide_legend(title = "", title.position = "left", ncol = 2))+
+  stat_ellipse()
+p1_leg
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/beta_throat_controls.png", width = 10, height = 6)
+
+```
+# create density plots for axis 1 and 2
+```{r, fig.width=4, fig.height=4}
+# Perform PCoA
+ord_obj <- ordinate(ps_full_throat_j, "MDS")
+
+# Extract coordinates from PCoA
+pcoa_coords <- ord_obj$vectors
+
+# Create a data frame for ggplot
+df <- data.frame(x1 = pcoa_coords[, 1], x2 = pcoa_coords[, 2], visit_sum = sample_data(ps_full_throat_j)$visit_sum,age_y = sample_data(ps_full_throat_j)$age_y,sex= sample_data(ps_full_throat_j)$sex,id.x= sample_data(ps_full_throat_j)$id.x)
+
+# Create a named vector for custom labels
+custom_labels <- c("1" = "0", 
+                   "2" = "3", 
+                   "3-5" = "6-12", 
+                   "6-7" = "15-18", 
+                   "8-10" = "21-24", 
+                   "Control" = "Control")
+# Create density plots on the x and y axes
+plot_x_th <- ggplot(df, aes(x = x1, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  #clean_theme()+
+  scale_x_continuous(breaks = c(-0.3, 0, 0.3), labels = c("-0.3", "0", "0.3"))+
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels)+
+  theme(legend.position = "none", text = element_text(size = 18), legend.title = element_blank())
+
+# Define the common y-axis limits
+y_axis_limits <- c(0, 2.5)  # Adjust these values as needed
+
+# Density plot with fixed y-axis range
+axis1_den <- ggplot(df, aes(x = x1, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.8) +
+  theme_classic() +
+  scale_x_continuous(breaks = c(-0.3, 0, 0.3), labels = c("-0.3", "0", "0.3")) +
+    scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+    strip.text.y = element_text(angle = 0)  # Rotate the facet labels
+  ) +
+  facet_grid(rows = vars(visit_sum), labeller =  as_labeller(custom_labels)) +
+  ylim(y_axis_limits)+
+  labs( x = "Axis 1")
+axis1_den
+
+# Boxplot comparing x between the 5 groups
+axis1_bp <- ggplot(df, aes(x = as.factor(visit_sum), y = x1, fill = as.factor(visit_sum))) +
+  geom_boxplot(alpha=0.8) +
+  theme_classic() +
+  scale_x_discrete(labels = xlabels) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank()
+  ) +
+  labs(x = "Months from tt start", y = "Axis 1")
+axis1_bp
+
+plot_y_th <- ggplot(df, aes(x = x2, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  #clean_theme()+
+  xlim(c(-0.6, 0.4))+
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels)+
+  theme(legend.position = "none",text = element_text(size = 18), legend.title = element_blank())+
+  coord_flip()
+
+# Define the common y-axis limits
+y_axis_limits <- c(0, 3.5)  # Adjust these values as needed
+
+# Density plot with fixed y-axis range
+axis2_den <- ggplot(df, aes(x = x2, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.8) +
+  theme_classic() +
+  scale_x_continuous(breaks = c(-0.6, 0, 0.4), labels = c("-0.6", "0", "0.4")) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+    strip.text.y = element_text(angle = 0)  # Rotate the facet labels
+  ) +
+  facet_grid(rows = vars(visit_sum), labeller =  as_labeller(custom_labels)) +
+  ylim(y_axis_limits)+
+  labs(x = "Axis 2")
+axis2_den
+
+# Boxplot comparing x between the 5 groups
+axis2_bp <- ggplot(df, aes(x = as.factor(visit_sum), y = x2, fill = as.factor(visit_sum))) +
+  geom_boxplot(alpha=0.8) +
+  theme_classic() +
+  scale_x_discrete(labels = xlabels) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+  ) +
+  labs(x = "Months from tt start", y = "Axis 2")
+axis2_bp
+# Extract the legend. Returns a gtable
+leg <- get_legend(p1_leg)
+
+# Convert to a ggplot and print
+legend <- as_ggplot(leg)
+
+# Arranging the plot
+
+axis <- ggarrange(axis1_den, axis2_den, axis1_bp, axis2_bp, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(1, 1),
+          common.legend = F)
+axis
+
+throat_density <- ggarrange(plot_x_th, NULL, p1, plot_y_th, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(2, 1), heights = c(1, 2),
+          common.legend = F)
+throat_density
+```
+
+```{r}
+# Load required libraries
+library(tidyverse)
+library(lmerTest)
+library(ggpubr)
+
+# Define the custom labels
+xlabels <- c("0", "3", "6-12", "15-18", "21-24", "Control")
+
+# Convert visit_sum to factor with specified levels
+df<- df%>%
+  mutate(visit_sum = factor(visit_sum, levels = c("1", "2", "3-5", "6-7", "8-10", "Control")))
+
+# Define the function for linear model and boxplot
+lm_corrected_pvalues_boxplot <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  
+  # Fit the linear mixed-effects model
+  lm <- summary(lmerTest::lmer(x ~ visit_sum + age_y + sex + (1|id.x), data = df))
+  
+  # Extract coefficients and compute FDR
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  # Prepare the statistics table
+  lm_stats <- bind_cols(coefs, fdr) %>%
+    mutate(p = Pr...t..) %>%
+    mutate(fdr = ...6) %>%
+    select(-c(Pr...t.., ...6)) %>%
+    rownames_to_column() %>%
+    mutate(Months_after_ETI_start = rowname) %>%
+    mutate(Months_after_ETI_start = case_when(
+      Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+      Months_after_ETI_start == "visit_sum2" ~ "3",
+      Months_after_ETI_start == "visit_sum3-5" ~ "6-12",
+      Months_after_ETI_start == "visit_sum6-7" ~ "15-18",
+      Months_after_ETI_start == "visit_sum8-10" ~ "21-24",
+      Months_after_ETI_start == "visit_sumControl" ~ "Control",
+      Months_after_ETI_start == "age_y" ~ "age_y",
+      Months_after_ETI_start == "sex2" ~ "sex"
+    )) %>%
+    mutate(fdr_star = case_when(
+      fdr <= 0.001 ~ "***",
+      fdr <= 0.01 ~ "**",
+      fdr <= 0.05 ~ "*",
+      fdr <= 0.1 ~ ".",
+      fdr > 0.1 ~ "ns"
+    )) %>%
+    mutate(p_star = case_when(
+      p <= 0.001 ~ "***",
+      p <= 0.01 ~ "**",
+      p <= 0.05 ~ "*",
+      p <= 0.1 ~ ".",
+      p > 0.1 ~ "ns"
+    )) %>%
+    select(-rowname) %>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star) %>%
+    mutate(p = round(p, 5)) %>%
+    mutate(fdr = round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+  # Adjust table for significance asterisks on the plot
+  group1 <- c("(Intercept)", "1", "1", "1", "1", "1", "1", "1")
+  
+  lm_stats <- lm_stats %>%
+    bind_cols(group1) %>%
+    mutate(group1 = ...10) %>%
+    mutate(group2 = case_when(
+      Months_after_ETI_start == "Baseline (Intercept)" ~ "(Intercept)",
+      Months_after_ETI_start == "3" ~ "2",
+      Months_after_ETI_start == "6-12" ~ "3-5",
+      Months_after_ETI_start == "15-18" ~ "6-7",
+      Months_after_ETI_start == "21-24" ~ "8-10",
+      Months_after_ETI_start == "Control" ~ "Control"
+    )) %>%
+    filter(group2 != "(Intercept)")
+
+  # Create the boxplot
+  boxplot <- ggplot(df, aes(visit_sum, x)) +
+    geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.65) +
+    geom_jitter(width = 0.1) +
+    scale_fill_manual(values = visit_sum_palette) +
+    theme_classic() +
+    ylab(ylabel) +
+    xlab("Months from ETI treatment start") +
+    scale_x_discrete(labels = xlabels) +
+    theme(
+      text = element_text(size = 16), 
+      legend.position = "none"
+    ) +
+    guides(fill = 'none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = (max(x, na.rm = TRUE) - 0.07 * max(x, na.rm = TRUE)), step.increase = 0.05)
+  
+  return(list(boxplot = boxplot, lm_stats = lm_stats_print))
+}
+
+# Run function on  data
+axis1_throat <- lm_corrected_pvalues_boxplot(df$x1, "Axis 1")
+axis1_throat_lm_stats <- axis1_throat$lm_stats # Access lm_stats
+p3 <- axis1_throat$boxplot # Access boxplot
+
+# Print the boxplot
+print(p3)
+
+axis2_throat <- lm_corrected_pvalues_boxplot(df$x2, "Axis 2")
+axis2_throat_lm_stats <- axis2_throat$lm_stats # Access lm_stats
+p4 <- axis2_throat$boxplot # Access boxplot
+
+# Print the boxplot
+print(p4)
+
+ggarrange(p3,p4)
+
+# run statistics on controls vs all CF samples,
+# in order to make this feasible in a linear model I have to revert the order of visit_sum
+#
+df$visit_sum_reorder <- factor(df$visit_sum, levels = c("Control", "1", "2", "3-5", "6-7", "8-10"))
+
+lm_corrected_pvalues_boxplot_reorder <- function(x, ylabel) {
+  
+  print(ylabel) # x is the diversity parameter I am interested in
+  lm <- summary(lmerTest::lmer(x~ visit_sum_reorder + age_y + sex + (1|id.x), data=df))
+  
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  lm_stats <- bind_cols(coefs, fdr)%>%
+    mutate(p = Pr...t..)%>%
+    mutate(fdr = ...6)%>%
+    select(-c(Pr...t.., ...6))%>%
+    rownames_to_column()%>%
+    mutate(Months_after_ETI_start=rowname)%>%
+    mutate(Months_after_ETI_start= case_when(Months_after_ETI_start=="(Intercept)"~"Control (Intercept)", Months_after_ETI_start=="visit_sum_reorder2"~"3", Months_after_ETI_start=="visit_sum_reorder3-5"~"6-12",Months_after_ETI_start=="visit_sum_reorder6-7"~"15-18",Months_after_ETI_start=="visit_sum_reorder8-10"~ "21-24", Months_after_ETI_start=="visit_sum_reorder1"~"Baseline", Months_after_ETI_start=="age_y"~ "age_y", Months_after_ETI_start=="sex2"~ "sex"))%>%
+    mutate(fdr_star = case_when(fdr<=0.001 ~ "***", fdr<=0.01 ~ "**", fdr<=0.05 ~ "*",fdr<=0.1 ~ ".",fdr>=0.1 ~ "ns"))%>%
+    mutate(p_star = case_when(p<=0.001 ~ "***", p<=0.01 ~ "**", p<=0.05 ~ "*",p<=0.1 ~ ".", p>=0.1 ~ "ns"))%>%
+    select(-rowname)%>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star)%>%
+    mutate(p=round(p,5))%>%
+    mutate(fdr=round(fdr, 5))
+  
+  lm_stats_print <- lm_stats %>% 
+    mutate(alpha_diversity = ylabel) %>% 
+    select(alpha_diversity, everything())
+
+# to make the significant asterixes printable on the plot I have to adjust the table a little
+group1 <- c("(Intercept)","Control","Control","Control","Control","Control","Control","Control")
+
+lm_stats <-  lm_stats%>%
+    bind_cols(group1)%>%
+    mutate(group1=...10)%>%
+    mutate(group2= case_when(Months_after_ETI_start=="Control (Intercept)"~"(Intercept)",
+                             Months_after_ETI_start=="3"~"2",
+                             Months_after_ETI_start=="Baseline"~"1", Months_after_ETI_start=="6-12" ~ "3-5", Months_after_ETI_start=="15-18"~"6-7",Months_after_ETI_start=="21-24"~"8-10"))%>%
+    filter(group2!="(Intercept)")
+
+  boxplot <- df%>%
+    ggplot(aes(visit_sum, x))+
+    geom_boxplot(aes(fill=visit_sum), outlier.shape = NA, alpha=0.65) +
+    geom_jitter(width = 0.1)+
+    scale_fill_manual(values=visit_sum_palette)+
+    theme_classic()+
+    ylab(ylabel)+
+    xlab("Months from ETI treatment start")+
+    scale_x_discrete(labels= xlabels)+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    guides(fill='none') +
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05)
+  
+    return(list(boxplot = boxplot, lm_stats = lm_stats_print, lm_stats_sig=lm_stats))
+}
+
+#Axis 1
+axis1.2_throat <- lm_corrected_pvalues_boxplot_reorder(df$x1, "Axis 1")
+axis1_throat_lm_stats_reorder <- axis1.2_throat$lm_stats # Access lm_stats
+axis1_throat_reorder <- axis1.2_throat$boxplot # Access boxplot
+axis1_throat_reorder
+
+axi1_wC_thr <- axis1_throat$boxplot +
+  geom_signif(
+    y_position = c(-0.6, -0.55, -0.5, -0.45),  
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c(".", "*", "ns", "*"), 
+    tip_length = -0.03, 
+    vjust = 1,
+    size = 0.35
+  )
+axi1_wC_thr
+
+#Axis 2
+axis2.2_thr <- lm_corrected_pvalues_boxplot_reorder(df$x2, "Axis 2")
+axis2_thr_lm_stats_reorder <- axis2.2_thr$lm_stats # Access lm_stats
+axis2_thr_reorder <- axis2.2_thr$boxplot # Access boxplot
+axis2_thr_reorder
+axi2_wC_thr <- axis2_throat$boxplot +
+  geom_signif(
+    y_position = c(-0.6, -0.55, -0.5, -0.45), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("ns", "ns", "ns", "ns"), 
+    tip_length = -0.03, 
+    vjust = 1,
+    size = 0.35
+  )
+axi2_wC_thr
+
+# Arranging the plot
+
+axis_throat <- ggarrange(axis1_den, axis2_den, axi1_wC_thr, axi2_wC_thr, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(1, 1),
+          common.legend = F)
+axis_throat
+```
+
+# PERMANOVA in throat
+```{r calculate bray curtis distance for all throat samples and run PERMANOVA}
+
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_throat_j,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_full_throat_j),"data.frame")
+
+### unstratified
+
+adonis2(formula = BC_dist ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_dist ~ visit_sum + sex + age_y, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_dist ~ visit_sum + sex + age_y +id.x, data = metadata, permutations = 999, by = "margin") # sex and age are not significant when including id.x as a explantory variable
+
+adonis2(formula = BC_dist ~ visit_sum +id.x, data = metadata, permutations = 999, by = "margin") # sex and age are not significant when including id.x as a explantory variable
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_dist ~ visit_sum , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+adonis2(formula = BC_dist ~ visit_sum + project , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+### stratified PERMANOVA per project (health vs CF)
+adonis2(formula = BC_dist ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$project)
+
+### unstratified PERMANOVA health vs CF
+adonis2(formula = BC_dist ~ project, data = metadata, permutations = 999, by = "margin")
+adonis2(formula = BC_dist ~ project + id.x, data = metadata, permutations = 999, by = "margin")
+adonis2(formula = BC_dist ~ project + visit_sum, data = metadata, permutations = 999, by = "margin")
+### stratified PERMANOVA health vs CF
+adonis2(formula = BC_dist ~ project + visit_sum + sex + age_y, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+adonis2(formula = BC_dist ~ project + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$visit_sum)
+
+adonis2(formula = BC_dist ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$project)
+```
+# PERMANOVA per time point comparison
+
+```{r}
+
+# check baseline vs follow-up samples
+metadata<- metadata %>% 
+  mutate(ETI_yn = as_factor(case_when(visit_sum=="1"~"no", visit_sum=="Control"~"Control", T~"yes")))
+
+summary(metadata$ETI_yn)
+
+### plot principal component analysis by visit_sum
+PCA_all_visit_throat_dominantGenus <- plot_ordination(ps_full_throat_j, ordinate(ps_full_throat_j, "MDS"), color = "visit_sum", shape="project")
+
+project_label <- c("Control","CF")
+
+labels <- c("Baseline", "ETI", "ETI", "ETI", "ETI", "Control")
+
+bfu_palette <- c("black", "#55AD89FF","#55AD89FF","#55AD89FF","#55AD89FF","#8176AA" )
+
+PCA_all_visit_throat_dominantGenus +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = bfu_palette, labels = xlabels) +
+  scale_shape_manual(values = c(15, 16), labels = project_label) +
+  theme_classic() +
+  theme(text = element_text(size = 18), legend.position = "none", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 2))+
+  stat_ellipse()
+
+### stratified PERMANOVA control vs baseline vs follow-up
+adonis2(formula = BC_dist ~ ETI_yn, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# Repeat PERMANOVA for separate time points, paired with baseline
+
+metadata_v1 <- metadata %>%
+  filter(visit_sum %in% c("1", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v1$x_sample_id
+
+# Filter the distance matrix to only include relevant rows and cols
+BC_df <- as.matrix(BC_dist)
+BC_df <- as.data.frame(BC_df)
+
+# Filter rows based on sample IDs
+df_v1 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v1 <- df_v1[, colnames(df_v1) %in% sample_ids]
+
+# Convert to matrix
+BC_v1 <- as.matrix(df_v1)
+
+### unstratified
+adonis2(formula = BC_v1 ~ visit_sum, data = metadata_v1, permutations = 999, by = "margin")
+# as there are no repeated samples no need for stratification
+adonis2(formula = BC_v1 ~ project, data = metadata_v1, permutations = 999, by = "margin")
+
+# now Control vs all follow-ups together (without baseline)
+
+metadata_fu <- metadata %>%
+  filter(ETI_yn %in% c("yes", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_fu$x_sample_id
+# Filter the distance matrix to only include relevant rows and cols
+BC_df <- as.matrix(BC_dist)
+BC_df <- as.data.frame(BC_df)
+
+# Filter rows based on sample IDs
+df_fu <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_fu <- df_fu[, colnames(df_fu) %in% sample_ids]
+
+# Convert to matrix
+BC_fu <- as.matrix(df_fu)
+
+### stratified
+adonis2(formula = BC_fu ~ visit_sum, data = metadata_fu, permutations = 999, by = "margin", strata = metadata_fu$id.x)
+adonis2(formula = BC_fu ~ ETI_yn, data = metadata_fu, permutations = 999, by = "margin", strata = metadata_fu$id.x)
+
+# now Control vs follow-ups separately
+metadata_v2 <- metadata %>%
+  filter(visit_sum %in% c("2", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v2$x_sample_id
+
+# Filter rows based on sample IDs
+df_v2 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v2 <- df_v2[, colnames(df_v2) %in% sample_ids]
+
+# Convert to matrix
+BC_v2 <- as.matrix(df_v2)
+
+### unstratified
+adonis2(formula = BC_v2 ~ visit_sum, data = metadata_v2, permutations = 999, by = "margin")
+# as there are no repeated samples no need for stratification - it also gives an error
+adonis2(formula = BC_v2 ~ project, data = metadata_v2, permutations = 999, by = "margin")
+
+metadata_v3 <- metadata %>%
+  filter(visit_sum %in% c("3-5", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v3$x_sample_id
+
+# Filter rows based on sample IDs
+df_v3 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v3 <- df_v3[, colnames(df_v3) %in% sample_ids]
+
+# Convert to matrix
+BC_v3 <- as.matrix(df_v3)
+
+### unstratified
+adonis2(formula = BC_v3 ~ visit_sum, data = metadata_v3, permutations = 999, by = "margin")
+adonis2(formula = BC_v3 ~ project, data = metadata_v3, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v3 ~ visit_sum, data = metadata_v3, permutations = 999, by = "margin", strata = metadata_v3$id.x)
+
+metadata_v6 <- metadata %>%
+  filter(visit_sum %in% c("6-7", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v6$x_sample_id
+
+# Filter rows based on sample IDs
+df_v6 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v6 <- df_v6[, colnames(df_v6) %in% sample_ids]
+
+# Convert to matrix
+BC_v6 <- as.matrix(df_v6)
+
+### unstratified
+adonis2(formula = BC_v6 ~ visit_sum, data = metadata_v6, permutations = 999, by = "margin")
+adonis2(formula = BC_v6 ~ project, data = metadata_v6, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v6 ~ visit_sum, data = metadata_v6, permutations = 999, by = "margin", strata = metadata_v6$id.x)
+
+metadata_v8 <- metadata %>%
+  filter(visit_sum %in% c("8-10", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v8$x_sample_id
+
+# Filter rows based on sample IDs
+df_v8 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v8 <- df_v8[, colnames(df_v8) %in% sample_ids]
+
+# Convert to matrix
+BC_v8 <- as.matrix(df_v8)
+
+### unstratified
+adonis2(formula = BC_v8 ~ visit_sum, data = metadata_v8, permutations = 999, by = "margin")
+adonis2(formula = BC_v8 ~ project, data = metadata_v8, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v8 ~ visit_sum, data = metadata_v8, permutations = 999, by = "margin", strata = metadata_v8$id.x)
+```
+# PERMANOVA on CF-health comparisons alone
+
+```{r, eval=FALSE}
+
+# I reduce the distance matrix to only have CF samples in the rows, and only healthy samples in the columns, so that only CF to healthy comparisons are retained
+
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_throat_j,
+                             method="bray", weighted=F)
+
+#extract metadata
+metadata<- as(sample_data(ps_full_throat_j),"data.frame")
+
+# Use grep to find columns that contain "IMMP" in their names
+cols_to_keep <- metadata %>% 
+  filter(project=="IMMPIMMP") %>% 
+  select(x_sample_id)
+cols_to_keep <- cols_to_keep$x_sample_id
+
+rows_to_keep <- metadata %>% 
+  filter(project=="IMP") %>% 
+  select(x_sample_id)
+rows_to_keep <- rows_to_keep$x_sample_id
+# Convert the distance object to a matrix
+BC_matrix <- as.matrix(BC_dist)
+
+# Subset the matrix to keep only those columns that are from controls
+BC_matrix_f <- BC_matrix[, cols_to_keep]
+BC_matrix_f <- BC_matrix[rows_to_keep, ]
+
+# no keep in the metadata only CF samples
+metadata <- metadata %>% 
+  filter(project=="IMP")
+
+### unstratified
+adonis2(formula = BC_matrix_f ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_matrix_f ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin")
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_matrix_f ~ visit_sum, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# check baseline vs follow-up samples
+metadata<- metadata %>% 
+  mutate(ETI_yn = case_when(visit_sum=="1"~FALSE, T~TRUE))
+
+### unstratified
+adonis2(formula = BC_matrix_f ~ ETI_yn, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_matrix_f ~ ETI_yn + id.x, data = metadata, permutations = 999, by = "margin")
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_matrix_f ~ ETI_yn, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# Repeat PERMANOVA for separate time points, paired with baseline
+
+md_v1v2 <- metadata %>%
+  filter(visit_sum %in% c("1", "2"))
+
+# Filter the distance matrix to only include relevant rows
+BC_matrix_f <- as.data.frame(BC_matrix_f)
+BC_v1v2 <- BC_matrix_f %>% 
+  filter(rownames(BC_matrix_f) %in% c(md_v1v2$x_sample_id))
+
+# Convert to matrix
+BC_v1v2 <- as.matrix(BC_v1v2)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v2 ~ visit_sum , data = md_v1v2, permutations = 999, by = "margin")
+adonis2(formula = BC_v1v2 ~ visit_sum + id.x, data = md_v1v2, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id
+adonis2(formula = BC_v1v2 ~ visit_sum, data = md_v1v2, permutations = 999, by = "margin", strata = md_v1v2$id.x)
+
+# 6-12 months + baseline
+md_v1v35 <- metadata %>%
+  filter(visit_sum %in% c("1", "3-5"))
+
+# Filter the distance matrix to only include relevant rows
+BC_v35 <- BC_matrix_f %>% 
+  filter(rownames(BC_matrix_f) %in% c(md_v1v35$x_sample_id))
+
+# Convert to matrix
+BC_v35 <- as.matrix(BC_v35)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v35 ~ visit_sum , data = md_v1v35, permutations = 999, by = "margin")
+adonis2(formula = BC_v35 ~ visit_sum + id.x, data = md_v1v35, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id
+adonis2(formula = BC_v35 ~ visit_sum, data = md_v1v35, permutations = 999, by = "margin", strata = md_v1v35$id.x)
+```
+
+# compare CF and control BC-distances for throat
+```{r compare CF and control BC-distances}
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_throat_j,
+                             method="bray", weighted=F)
+BC_dist.throat <- as.matrix(BC_dist)
+#BC_dist.throat[lower.tri(BC_dist.throat)] <- 0  # this is needed to remove the 0 latter, to keep only single pairs
+BC_dist.throat_df <- reshape2::melt(BC_dist.throat)
+
+tmp1 <- BC_dist.throat_df%>%
+  filter(grepl("IMMP", Var1)) %>% #this keeps only control samples in Var 1
+  filter(!grepl("IMMP", Var2))#%>%  #this filters control samples from Var 2, so that in the end only distances between COntrols and all CF samples are kept
+  #filter(value!=0)#this removes the same sample distances, and the one from set 0 from above to keep a single pair
+
+# merge with metadata to have visit_sums for CF samples
+#extract metadata
+metadata<- as(sample_data(ps_full_throat_j),"data.frame")
+tmp1 <- tmp1 %>% 
+  left_join(metadata, by=c("Var2"="x_sample_id")) %>% 
+  mutate(comparison=paste(Var1, Var2, sep = "_")) %>% 
+  distinct(comparison, .keep_all = T)
+
+summary(tmp1$visit_sum)
+
+my_comp <- list(c("1","2"), c("1","3-5"), c("1","6-7"), c("1","8-10"))
+
+# Calculate median and IQR
+summary_stats <- tmp1 %>%
+  group_by(visit_sum) %>%
+  summarize(
+    median = median(value),
+    lower = quantile(value, 0.25),
+    upper = quantile(value, 0.75)
+  )
+
+tmp1 %>% 
+  ggplot(aes(visit_sum, value, fill=visit_sum))+
+  geom_boxplot(outlier.shape = NA, alpha=0.7)+
+  #geom_point()+
+  theme_classic()+
+  scale_fill_manual(values = visit_sum_palette)+
+  ylab("BC distance between CF and Controls")+
+  theme(legend.position = "none",text=element_text(size=20))+ #
+  scale_x_discrete(labels= xlabels)+
+  xlab("")+
+  stat_compare_means(comparisons = my_comp, method = "wilcox.test", label = "p.adj")
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/BC_throat_controls.png", width = 8, height = 6)
+
+summary(lmerTest::lmer(value~visit_sum + (1|Var1)+ (1|id.x), data = tmp1))
+
+# below I plot the BC distance per patient and each control, with controls being on the x-axis, one can observe the consistency of BC distance per patient across controls, with visit_sum giving a distinct signal in each patient
+tmp1 %>% 
+  ggplot(aes(Var1, value, fill=visit_sum))+
+  #geom_boxplot(outlier.shape = NA)+
+  geom_point(aes(color=visit_sum), alpha=0.5)+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  ylab("BC distance between CF and Controls")+
+  theme(legend.position = "none",text=element_text(size=20))+ #
+  #scale_x_discrete(labels= xlabels)+
+  xlab("")+
+  facet_wrap(~id.x)
+```
+
+# throat linear model + boxplot
+```{r throat plot boxplot with linear model age and sex correction}
+
+lm_boxplot_function <- function(dependent_variable, ylabel) {
+
+  # Fit linear mixed-effects model
+  print(summary(lmerTest::lmer(paste(dependent_variable, "~ visit_sum + sex + age_y + (1|id) + (1|Var1)"), data = tmp1)))
+  lm <- summary(lmerTest::lmer(paste(dependent_variable, "~ visit_sum + sex + age_y + (1|id) + (1|Var1)"), data = tmp1))
+  #lm <- summary(lmerTest::lmer(value ~ visit_sum + sex + age_y + (1|id), data = tmp1))
+  # Extract coefficients and adjust p-values
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  # Create lm_stats table
+  lm_stats <- bind_cols(coefs, fdr) %>%
+    mutate(p = Pr...t..) %>%
+    mutate(fdr = ...6) %>%
+    select(-c(Pr...t.., ...6)) %>%
+    rownames_to_column() %>%
+    mutate(Months_after_ETI_start = rowname) %>%
+    mutate(Months_after_ETI_start = case_when(
+      Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+      Months_after_ETI_start == "visit_sum2" ~ "3 months",
+      Months_after_ETI_start == "visit_sum3-5" ~ "6-12 months",
+      Months_after_ETI_start == "visit_sum6-7" ~ "15-18 months",
+      Months_after_ETI_start == "visit_sum8-10" ~ "21-24 months",
+      Months_after_ETI_start %in% c("sex2", "age_y") ~ Months_after_ETI_start
+    )) %>%
+    mutate(fdr_star = case_when(
+      fdr <= 0.001 ~ "***",
+      fdr <= 0.01 ~ "**",
+      fdr <= 0.05 ~ "*",
+      fdr <= 0.1 ~ ".",
+      fdr >= 0.1 ~ "ns"
+    )) %>%
+    select(-rowname) %>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star) %>%
+    mutate(p = round(p, 5)) %>%
+    mutate(fdr = round(fdr, 5))
+  
+  # Print lm_stats table
+  print(lm_stats)
+  
+  # Save lm_stats table as HTML
+  sjPlot::tab_df(lm_stats, title = paste("lmer(", dependent_variable, " ~ visit_sum + sex + age_y + (1|id), data=tmp1)"), file = paste("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/", dependent_variable, "_table.html", sep = ""))
+  
+  # Print boxplot
+  group1 <- c("(Intercept)", rep("1", nrow(lm_stats) - 1))
+  
+  lm_sig<- lm_stats %>%
+    bind_cols(group1) %>%
+    mutate(group1 = ...9) %>%
+    mutate(group2 = case_when(
+      Months_after_ETI_start == "Baseline (Intercept)" ~ "1",
+      Months_after_ETI_start == "3 months" ~ "2",
+      Months_after_ETI_start == "6-12 months" ~ "3-5",
+      Months_after_ETI_start == "15-18 months" ~ "6-7",
+      Months_after_ETI_start == "21-24 months" ~ "8-10",
+      Months_after_ETI_start %in% c("sex2", "age_y") ~ Months_after_ETI_start
+    )) %>%
+    filter(group1 != "(Intercept)") %>%
+    filter(Months_after_ETI_start!="sex2") %>% 
+    filter(Months_after_ETI_start!="age_y")
+  
+  max_y <- max(tmp1[[dependent_variable]], na.rm = TRUE)
+  min_y <- min(tmp1[[dependent_variable]], na.rm = TRUE)
+  
+ # Calculate the adjusted y.position for stat labels
+stat_labels_y_position <- max_y + 0.1 * (max_y - min_y)
+
+  xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+  
+# Print boxplot
+boxplot <- tmp1 %>%
+  ggplot(aes(get(dependent_variable), x = visit_sum)) +
+  geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.7) +
+  scale_fill_manual(values = visit_sum_palette) +
+  theme_classic() +
+  ylab(ylabel) +
+  xlab("Months from ETI treatment start") +
+  scale_x_discrete(labels = xlabels) +
+  theme(text = element_text(size = 18), legend.position = "none") +
+   stat_pvalue_manual(lm_sig, label = "fdr_star", y.position = stat_labels_y_position, step.increase = 0.05)
+
+return(list(lm_stats = lm_stats, boxplot = boxplot))
+}
+
+throat <- lm_boxplot_function("value", "Throat: BC distance - CF & Control")
+p2 <- throat$boxplot
+p2
+throat$lm_stats
+```
+
+```{r plot linear model coefficients throat}
+library(coefplot)
+
+# Fit your linear mixed-effects model
+# For example, replace 'YourModel' and 'YourData' with your model and data, id is the CF patient id, and Var1 encodes the control id, by controlling for the pairs between CF patients and controls, implosion is controlled
+model <-  lmerTest::lmer(value ~ visit_sum + sex + age_y + (1|id) + (1|Var1), data = tmp1)
+
+# Extract coefficients
+coefficients <- coef(model)
+
+# Plot coefficients
+  coef_p <- coefplot::coefplot(model, intercept = FALSE, color = "black")
+  coef_p_t <- coef_p+
+    theme_classic()+
+    scale_y_discrete(labels= c("3 m", "6-12 m", "15-18 m", "21-24 m", "sex", "age"))+
+    coord_flip()+
+    xlab("Estimate")+
+    ggtitle("")+
+    ylab("")+
+    theme(text = element_text(size = 18))
+  coef_p_t
+```
+
+```{r combine plots, fig.width=13, fig.height=5.5}
+ggarrange(p1,p2, widths = c(2:1))
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/BetaandBC_throat_controls.png", width = 13, height = 5.5)
+```
+
+# PERMANOVA on CF-Control distances in throat
+```{r}
+# from tmp1 , the dataframe where I have all CF-Control distances listed, first I create a id for control samples
+
+set.seed(123)
+
+df_pm <- tmp1 %>%
+  mutate(id_c = str_extract_all(comparison, "(?<=K|O)\\d+")) %>% 
+  mutate(id_c = as_factor(sapply(id_c, function(x) as.integer(x[1]))))
+
+# Select relevant columns
+df <- df_pm %>%
+  select(Var1, Var2, value)
+
+df_s <- df_pm %>%
+  select(Var1, Var2, value, visit_sum, id.y, id_c)
+
+# Pivot data to wide format
+df_wide <- df %>%
+  pivot_wider(names_from = Var1, values_from = value)
+
+# Set row names and remove the column used for row names
+rownames(df_wide) <- df_wide$Var2
+
+df_matrix <- df_wide %>% 
+  select(-Var2)
+
+# Convert to matrix
+BC <- as.matrix(df_matrix)
+
+# Ensure distinct rows for running adonis2
+df_pm_d <- df_pm %>%
+  distinct(Var2, .keep_all = TRUE)
+
+# Run PERMANOVA for overall effect
+adonis2(formula = BC ~ visit_sum + id.y, data = df_pm_d, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id.y
+adonis2(formula = BC ~ visit_sum, data = df_pm_d, permutations = 999, by = "margin", strata = df_pm_d$id.y)
+
+# Repeat PERMANOVA for separate time points, paired with baseline
+
+df_pm_d_v1v2 <- df_pm_d %>%
+  filter(visit_sum %in% c("1", "2"))
+
+# Filter the distance matrix to only include relevant rows
+df_v1v2 <- df_wide %>% 
+  filter(Var2 %in% c(df_pm_d_v1v2$Var2))
+df_v1v2$Var2<- NULL
+# Convert to matrix
+BC_v1v2 <- as.matrix(df_v1v2)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v2 ~ visit_sum + id.y, data = df_pm_d_v1v2, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id.y
+adonis2(formula = BC_v1v2 ~ visit_sum, data = df_pm_d_v1v2, permutations = 999, by = "margin", strata = df_pm_d_v1v2$id.y)
+
+# visits 6-12 months
+df_pm_d_v1v35 <- df_pm_d %>%
+  filter(visit_sum %in% c("1", "3-5"))
+
+# Filter the distance matrix to only include relevant rows
+df_v1v35 <- df_wide %>% 
+  filter(Var2 %in% c(df_pm_d_v1v35$Var2))
+df_v1v35$Var2<- NULL
+# Convert to matrix
+BC_v1v35 <- as.matrix(df_v1v35)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v35 ~ visit_sum + id.y, data = df_pm_d_v1v35, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id.y
+adonis2(formula = BC_v1v35 ~ visit_sum, data = df_pm_d_v1v35, permutations = 999, by = "margin", strata = df_pm_d_v1v35$id.y)
+
+# visits 15-18 months
+df_pm_d_v1v67 <- df_pm_d %>%
+  filter(visit_sum %in% c("1", "6-7"))
+
+# Filter the distance matrix to only include relevant rows
+df_v1v67 <- df_wide %>% 
+  filter(Var2 %in% c(df_pm_d_v1v67$Var2))
+df_v1v67$Var2<- NULL
+# Convert to matrix
+BC_v1v67 <- as.matrix(df_v1v67)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v67 ~ visit_sum + id.y, data = df_pm_d_v1v67, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id.y
+adonis2(formula = BC_v1v67 ~ visit_sum, data = df_pm_d_v1v67, permutations = 999, by = "margin", strata = df_pm_d_v1v67$id.y)
+
+# visits 21-24 months
+df_pm_d_v1v89 <- df_pm_d %>%
+  filter(visit_sum %in% c("1", "8-10"))
+
+# Filter the distance matrix to only include relevant rows
+df_v1v89 <- df_wide %>% 
+  filter(Var2 %in% c(df_pm_d_v1v89$Var2))
+df_v1v89$Var2<- NULL
+# Convert to matrix
+BC_v1v89 <- as.matrix(df_v1v89)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v89 ~ visit_sum + id.y, data = df_pm_d_v1v89, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id.y
+adonis2(formula = BC_v1v89 ~ visit_sum, data = df_pm_d_v1v89, permutations = 999, by = "margin", strata = df_pm_d_v1v89$id.y)
+```
+
+# Analysis on most abundant taxa per patient in stool
+```{r}
+#Get top taxa per patient
+#find.top.taxa2 is sourced from functions.R
+top.stool<- find.top.taxa2(ps_full_stool_glom, "Genus",1)
+top.stool$Species<- NULL
+
+rslt <- top.stool[, "taxa"]
+dd <- matrix(unlist(rslt), nrow=1)
+colnames(dd) <- rownames(top.stool)
+top.stool <- t(dd)
+
+top.stool_df <- data.frame(x1 = row.names(top.stool), top.stool)%>%
+  mutate(dominantGenus = top.stool)
+top.stool_df$top.stool<- NULL
+
+# add clinical data to p
+
+##Add dominant Genus to ps_full_stool_glom sample data
+ps_full_stool_glom_j <- microViz::ps_join(ps_full_stool_glom, top.stool_df, by = "x1")
+
+##Add dominant Genus to ps_full_stool_glom sample data
+ps_full_stool_j <- microViz::ps_join(ps_full_stool, top.stool_df, by = "x1")
+
+### plot principal component analysis by visit_sum
+PCA_all_visit_stool_dominantGenus <- plot_ordination(ps_full_stool_j, ordinate(ps_full_stool_j, "MDS"), color = "visit_sum", shape="project")
+
+project_label <- c("Control","CF")
+
+p5 <- PCA_all_visit_stool_dominantGenus +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  scale_color_manual(values = visit_sum_palette, labels = xlabels) +
+  scale_shape_manual(values = c(15, 16), labels = project_label) +
+  theme_classic() +
+  theme(text = element_text(size = 18), legend.position = "none", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  stat_ellipse()
+p5
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/beta_stool_controls.png", width = 10, height = 6)
+```
+
+# create density plots for axis 1 and 2
+```{r, fig.width=4, fig.height=4}
+# Perform PCoA
+ord_obj <- ordinate(ps_full_stool_j, "MDS")
+
+# Extract coordinates from PCoA
+pcoa_coords <- ord_obj$vectors
+
+# Create a data frame for ggplot
+df <- data.frame(x1 = pcoa_coords[, 1], x2 = pcoa_coords[, 2], visit_sum = sample_data(ps_full_stool_j)$visit_sum, age_y=sample_data(ps_full_stool_j)$age_y, sex=sample_data(ps_full_stool_j)$sex, id.x=sample_data(ps_full_stool_j)$id.x)
+
+# Create a named vector for custom labels
+custom_labels <- c("1" = "0", 
+                   "2" = "3", 
+                   "3-5" = "6-12", 
+                   "6-7" = "15-18", 
+                   "8-10" = "21-24", 
+                   "Control" = "Control")
+
+# Create density plots on the x and y axes
+plot_x_st <- ggplot(df, aes(x = x1, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  #clean_theme()+
+  scale_x_continuous(breaks = c(-0.3, 0, 0.3), labels = c("-0.3", "0", "0.3"))+
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels)+
+  theme(legend.position = "none", text = element_text(size = 18), legend.title = element_blank())
+
+# Define the common y-axis limits
+y_axis_limits <- c(0, 6.5)  # Adjust these values as needed
+
+# Density plot with fixed y-axis range
+axis1_den <- ggplot(df, aes(x = x1, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.8) +
+  theme_classic() +
+  scale_x_continuous(breaks = c(-0.3, 0, 0.3), labels = c("-0.3", "0", "0.3")) +
+    scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+    strip.text.y = element_text(angle = 0)  # Rotate the facet labels
+  ) +
+  facet_grid(rows = vars(visit_sum), labeller =  as_labeller(custom_labels)) +
+  ylim(y_axis_limits)+
+  labs( x = "Axis 1")
+axis1_den
+
+# Boxplot comparing x between the 5 groups
+axis1_bp <- ggplot(df, aes(x = as.factor(visit_sum), y = x1, fill = as.factor(visit_sum))) +
+  geom_boxplot(alpha=0.8) +
+  theme_classic() +
+  scale_x_discrete(labels = xlabels) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank()
+  ) +
+  labs(x = "Months from tt start", y = "Axis 1")
+axis1_bp
+
+plot_y_st <- ggplot(df, aes(x = x2, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.5) +
+  theme_classic() +
+  #clean_theme()+
+  xlim(c(-0.6, 0.4))+
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels)+
+  theme(legend.position = "none",text = element_text(size = 18), legend.title = element_blank())+
+  coord_flip()
+
+# Define the common y-axis limits
+y_axis_limits <- c(0, 5)  # Adjust these values as needed
+
+# Density plot with fixed y-axis range
+axis2_den <- ggplot(df, aes(x = x2, fill = as.factor(visit_sum))) +
+  geom_density(alpha = 0.8) +
+  theme_classic() +
+  scale_x_continuous(breaks = c(-0.6, 0, 0.4), labels = c("-0.6", "0", "0.4")) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+    strip.text.y = element_text(angle = 0)  # Rotate the facet labels
+  ) +
+  facet_grid(rows = vars(visit_sum), labeller =  as_labeller(custom_labels)) +
+  ylim(y_axis_limits)+
+  labs(x = "Axis 2")
+axis2_den
+
+# Boxplot comparing x between the 5 groups
+axis2_bp <- ggplot(df, aes(x = as.factor(visit_sum), y = x2, fill = as.factor(visit_sum))) +
+  geom_boxplot(alpha=0.8) +
+  theme_classic() +
+  scale_x_discrete(labels = xlabels) +
+  scale_fill_manual(values = visit_sum_palette, labels = xlabels) +
+  theme(
+    legend.position = "none",
+    text = element_text(size = 18),
+    legend.title = element_blank(),
+  ) +
+  labs(x = "Months from tt start", y = "Axis 2")
+axis2_bp
+
+# Extract the legend. Returns a gtable
+leg <- get_legend(p1_leg)
+
+# Convert to a ggplot and print
+legend <- as_ggplot(leg)
+
+# Arranging the plot
+
+axis <- ggarrange(axis1_den, axis2_den, axis1_bp, axis2_bp, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(1, 1),
+          common.legend = F)
+axis
+
+stool_density <- ggarrange(plot_x_th, NULL, p1, plot_y_th, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(2, 1), heights = c(1, 2),
+          common.legend = F)
+stool_density
+```
+
+# add linear models on axis boxplots
+```{r}
+# Load required libraries
+# Run function on  data
+axis1 <- lm_corrected_pvalues_boxplot(df$x1, "Axis 1")
+axis1_lm_stats <- axis1$lm_stats # Access lm_stats
+p3 <- axis1$boxplot # Access boxplot
+
+# Print the boxplot
+print(p3)
+
+axis2 <- lm_corrected_pvalues_boxplot(df$x2, "Axis 2")
+axis2_lm_stats <- axis2$lm_stats # Access lm_stats
+p4 <- axis2$boxplot # Access boxplot
+
+# Print the boxplot
+print(p4)
+
+ggarrange(p3,p4)
+
+# run statistics on controls vs all CF samples,
+# in order to make this feasible in a linear model I have to revert the order of visit_sum
+#
+df$visit_sum_reorder <- factor(df$visit_sum, levels = c("Control", "1", "2", "3-5", "6-7", "8-10"))
+
+# run CF vs Controls
+#Axis 1
+axis1.2 <- lm_corrected_pvalues_boxplot_reorder(df$x1, "Axis 1")
+axis1_lm_stats_reorder <- axis1.2$lm_stats # Access lm_stats
+axis1_reorder <- axis1.2$boxplot # Access boxplot
+axis1_reorder
+
+axi1_wC <- axis1$boxplot +
+  geom_signif(
+    y_position = c(-0.6, -0.55, -0.5, -0.45),  
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("***", "***", "***", "***"), 
+    tip_length = -0.03, 
+    vjust = 1,
+    size = 0.35
+  )
+axi1_wC
+
+#Axis 2
+axis2.2 <- lm_corrected_pvalues_boxplot_reorder(df$x2, "Axis 2")
+axis2_lm_stats_reorder <- axis2.2$lm_stats # Access lm_stats
+axis2_reorder <- axis2.2$boxplot # Access boxplot
+axis2_reorder
+axi2_wC <- axis2$boxplot +
+  geom_signif(
+    y_position = c(-0.4, -0.35, -0.3, -0.25), 
+    xmin = c(2, 3, 4, 5), 
+    xmax = c(6, 6, 6, 6),
+    annotation = c("ns", "ns", "ns", "ns"), 
+    tip_length = -0.03, 
+    vjust = 1,
+    size = 0.35
+  )
+axi2_wC
+
+# Arranging the plot
+
+axis_stool <- ggarrange(axis1_den, axis2_den, axi1_wC, axi2_wC, 
+          ncol = 2, nrow = 2,  align = "hv", 
+          widths = c(1, 1),
+          common.legend = F)
+axis_stool
+
+
+```
+
+# Check nutrition and stool consistency on stool beta-diversity
+```{r nutrition, fig.width=12}
+
+### plot principal component analysis by nutrition
+PCA_all_visit_stool_nutrition <- plot_ordination(ps_full_stool_j, ordinate(ps_full_stool_j, "MDS"), color = "basic_nutrition", shape="project")
+
+project_label <- c("Control","CF")
+
+PCA_all_visit_stool_nutrition+
+  geom_point(size = 4)+
+  ggtitle("Variation by time point with healthy controls")+
+  #scale_color_manual(values = visit_sum_palette)+
+  scale_shape_manual(values = c(23,15),labels = project_label)+
+  theme_bw()+
+  theme(text=element_text(size=24), legend.position = "right", legend.text = element_text(size=16), legend.title = element_text(size=18))+
+  guides(color = guide_legend(title = "time points"))+
+   guides(shape = guide_legend(title = "CF vs Control"))+
+  stat_ellipse()
+
+### plot principal component analysis by bristol
+PCA_all_visit_stool_bristol <- plot_ordination(ps_full_stool_j, ordinate(ps_full_stool_j, "MDS"), color = "bristol", shape="project")
+
+PCA_all_visit_stool_bristol+
+  geom_point(size = 4)+
+  ggtitle("Variation by time point with healthy controls")+
+  #scale_color_manual(values = visit_sum_palette)+
+  scale_shape_manual(values = c(23,15),labels = project_label)+
+  theme_bw()+
+  theme(text=element_text(size=24), legend.position = "right", legend.text = element_text(size=16), legend.title = element_text(size=18))+
+  guides(color = guide_legend(title = "Bristol stool scale"))+
+   guides(shape = guide_legend(title = "CF vs Control"))+
+  stat_ellipse()
+
+ #calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_stool_j,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_full_stool_j),"data.frame")
+metadata$id.x
+
+nutri <- vegan::adonis2(BC_dist ~ basic_nutrition + bristol + sex+ id.x,
+              permutations = 999, na.action=na.exclude, data = metadata)
+nutri
+```
+
+
+# PERMANOVA in stool
+```{r calculate bray curtis distance for all stool samples and run PERMANOVA}
+
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_stool_j,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_full_stool_j),"data.frame")
+
+### stratified PERMANOVA per visit group
+adonis2(formula = BC_dist ~ visit_sum + sex + age_y, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+### stratified PERMANOVA health vs CF
+adonis2(formula = BC_dist ~ project + sex + age_y, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+```
+
+# compare CF and control BC-distances for stool
+```{r compare CF and control BC-distances stool}
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_stool_j,
+                             method="bray", weighted=F)
+BC_dist.stool <- as.matrix(BC_dist)
+#BC_dist.stool[lower.tri(BC_dist.stool)] <- 0  # this is needed to remove the 0 latter, to keep only single pairs
+BC_dist.stool_df <- reshape2::melt(BC_dist.stool)
+
+tmp1 <- BC_dist.stool_df%>%
+  filter(grepl("IMMP", Var1)) %>% #this keeps only control samples in Var 1
+  filter(!grepl("IMMP", Var2))#%>%  #this filters control samples from Var 2, so that in the end only distances between COntrols and all CF samples are kept
+  #filter(value!=0)#this removes the same sample distances, and the one from set 0 from above to keep a single pair
+
+# merge with metadata to have visit_sums for CF samples
+#extract metadata
+metadata<- as(sample_data(ps_full_stool_j),"data.frame")
+tmp1 <- tmp1 %>% 
+  left_join(metadata, by=c("Var2"="x_sample_id")) %>% 
+  mutate(comparison=paste(Var1, Var2, sep = "_")) %>% 
+  distinct(comparison, .keep_all = T)
+
+summary(tmp1$visit_sum)
+
+my_comp <- list(c("1","2"), c("1","3-5"), c("1","6-7"), c("1","8-10"))
+
+# Calculate median and IQR
+summary_stats <- tmp1 %>%
+  group_by(visit_sum) %>%
+  summarize(
+    median = median(value),
+    lower = quantile(value, 0.25),
+    upper = quantile(value, 0.75)
+  )
+
+tmp1 %>% 
+  ggplot(aes(visit_sum, value, fill=visit_sum))+
+  geom_boxplot(outlier.shape = NA, alpha=0.7)+
+  #geom_point()+
+  theme_classic()+
+  scale_fill_manual(values = visit_sum_palette)+
+  ylab("BC distance: CF and Controls")+
+  theme(legend.position = "none",text=element_text(size=20))+ #
+  scale_x_discrete(labels= xlabels)+
+  xlab("")+
+  stat_compare_means(comparisons = my_comp, method = "wilcox.test", label = "p.adj")
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/BC_stool_controls.png", width = 6, height = 5)
+
+summary(lmerTest::lmer(value~visit_sum + age_y+sex+ (1|id.x)+ (1|Var1), data = tmp1))
+
+# below I plot the BC distance per patient and each control, with controls being on the x-axis, one can observe the consistency of BC distance per patient across controls, with visit_sum giving a distinct signal in each patient
+tmp1 %>% 
+  ggplot(aes(Var1, value, fill=visit_sum))+
+  #geom_boxplot(outlier.shape = NA)+
+  geom_point(aes(color=visit_sum), alpha=0.5)+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  ylab("BC distance between CF and Controls")+
+  theme(legend.position = "none",text=element_text(size=20))+ #
+  #scale_x_discrete(labels= xlabels)+
+  xlab("")+
+  facet_wrap(~id.x)
+```
+
+# stool linear model + boxplot
+```{r stool plot boxplot with linear model age and sex correction}
+
+lm_boxplot_function <- function(dependent_variable, ylabel) {
+  
+  # Fit linear mixed-effects model
+  print(summary(lmerTest::lmer(paste(dependent_variable, "~ visit_sum + sex + age_y + (1|id) + (1|Var1)"), data = tmp1)))
+  lm <- summary(lmerTest::lmer(paste(dependent_variable, "~ visit_sum + sex + age_y + (1|id) + (1|Var1)"), data = tmp1))
+  #lm <- summary(lmerTest::lmer(value ~ visit_sum + sex + age_y + (1|id), data = tmp1))
+  # Extract coefficients and adjust p-values
+  coefs <- data.frame(coef(lm))
+  fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+  
+  # Create lm_stats table
+  lm_stats <- bind_cols(coefs, fdr) %>%
+    mutate(p = Pr...t..) %>%
+    mutate(fdr = ...6) %>%
+    select(-c(Pr...t.., ...6)) %>%
+    rownames_to_column() %>%
+    mutate(Months_after_ETI_start = rowname) %>%
+    mutate(Months_after_ETI_start = case_when(
+      Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+      Months_after_ETI_start == "visit_sum2" ~ "3 months",
+      Months_after_ETI_start == "visit_sum3-5" ~ "6-12 months",
+      Months_after_ETI_start == "visit_sum6-7" ~ "15-18 months",
+      Months_after_ETI_start == "visit_sum8-10" ~ "21-24 months",
+      Months_after_ETI_start %in% c("sex2", "age_y") ~ Months_after_ETI_start
+    )) %>%
+    mutate(fdr_star = case_when(
+      fdr <= 0.001 ~ "***",
+      fdr <= 0.01 ~ "**",
+      fdr <= 0.05 ~ "*",
+      fdr <= 0.1 ~ ".",
+      fdr >= 0.1 ~ "ns"
+    )) %>%
+    select(-rowname) %>%
+    select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, fdr_star) %>%
+    mutate(p = round(p, 5)) %>%
+    mutate(fdr = round(fdr, 5))
+  
+  # Print lm_stats table
+  print(lm_stats)
+  
+  # Save lm_stats table as HTML
+  sjPlot::tab_df(lm_stats, title = paste("lmer(", dependent_variable, " ~ visit_sum + sex + age_y + (1|id), data=tmp1)"), file = paste("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/", dependent_variable, "_table.html", sep = ""))
+  
+  # Print boxplot
+  group1 <- c("(Intercept)", rep("1", nrow(lm_stats) - 1))
+  
+  lm_sig <- lm_stats %>%
+    bind_cols(group1) %>%
+    mutate(group1 = ...9) %>%
+    mutate(group2 = case_when(
+      Months_after_ETI_start == "Baseline (Intercept)" ~ "1",
+      Months_after_ETI_start == "3 months" ~ "2",
+      Months_after_ETI_start == "6-12 months" ~ "3-5",
+      Months_after_ETI_start == "15-18 months" ~ "6-7",
+      Months_after_ETI_start == "21-24 months" ~ "8-10",
+      Months_after_ETI_start %in% c("sex2", "age_y") ~ Months_after_ETI_start
+    )) %>%
+    filter(group1 != "(Intercept)") %>%
+    filter(Months_after_ETI_start!="sex2") %>% 
+    filter(Months_after_ETI_start!="age_y")
+  
+  max_y <- max(tmp1[[dependent_variable]], na.rm = TRUE)
+  min_y <- min(tmp1[[dependent_variable]], na.rm = TRUE)
+  
+ # Calculate the adjusted y.position for stat labels
+stat_labels_y_position <- max_y + 0.1 * (max_y - min_y)
+
+  xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+  
+# Print boxplot
+boxplot <- tmp1 %>%
+  ggplot(aes(get(dependent_variable), x = visit_sum)) +
+  geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.7) +
+  scale_fill_manual(values = visit_sum_palette) +
+  theme_classic() +
+  ylab(ylabel) +
+  xlab("Months from ETI treatment start") +
+  scale_x_discrete(labels = xlabels) +
+  theme(text = element_text(size = 18), legend.position = "none") +
+   stat_pvalue_manual(lm_sig, label = "fdr_star", y.position = stat_labels_y_position, step.increase = 0.05)
+
+return(list(lm_stats = lm_stats, boxplot = boxplot))
+}
+
+stool <- lm_boxplot_function("value", "Stool: BC distance - CF & Control")
+p4 <- stool$boxplot
+stool$lm_stats
+```
+
+```{r plot linear model coefficients stool}
+# Fit your linear mixed-effects model
+# For example, replace 'YourModel' and 'YourData' with your model and data
+model <-  lmerTest::lmer(value ~ visit_sum + sex + age_y + (1|id) + (1|Var1), data = tmp1)
+
+# Extract coefficients
+coefficients <- coef(model)
+
+# Extract coefficients
+coefficients <- coef(model)
+
+# Plot coefficients
+  coef_p <- coefplot::coefplot(model, intercept = FALSE, color = "black")
+  coef_p_s<- coef_p+
+    theme_classic()+
+    scale_y_discrete(labels= c("3 m", "6-12 m", "15-18 m", "21-24 m", "sex", "age"))+
+    coord_flip()+
+    xlab("Estimate")+
+    ggtitle("")+
+    ylab("")+
+    theme(text = element_text(size = 18))
+  coef_p_s
+```
+
+# PERMANOVA on CF-Control distances in stool
+```{r}
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_stool_j,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_full_stool_j),"data.frame")
+
+### unstratified
+
+adonis2(formula = BC_dist ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_dist ~ visit_sum + sex + age_y, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_dist ~ visit_sum + sex + age_y +id.x, data = metadata, permutations = 999, by = "margin") # sex and age are not significant when including id.x as a explantory variable
+
+adonis2(formula = BC_dist ~ visit_sum +id.x, data = metadata, permutations = 999, by = "margin") # sex and age are not significant when including id.x as a explantory variable
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_dist ~ visit_sum , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+adonis2(formula = BC_dist ~ visit_sum + project , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+### stratified PERMANOVA per project (health vs CF)
+adonis2(formula = BC_dist ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$project)
+
+### unstratified PERMANOVA health vs CF
+adonis2(formula = BC_dist ~ project, data = metadata, permutations = 999, by = "margin")
+adonis2(formula = BC_dist ~ project + id.x, data = metadata, permutations = 999, by = "margin")
+adonis2(formula = BC_dist ~ project + visit_sum, data = metadata, permutations = 999, by = "margin")
+### stratified PERMANOVA health vs CF
+adonis2(formula = BC_dist ~ project + visit_sum + sex + age_y, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+adonis2(formula = BC_dist ~ project + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$visit_sum)
+
+adonis2(formula = BC_dist ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin", strata = metadata$project)
+```
+
+# PERMANOVA per time point comparison
+
+```{r}
+
+# check baseline vs follow-up samples
+metadata<- metadata %>% 
+  mutate(ETI_yn = as_factor(case_when(visit_sum=="1"~"no", visit_sum=="Control"~"Control", T~"yes")))
+
+summary(metadata$ETI_yn)
+
+### plot principal component analysis by visit_sum
+PCA_all_visit_stool_dominantGenus <- plot_ordination(ps_full_stool_j, ordinate(ps_full_stool_j, "MDS"), color = "visit_sum", shape="project")
+
+project_label <- c("Control","CF")
+
+labels <- c("Baseline", "ETI", "ETI", "ETI", "ETI", "Control")
+
+bfu_palette <- c("black", "#55AD89FF","#55AD89FF","#55AD89FF","#55AD89FF","#8176AA" )
+
+PCA_all_visit_stool_dominantGenus +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = bfu_palette, labels = xlabels) +
+  scale_shape_manual(values = c(15, 16), labels = project_label) +
+  theme_classic() +
+  theme(text = element_text(size = 18), legend.position = "none", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 2))+
+  stat_ellipse()
+
+### stratified PERMANOVA control vs baseline vs follow-up
+adonis2(formula = BC_dist ~ ETI_yn, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# Repeat PERMANOVA for separate time points, paired with baseline
+
+# as there are no repeated samples no need for stratification
+adonis2(formula = BC_v1 ~ project, data = metadata_v1, permutations = 999, by = "margin")
+
+# now Control vs all follow-ups together (without baseline)
+
+metadata_fu <- metadata %>%
+  filter(ETI_yn %in% c("yes", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_fu$x_sample_id
+# Filter the distance matrix to only include relevant rows and cols
+BC_df <- as.matrix(BC_dist)
+BC_df <- as.data.frame(BC_df)
+
+# Filter rows based on sample IDs
+df_fu <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_fu <- df_fu[, colnames(df_fu) %in% sample_ids]
+
+# Convert to matrix
+BC_fu <- as.matrix(df_fu)
+
+### stratified
+adonis2(formula = BC_fu ~ visit_sum, data = metadata_fu, permutations = 999, by = "margin", strata = metadata_fu$id.x)
+adonis2(formula = BC_fu ~ ETI_yn, data = metadata_fu, permutations = 999, by = "margin", strata = metadata_fu$id.x)
+
+# now Control vs follow-ups separately
+metadata_v2 <- metadata %>%
+  filter(visit_sum %in% c("2", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v2$x_sample_id
+
+# Filter rows based on sample IDs
+df_v2 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v2 <- df_v2[, colnames(df_v2) %in% sample_ids]
+
+# Convert to matrix
+BC_v2 <- as.matrix(df_v2)
+
+### unstratified
+adonis2(formula = BC_v2 ~ visit_sum, data = metadata_v2, permutations = 999, by = "margin")
+# as there are no repeated samples no need for stratification - it also gives an error
+adonis2(formula = BC_v2 ~ project, data = metadata_v2, permutations = 999, by = "margin")
+
+metadata_v3 <- metadata %>%
+  filter(visit_sum %in% c("3-5", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v3$x_sample_id
+
+# Filter rows based on sample IDs
+df_v3 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v3 <- df_v3[, colnames(df_v3) %in% sample_ids]
+
+# Convert to matrix
+BC_v3 <- as.matrix(df_v3)
+
+### unstratified
+adonis2(formula = BC_v3 ~ visit_sum, data = metadata_v3, permutations = 999, by = "margin")
+adonis2(formula = BC_v3 ~ project, data = metadata_v3, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v3 ~ visit_sum, data = metadata_v3, permutations = 999, by = "margin", strata = metadata_v3$id.x)
+
+metadata_v6 <- metadata %>%
+  filter(visit_sum %in% c("6-7", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v6$x_sample_id
+
+# Filter rows based on sample IDs
+df_v6 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v6 <- df_v6[, colnames(df_v6) %in% sample_ids]
+
+# Convert to matrix
+BC_v6 <- as.matrix(df_v6)
+
+### unstratified
+adonis2(formula = BC_v6 ~ visit_sum, data = metadata_v6, permutations = 999, by = "margin")
+adonis2(formula = BC_v6 ~ project, data = metadata_v6, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v6 ~ visit_sum, data = metadata_v6, permutations = 999, by = "margin", strata = metadata_v6$id.x)
+
+metadata_v8 <- metadata %>%
+  filter(visit_sum %in% c("8-10", "Control"))
+# Extract relevant sample IDs
+sample_ids <- metadata_v8$x_sample_id
+
+# Filter rows based on sample IDs
+df_v8 <- BC_df[rownames(BC_df) %in% sample_ids, ]
+# Filter columns based on sample IDs
+df_v8 <- df_v8[, colnames(df_v8) %in% sample_ids]
+
+# Convert to matrix
+BC_v8 <- as.matrix(df_v8)
+
+### unstratified
+adonis2(formula = BC_v8 ~ visit_sum, data = metadata_v8, permutations = 999, by = "margin")
+adonis2(formula = BC_v8 ~ project, data = metadata_v8, permutations = 999, by = "margin")
+# as there are repeated samples, I will block id to verify this observation
+adonis2(formula = BC_v8 ~ visit_sum, data = metadata_v8, permutations = 999, by = "margin", strata = metadata_v8$id.x)
+```
+
+# PERMANOVA on CF-health comparisons alone
+
+```{r}
+
+# I reduce the distance matrix to only have CF samples in the rows, and only healthy samples in the columns, so that only CF to healthy comparisons are retained
+
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_stool_j,
+                             method="bray", weighted=F)
+
+#extract metadata
+metadata<- as(sample_data(ps_full_stool_j),"data.frame")
+
+# Use grep to find columns that contain "IMMP" in their names
+cols_to_keep <- metadata %>% 
+  filter(project=="IMMPIMMP") %>% 
+  select(x_sample_id)
+cols_to_keep <- cols_to_keep$x_sample_id
+
+rows_to_keep <- metadata %>% 
+  filter(project=="IMP") %>% 
+  select(x_sample_id)
+rows_to_keep <- rows_to_keep$x_sample_id
+# Convert the distance object to a matrix
+BC_matrix <- as.matrix(BC_dist)
+
+# Subset the matrix to keep only those columns that are from controls
+BC_matrix_f <- BC_matrix[, cols_to_keep]
+BC_matrix_f <- BC_matrix[rows_to_keep, ]
+
+# no keep in the metadata only CF samples
+metadata <- metadata %>% 
+  filter(project=="IMP")
+
+### unstratified
+adonis2(formula = BC_matrix_f ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_matrix_f ~ visit_sum + id.x, data = metadata, permutations = 999, by = "margin")
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_matrix_f ~ visit_sum, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# check the impact of number of treatment days
+adonis2(formula = BC_matrix_f ~ delta_ETI_merged, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# check baseline vs follow-up samples
+metadata<- metadata %>% 
+  mutate(ETI_yn = case_when(visit_sum=="1"~FALSE, T~TRUE))
+
+### unstratified
+adonis2(formula = BC_matrix_f ~ ETI_yn, data = metadata, permutations = 999, by = "margin")
+
+adonis2(formula = BC_matrix_f ~ ETI_yn + id.x, data = metadata, permutations = 999, by = "margin")
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_matrix_f ~ ETI_yn, data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+
+# Repeat PERMANOVA for separate time points, paired with baseline
+
+md_v1v2 <- metadata %>%
+  filter(visit_sum %in% c("1", "2"))
+
+# Filter the distance matrix to only include relevant rows
+BC_matrix_f <- as.data.frame(BC_matrix_f)
+BC_v1v2 <- BC_matrix_f %>% 
+  filter(rownames(BC_matrix_f) %in% c(md_v1v2$x_sample_id))
+
+# Convert to matrix
+BC_v1v2 <- as.matrix(BC_v1v2)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v1v2 ~ visit_sum , data = md_v1v2, permutations = 999, by = "margin")
+adonis2(formula = BC_v1v2 ~ visit_sum + id.x, data = md_v1v2, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id
+adonis2(formula = BC_v1v2 ~ visit_sum, data = md_v1v2, permutations = 999, by = "margin", strata = md_v1v2$id.x)
+
+# 6-12 months + baseline
+md_v1v35 <- metadata %>%
+  filter(visit_sum %in% c("1", "3-5"))
+
+# Filter the distance matrix to only include relevant rows
+BC_v35 <- BC_matrix_f %>% 
+  filter(rownames(BC_matrix_f) %in% c(md_v1v35$x_sample_id))
+
+# Convert to matrix
+BC_v35 <- as.matrix(BC_v35)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v35 ~ visit_sum , data = md_v1v35, permutations = 999, by = "margin")
+adonis2(formula = BC_v35 ~ visit_sum + id.x, data = md_v1v35, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id
+adonis2(formula = BC_v35 ~ visit_sum, data = md_v1v35, permutations = 999, by = "margin", strata = md_v1v35$id.x)
+
+# 21-24 months + baseline
+md_v1v89 <- metadata %>%
+  filter(visit_sum %in% c("1", "8-10"))
+
+# Filter the distance matrix to only include relevant rows
+BC_v89 <- BC_matrix_f %>% 
+  filter(rownames(BC_matrix_f) %in% c(md_v1v89$x_sample_id))
+
+# Convert to matrix
+BC_v89 <- as.matrix(BC_v89)
+
+# Run PERMANOVA for specific time points
+adonis2(formula = BC_v89 ~ visit_sum , data = md_v1v89, permutations = 999, by = "margin")
+adonis2(formula = BC_v89 ~ visit_sum + id.x, data = md_v1v89, permutations = 999, by = "margin")
+
+# Run PERMANOVA for visit_sum, controlling for id
+adonis2(formula = BC_v89 ~ visit_sum, data = md_v1v89, permutations = 999, by = "margin", strata = md_v1v89$id.x)
+
+
+```
+
+# combine plots
+```{r, fig.width=16, fig.height=18}
+library(gridExtra)
+p1 <- p1+
+  ggtitle("Throat")
+
+p5 <- p5+
+  ggtitle("Stool")
+
+grid_arranged_t <- grid.arrange(
+  p1+ggtitle(""),
+  NULL,
+  plot_x_th+theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.ticks = element_blank())+ggtitle("Throat")+labs(tag = "A") ,
+  plot_y_th+theme(axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks = element_blank()),
+  p5+ggtitle(""),
+  NULL,
+  plot_x_st+theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.ticks = element_blank())+ggtitle("Stool")+labs(tag = "D") ,
+  plot_y_st+theme(axis.text.y = element_blank(), axis.title.y = element_blank(), axis.ticks = element_blank()),
+  coef_p_t + labs(tag = "B"),
+  p2 + labs(tag = "C"),
+  coef_p_s + labs(tag = "E"),
+  p4 + labs(tag = "F"),
+  legend,
+  ncol = 3, nrow = 5,
+  heights = c(1, 2, 1,2, 0.5),
+  widths=c(2,0.5,1.5),
+  layout_matrix = rbind(c(3,2,9),
+                        c(1,4,10),
+                        c(7,6,11),
+                        c(5,8,12),
+                        c(13,13,13)
+                      )
+)
+
+# Print or save the arranged plot
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig3.tiff",grid_arranged_t, dpi = 300, width = 16, height = 18)
+
+# combine stats table
+
+throat$lm_stats <- throat$lm_stats %>% 
+  mutate(Sample="Throat") %>% 
+  select(Sample, everything())
+
+stool$lm_stats <- stool$lm_stats %>% 
+  mutate(Sample="Stool") %>% 
+  select(Sample, everything())
+
+bc_stats <- rbind(throat$lm_stats, stool$lm_stats)
+kable(bc_stats)
+#write_csv(bc_stats, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_bc_distance_control.csv")
+```
+```{r}
+sessionInfo()
+```
+

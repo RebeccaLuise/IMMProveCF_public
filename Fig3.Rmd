@@ -242,7 +242,7 @@ tmp1 %>%
   geom_point(aes(color=visit_sum), alpha=0.5)+
   theme_classic()+
   scale_color_manual(values = visit_sum_palette)+
-  ylab("BC distance between CF and Controls")+
+  ylab("BC dissimilarity to controls")+
   theme(legend.position = "none",text=element_text(size=20))+ #
   #scale_x_discrete(labels= xlabels)+
   xlab("")+
@@ -336,7 +336,7 @@ boxplot <- tmp1 %>%
 return(list(lm_stats = lm_stats, boxplot = boxplot))
 }
 
-throat <- lm_boxplot_function("value", "Throat: BC distance - CF & Control")
+throat <- lm_boxplot_function("value", "BC dissimilarity to controls")
 p2 <- throat$boxplot
 p2
 throat$lm_stats
@@ -559,7 +559,7 @@ tmp1 %>%
   #geom_point()+
   theme_classic()+
   scale_fill_manual(values = visit_sum_palette)+
-  ylab("BC distance: CF and Controls")+
+  ylab("BC dissimilarity to controls")+
   theme(legend.position = "none",text=element_text(size=20))+ #
   scale_x_discrete(labels= xlabels)+
   xlab("")+
@@ -576,7 +576,7 @@ tmp1 %>%
   geom_point(aes(color=visit_sum), alpha=0.5)+
   theme_classic()+
   scale_color_manual(values = visit_sum_palette)+
-  ylab("BC distance between CF and Controls")+
+  ylab("BC dissimilarity to controls")+
   theme(legend.position = "none",text=element_text(size=20))+ #
   #scale_x_discrete(labels= xlabels)+
   xlab("")+
@@ -670,7 +670,7 @@ boxplot <- tmp1 %>%
 return(list(lm_stats = lm_stats, boxplot = boxplot))
 }
 
-stool <- lm_boxplot_function("value", "Stool: BC distance - CF & Control")
+stool <- lm_boxplot_function("value", "BC dissimilarity to controls")
 p4 <- stool$boxplot
 stool$lm_stats
 ```
@@ -749,6 +749,40 @@ bc_stats <- rbind(throat$lm_stats, stool$lm_stats)
 kable(bc_stats)
 #write_csv(bc_stats, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/lmm_bc_distance_control.csv")
 ```
+
+# combine plots with starplots
+```{r, fig.width=14, fig.height=12}
+p1 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_throat_controls.rds")
+p1 <- p1 +  ggtitle("Throat") + theme(text=element_text(size=20))
+
+p3 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool_controls.rds")
+  
+p3 <-  p3+
+  ggtitle("Stool")+ theme(text=element_text(size=20))
+
+grid_arranged_t <- grid.arrange(
+  p1+labs(tag = "A"),
+  coef_p_t + labs(tag = "B"),
+  p2 + labs(tag = "C"),
+  p3+labs(tag = "D"),
+  coef_p_s + labs(tag = "E"),
+  p4 + labs(tag = "F"),
+  ncol = 2, nrow = 4,
+  heights = c(0.7,1,0.7,1),
+  widths=c(1.3,1),
+  layout_matrix = rbind(c(1,2),
+                        c(1,3),
+                        c(4,5),
+                        c(4,6)
+                      )
+)
+
+# Print or save the arranged plot
+ggsave("~/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/CFvsControls_starplots_combined.png",grid_arranged_t, dpi = 300, width = 14, height = 12)
+
+```
+
+
 ```{r}
 sessionInfo()
 ```

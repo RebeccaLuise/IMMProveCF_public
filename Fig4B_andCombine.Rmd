@@ -38,7 +38,7 @@ dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacter
 ps_full_sputum <- subset_samples(ps_full, material== "Sputum")
 
 # remove zero abundances from  dataset
-ps_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1,
+ps_sputum <- microViz::tax_filter(ps_full_sputum, min_prevalence = 1,
   prev_detection_threshold = 1, min_total_abundance = 0, min_sample_abundance = 0, tax_level = NA,
   names_only = FALSE, use_counts = TRUE, undetected = NULL,verbose = TRUE)
 
@@ -150,11 +150,14 @@ dom_spu <- metadata_fic%>%
   labs(y = "n samples")+
   scale_x_discrete(labels=c("0", "3","6","9","12","15","18","21-24"))
 dom_spu
+
+saveRDS(dom_spu, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.pdf", dom_spu, width = 12, height = 7)
 ```
 # combine taxonomic plots
 ```{r fig.height=8, fig.width=15.5}
 tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_sputum.rds")
+
 
 tax_sputum <- tax_sputum+
   theme_pubclean()+

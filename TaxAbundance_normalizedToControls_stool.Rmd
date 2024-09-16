@@ -1,0 +1,1104 @@
+---
+title: "Z-score normalized abundances to Controls"
+title: "Calculate Effect size for visits, comparison healthy controls vs all CF timepoints - stool"
+author: "Rebecca L. Knoll"
+date: "last edit `r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages and colors, include=FALSE}
+
+pacman::p_load(tidyverse, phyloseq, microbiome, knitr, lubridate, ggplotify, gtools, ggplot2, ggpubr, microViz, metadeconfoundR)
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+```
+
+
+```{r prepare data}
+# use ps for stool samples only
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+# subset per material
+ps_full_stool <- subset_samples(ps_full, material== "Stool")
+# remove zero abundances from each dataset
+ps_stool <- tax_filter(ps_full_stool, min_prevalence = 0.3) # has to be prevalent in 30% of samples
+
+sample_data(ps_stool)$visit_sum_ordered <- factor(sample_data(ps_stool)$visit_sum, levels = c("1", "2", "3-5", "6-7", "8-10"), ordered = TRUE)# Convert visit_sum to an ordered factor
+is.ordered(sample_data(ps_stool)$visit_sum_ordered)
+
+
+# vs
+# calculate relative abundances
+ps_stool_relab <- transform_sample_counts(ps_stool, function(x) x/sum(x))
+#ps_stool_relab <-prune_taxa(taxa_sums(ps_stool_relab) > 0.45, ps_stool_relab) # > 40% prevalence over all samples, 107 most abundant ASVs
+
+ps_stool_relab_genus <- tax_glom(ps_stool_relab, "Genus")
+ps_stool_relab_family <- tax_glom(ps_stool_relab, "Family")
+ps_stool_relab_order <- tax_glom(ps_stool_relab, "Order")
+ps_stool_relab_class <- tax_glom(ps_stool_relab, "Class")
+ps_stool_relab_phylum<- tax_glom(ps_stool_relab, "Phylum")
+```
+
+# Normalize CF Abundances Using Z-score
+
+I have to calculate the Z-scores after glomerulating to the tax-rank
+
+## Z-scores for Phylum
+
+```{r}
+calculate_z_scores <- function(phyloseq_obj) {
+  
+  # Step 1: Subset phyloseq object to get healthy controls
+  healthy_samples <- subset_samples(phyloseq_obj, project == "IMMPIMMP")
+  
+  # Calculate mean and standard deviation for each taxon in healthy controls
+  healthy_abundance <- as.data.frame(otu_table(healthy_samples))
+  healthy_stats <- healthy_abundance %>%
+    summarise(across(everything(), list(mean = ~ mean(.), sd = ~ sd(.)), .names = "{col}_{fn}"))
+  
+  # Pivot the stats data frame to a long format
+  healthy_stats_long <- healthy_stats %>%
+    pivot_longer(everything(), names_to = c("ASV", ".value"), names_pattern = "(.*)_(.*)")
+  
+  # Step 2: Subset phyloseq object to get CF samples
+  cf_samples <- subset_samples(phyloseq_obj, project == "IMP")
+  
+  # Convert CF abundances to a data frame
+  cf_abundance <- as.data.frame(otu_table(cf_samples))
+  
+  # Calculate Z-scores for CF samples
+  cf_z_scores <- cf_abundance
+  for (taxon in colnames(cf_abundance)) {
+    mean_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(mean)
+    sd_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(sd)
+    cf_z_scores[[taxon]] <- (cf_abundance[[taxon]] - mean_val) / sd_val
+  }
+  
+  # Update the phyloseq object with Z-scores
+  rownames(cf_z_scores) <- sample_names(cf_samples)
+  otu_table(cf_samples) <- otu_table(cf_z_scores, taxa_are_rows = F)
+  
+  return(cf_samples)
+}
+
+# Applying the function across different taxonomic ranks
+ps_cf_z_phylum <- calculate_z_scores(ps_stool_relab_phylum)
+ps_cf_z_class <- calculate_z_scores(ps_stool_relab_class)
+ps_cf_z_order <- calculate_z_scores(ps_stool_relab_order)
+ps_cf_z_family <- calculate_z_scores(ps_stool_relab_family)
+ps_cf_z_genus <- calculate_z_scores(ps_stool_relab_genus)
+
+# You can now view the Z-scores for any taxonomic rank
+view(otu_table(ps_cf_z_genus))
+```
+
+# plot Phlyum Z-scores
+```{r}
+# Add timepoint information
+ps_cf_z_df_phylum <- psmelt(ps_cf_z_phylum)
+
+# Boxplot of Z-scores per timepoint
+p_z_score <-  ggplot(ps_cf_z_df_phylum, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Phylum, scales = "free", nrow = 1) +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Normal Z-scores of Phyla",
+       x = "Timepoint",
+       y = "Z-score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p_z_score
+```
+## plot Genus Z-scores
+```{r}
+# Add timepoint information
+ps_cf_z_df_genus <- psmelt(ps_cf_z_genus)
+
+# Boxplot of Z-scores per timepoint
+ggplot(ps_cf_z_df_genus, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Genus, scales = "free") +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Z-scores of Bacterial Genera Across Timepoints",
+       x = "Timepoint",
+       y = "Z-score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# use the robust Z-score method
+```{r}
+calculate_mad_z_scores <- function(physeq_object, taxonomic_rank) {
+  
+  # Aggregate data to the desired taxonomic rank
+  ps_aggregated <- tax_glom(physeq_object, taxonomic_rank)
+  
+  # Subset phyloseq object to get healthy controls
+  healthy_samples <- subset_samples(ps_aggregated, project == "IMMPIMMP")
+  
+  # Calculate median and MAD for each taxon in healthy controls
+  healthy_abundance <- as.data.frame(otu_table(healthy_samples))
+  healthy_stats <- healthy_abundance %>%
+    summarise(across(everything(), list(median = ~ median(.), mad = ~ mad(.)), .names = "{col}_{fn}"))
+
+  # Pivot the stats data frame to a long format
+  healthy_stats_long <- healthy_stats %>%
+    pivot_longer(everything(), names_to = c("ASV", ".value"), names_pattern = "(.*)_(.*)")
+
+  # Subset phyloseq object to get CF samples
+  cf_samples <- subset_samples(ps_aggregated, project == "IMP")
+  
+  # Convert CF abundances to a data frame
+  cf_abundance <- as.data.frame(otu_table(cf_samples))
+  
+  # Calculate robust Z-scores for CF samples using MAD method
+  cf_z_scores <- cf_abundance
+  for (taxon in colnames(cf_abundance)) {
+    median_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(median)
+    mad_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(mad)
+    cf_z_scores[[taxon]] <- (cf_abundance[[taxon]] - median_val) / (mad_val * 0.6745)
+  }
+  
+  # Update the phyloseq object with Z-scores
+  # Set the row names of cf_z_scores to sample names
+  rownames(cf_z_scores) <- sample_names(cf_samples)
+  ps_cf_z <- cf_samples
+  otu_table(ps_cf_z) <- otu_table(cf_z_scores, taxa_are_rows = F)
+  
+  return(ps_cf_z)
+}
+
+# Example usage
+ps_r_z_phylum <- calculate_mad_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Phylum")
+ps_r_z_df_phylum <- psmelt(ps_r_z_phylum)
+
+ps_r_z_genus <- calculate_mad_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Genus")
+ps_r_z_df_genus <- psmelt(ps_r_z_genus)
+```
+
+# plot Phlyum Z-scores
+```{r}
+# Add timepoint information
+
+
+# Boxplot of Z-scores per timepoint
+r_z_score <- ggplot(ps_r_z_df_phylum, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Phylum, scales = "free", nrow = 1) +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Robust Z-scores of Phyla",
+       x = "Timepoint",
+       y = "Z-score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+r_z_score
+```
+
+## IQR based Z-scores
+```{r}
+calculate_iqr_z_scores <- function(physeq_object, taxonomic_rank) {
+  
+  # Aggregate data to the desired taxonomic rank
+  ps_aggregated <- tax_glom(physeq_object, taxonomic_rank)
+  
+  # Subset phyloseq object to get healthy controls
+  healthy_samples <- subset_samples(ps_aggregated, project == "IMMPIMMP")
+  
+  # Calculate median and MAD for each taxon in healthy controls
+  healthy_abundance <- as.data.frame(otu_table(healthy_samples))
+  healthy_stats <- healthy_abundance %>%
+    summarise(across(everything(), list(median = ~ median(.), iqr = ~ IQR(.)), .names = "{col}_{fn}"))
+
+  # Pivot the stats data frame to a long format
+  healthy_stats_long <- healthy_stats %>%
+    pivot_longer(everything(), names_to = c("ASV", ".value"), names_pattern = "(.*)_(.*)")
+
+  # Subset phyloseq object to get CF samples
+  cf_samples <- subset_samples(ps_aggregated, project == "IMP")
+  
+  # Convert CF abundances to a data frame
+  cf_abundance <- as.data.frame(otu_table(cf_samples))
+  
+  # Calculate robust Z-scores for CF samples using MAD method
+  cf_z_scores <- cf_abundance
+  for (taxon in colnames(cf_abundance)) {
+    median_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(median)
+    iqr_val <- healthy_stats_long %>% filter(ASV == taxon) %>% pull(iqr)
+    cf_z_scores[[taxon]] <- (cf_abundance[[taxon]] - median_val) / iqr_val
+  }
+  
+  # Update the phyloseq object with Z-scores
+  # Set the row names of cf_z_scores to sample names
+  rownames(cf_z_scores) <- sample_names(cf_samples)
+  ps_cf_z <- cf_samples
+  otu_table(ps_cf_z) <- otu_table(cf_z_scores, taxa_are_rows = F)
+  
+  return(ps_cf_z)
+}
+
+# Example usage
+ps_iqr_z_phylum <- calculate_iqr_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Phylum")
+ps_iqr_z_df_phylum <- psmelt(ps_iqr_z_phylum)
+
+ps_iqr_z_order <- calculate_iqr_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Order")
+ps_iqr_z_df_order <- psmelt(ps_iqr_z_order)
+
+ps_iqr_z_family <- calculate_iqr_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Family")
+ps_iqr_z_df_family <- psmelt(ps_iqr_z_family)
+
+ps_iqr_z_class <- calculate_iqr_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Class")
+ps_iqr_z_df_class <- psmelt(ps_iqr_z_class)
+
+ps_iqr_z_genus <- calculate_iqr_z_scores(physeq_object = ps_stool_relab, 
+                                         taxonomic_rank = "Genus")
+ps_iqr_z_df_genus <- psmelt(ps_iqr_z_genus)
+```
+
+# plot iqr Phlyum Z-scores
+```{r}
+# Add timepoint information
+
+
+# Boxplot of Z-scores per timepoint
+iqr_z_score <- ggplot(ps_iqr_z_df_phylum, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Phylum, scales = "free", nrow = 1)+ #
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "IQR Z-scores of Phyla",
+       x = "Timepoint",
+       y = "Z-score") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+iqr_z_score
+```
+
+```{r, fig.height=6, fig.width=7}
+# compare robust vs "normal" Z-score
+
+ggarrange(r_z_score, p_z_score, iqr_z_score, nrow = 3, legend="none")
+# the distribution of the data is always the same, just the scaling differs
+
+ggsave("~/Documents/Forschung/IMMProveCF/R_analysis/figures/z_score_comparisons.png")
+```
+
+# compare stats between robust z-score and normal z-score
+```{r}
+# robust z-score
+ps_r_z_df_phylum$visit_sum_ordered <- factor(ps_r_z_df_phylum$visit_sum, levels = c("1","2","3-5","6-7","8-9"), ordered = T)
+
+is.ordered(ps_r_z_df_phylum$visit_sum_ordered)
+
+cf_proteo_r<- ps_r_z_df_phylum %>% 
+  filter(Phylum=="Proteobacteria")
+lm_r <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=cf_proteo_r))
+lm_r
+
+lm_r_ordered <- summary(lmerTest::lmer(Abundance ~ visit_sum_ordered + age_y + sex + (1|id), data=cf_proteo_r))
+lm_r_ordered
+
+# normal z-score
+cf_proteo_n<- ps_cf_z_df_phylum %>% 
+  filter(Phylum=="Proteobacteria")
+lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=cf_proteo_n))
+lm
+
+# normal z-score
+cf_proteo_iqr<- ps_iqr_z_df_phylum %>% 
+  filter(Phylum=="Proteobacteria")
+lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=cf_proteo_iqr))
+lm
+
+```
+
+
+
+
+# use percentiles instead of Z-scores
+```{r}
+# Subset phyloseq object to get healthy controls
+healthy_samples <- subset_samples(ps_stool_relab_phylum, project == "IMMPIMMP")
+
+# Convert abundances to a data frame
+healthy_abundance <- as.data.frame(otu_table(healthy_samples))
+
+# Calculate percentiles for each taxon in healthy controls
+
+healthy_ecdfs <- lapply(healthy_abundance, ecdf)
+
+# Subset phyloseq object to get CF samples
+cf_samples <- subset_samples(ps_stool_relab_phylum, project == "IMP")
+
+# Convert CF abundances to a data frame
+cf_abundance <- as.data.frame(otu_table(cf_samples))
+
+# Calculate percentile ranks for CF samples based on healthy controls
+cf_percentile_ranks <- cf_abundance
+for (taxon in colnames(cf_abundance)) {
+  ecdf_func <- healthy_ecdfs[[taxon]]
+  cf_percentile_ranks[[taxon]] <- ecdf_func(cf_abundance[[taxon]]) * 100 # Convert to percentile rank
+}
+
+# Update the phyloseq object with percentile ranks
+# Set the row names of cf_percentile_ranks to sample names
+rownames(cf_percentile_ranks) <- sample_names(cf_samples)
+ps_cf_percentile_phylum <- cf_samples
+otu_table(ps_cf_percentile_phylum) <- otu_table(cf_percentile_ranks, taxa_are_rows = F)
+
+# View the updated OTU table with percentile ranks
+view(otu_table(ps_cf_percentile_phylum))
+```
+
+# plot Phylum percentiles
+```{r}
+# Add timepoint information
+cf_percentile_phylum_df <- psmelt(ps_cf_percentile_phylum)
+
+# Boxplot of Z-scores per timepoint
+ggplot(cf_percentile_phylum_df, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_violin() +
+  facet_wrap(~ Phylum) +#, scales = "free"
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Percentiles of Bacterial Taxa Across Timepoints",
+       x = "Timepoint",
+       y = "Percentile") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# create directional percentiles
+
+```{r}
+# Load necessary library
+library(phyloseq)
+
+# Define the function
+calculate_directional_percentiles <- function(ps_obj) {
+  
+  # List of phylogenetic ranks
+  phylo_ranks <- c("Genus", "Family", "Order", "Class", "Phylum")
+  
+  # Initialize a list to store results for each rank
+  result_list <- list()
+  
+  # Loop through each phylogenetic rank
+  for (rank in phylo_ranks) {
+    
+    # Glom the phyloseq object at the current phylogenetic rank
+    ps_glom <- tax_glom(ps_obj, rank)
+    
+    # Subset phyloseq object to get healthy controls
+    healthy_samples <- subset_samples(ps_glom, project == "IMMPIMMP")
+    
+    # Convert abundances to a data frame
+    healthy_abundance <- as.data.frame(otu_table(healthy_samples))
+    
+    # Calculate ECDF functions and mean for each taxon in healthy controls
+    healthy_ecdfs <- lapply(healthy_abundance, ecdf)
+    healthy_means <- colMeans(healthy_abundance)
+    
+    # Subset phyloseq object to get CF samples
+    cf_samples <- subset_samples(ps_glom, project == "IMP")
+    
+    # Convert CF abundances to a data frame
+    cf_abundance <- as.data.frame(otu_table(cf_samples))
+    
+    # Initialize data frames for percentile ranks and directional scores
+    cf_percentile_ranks <- cf_abundance
+    cf_directional_scores <- cf_abundance
+    
+    # Loop through each taxon and calculate directional percentiles
+    for (taxon in colnames(cf_abundance)) {
+      ecdf_func <- healthy_ecdfs[[taxon]]
+      mean_val <- healthy_means[[taxon]]
+      
+      # Calculate percentile ranks
+      cf_percentile_ranks[[taxon]] <- ecdf_func(cf_abundance[[taxon]]) * 100
+      
+      # Determine direction (positive if above mean, negative if below mean)
+      cf_directional_scores[[taxon]] <- ifelse(cf_abundance[[taxon]] >= mean_val, 
+                                               cf_percentile_ranks[[taxon]], 
+                                               -cf_percentile_ranks[[taxon]])
+    }
+    
+    # Set the row names of cf_directional_scores to sample names
+    rownames(cf_directional_scores) <- sample_names(cf_samples)
+    
+    # Update the phyloseq object with directional scores
+    ps_cf_directional <- cf_samples
+    otu_table(ps_cf_directional) <- otu_table(cf_directional_scores, taxa_are_rows = F)
+    
+    # Store the result in the list
+    result_list[[rank]] <- ps_cf_directional
+  }
+  
+  # Return the list of phyloseq objects with directional scores
+  return(result_list)
+}
+
+# Usage of the function on ps_stool_relab
+directional_percentiles <- calculate_directional_percentiles(ps_stool_relab)
+
+# Access results for specific phylogenetic ranks
+ps_cf_directional_phylum <- directional_percentiles[["Phylum"]]
+ps_cf_directional_class <- directional_percentiles[["Class"]]
+ps_cf_directional_order <- directional_percentiles[["Order"]]
+ps_cf_directional_family <- directional_percentiles[["Family"]]
+ps_cf_directional_genus <- directional_percentiles[["Genus"]]
+```
+
+
+# plot Phylum percentiles with directions
+```{r}
+# Add timepoint information
+cf_directional_phylum_df <- psmelt(ps_cf_directional_phylum)
+
+# Boxplot of Z-scores per timepoint
+ggplot(cf_directional_phylum_df, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha=0.3, width = 0.2)+
+  facet_wrap(~ Phylum) +#, scales = "free"
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Percentiles of Phyla Across Timepoints",
+       x = "Timepoint",
+       y = "Percentile") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+
+cf_directional_proteo<- cf_directional_phylum_df %>% 
+  filter(Phylum=="Proteobacteria")
+lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=cf_directional_proteo))
+lm
+```
+# plot Genus percentiles with directions
+```{r}
+# Add timepoint information
+cf_directional_genus_df <- psmelt(ps_cf_directional_genus)
+
+# Boxplot of Z-scores per timepoint
+ggplot(cf_directional_genus_df, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(alpha=0.3, width = 0.2)+
+  facet_wrap(~ Genus) +#, scales = "free"
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Percentiles of Genera Across Timepoints",
+       x = "Timepoint",
+       y = "Percentile") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")
+
+cf_directional_esch<- cf_directional_genus_df %>% 
+  filter(Genus=="Escherichia_Shigella")
+lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=cf_directional_esch))
+lm
+```
+
+# plots for orientation
+```{r fig.height=21, fig.width=16}
+ggplot(ps_iqr_z_df_genus, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Genus, scales = "free") +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "IQR Z-scores of Genera",
+       x = "Timepoint",
+       y = "Z-score") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(ps_r_z_df_genus, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Genus, scales = "free") +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Robust Z-scores of Genera",
+       x = "Timepoint",
+       y = "Z-score") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggplot(ps_cf_z_df_genus, aes(x = visit_sum, y = Abundance, fill = visit_sum)) +
+  geom_boxplot() +
+  facet_wrap(~ Genus, scales = "free") +#
+  theme_minimal() +
+  scale_fill_manual(values=visit_sum_palette)+
+  labs(title = "Normal Z-scores of Genera",
+       x = "Timepoint",
+       y = "Z-score") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+# add linear model stats to boxplots
+```{r}
+lm_corrected_pvalues_boxplot <- function(x) {
+  
+  # List to store plots and stats
+  plot_list <- list()
+  stats_list <- list()
+  
+  for (genus in unique(ps_r_z_df_genus$Genus)) {
+    cat("Processing genus:", genus, "\n")
+    
+    # Filter data for the current genus
+    genus_data <- subset(ps_r_z_df_genus, Genus == genus)
+    
+    # Check for problematic values
+  if (anyNA(genus_data$Abundance) || any(is.nan(genus_data$Abundance)) || any(is.infinite(genus_data$Abundance))) {
+    cat("Problematic values found in genus:", genus, "\n")
+    next
+  }
+  
+    
+    # Linear mixed-effects model
+    lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=genus_data))
+    
+    # Coefficients and FDR correction
+    coefs <- data.frame(coef(lm))
+    fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+    
+    lm_stats <- bind_cols(coefs, fdr = fdr) %>%
+      mutate(p = Pr...t.., fdr = fdr) %>%
+      #select(-c(Pr...t..)) %>%
+      rownames_to_column() %>%
+      mutate(Months_after_ETI_start = rowname) %>%
+      mutate(Months_after_ETI_start = case_when(
+        Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+        Months_after_ETI_start == "visit_sum2" ~ "3",
+        Months_after_ETI_start == "visit_sum3-5" ~ "6-12",
+        Months_after_ETI_start == "visit_sum6-7" ~ "15-18",
+        Months_after_ETI_start == "visit_sum8-10" ~ "21-24",
+        Months_after_ETI_start == "age_y" ~ "age_y",
+        Months_after_ETI_start == "sex2" ~ "sex")) %>%
+      mutate(fdr_star = case_when(
+        fdr <= 0.001 ~ "***",
+        fdr <= 0.01 ~ "**",
+        fdr <= 0.05 ~ "*",
+        fdr <= 0.1 ~ ".",
+        fdr > 0.1 ~ "ns")) %>%
+      mutate(p_star = case_when(
+        p <= 0.001 ~ "***",
+        p <= 0.01 ~ "**",
+        p <= 0.05 ~ "*",
+        p <= 0.1 ~ ".",
+        p > 0.1 ~ "ns")) %>%
+      dplyr::select(-rowname) %>%
+      dplyr::select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star) %>%
+      mutate(p = round(p, 5)) %>%
+      mutate(fdr = round(fdr, 5)) 
+    
+    lm_stats_print <- lm_stats %>%
+      mutate(taxa = genus) %>% 
+      dplyr::select(taxa, everything())
+    
+    # Define group1 and group2 for significance labeling
+    group1 <- rep("1", nrow(lm_stats))
+    
+    lm_stats <- lm_stats %>%
+      bind_cols(group1 = group1) %>%
+      mutate(group2 = case_when(
+        Months_after_ETI_start == "Baseline (Intercept)" ~ "(Intercept)",
+        Months_after_ETI_start == "3" ~ "2",
+        Months_after_ETI_start == "6-12" ~ "3-5",
+        Months_after_ETI_start == "15-18" ~ "6-7",
+        Months_after_ETI_start == "21-24" ~ "8-10")) %>%
+      filter(group2 != "(Intercept)")
+    
+    xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+    # Create boxplot
+    boxplot <- genus_data %>%
+      ggplot(aes(visit_sum, Abundance)) +
+      geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.65) +
+      geom_jitter(width = 0.1) +
+      scale_fill_manual(values = visit_sum_palette) +
+      theme_classic() +
+      #scale_y_log10()+
+      ylab("Z-score transformed rel. abundance") +
+      xlab("Months from ETI treatment start") +
+      facet_wrap(~ Genus, scales = "free") +
+      scale_x_discrete(labels = xlabels) +
+      theme(text = element_text(size = 16), legend.position = "none") +
+      guides(fill = 'none') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+      stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = (lm_stats[1,3]+lm_stats[1,4])*2, step.increase = 0.05)#y.position = (max(Abundance) - 0.07 * max(Abundance)), step.increase = 0.05
+    
+    # Store plot and stats
+    plot_list[[genus]] <- boxplot
+    stats_list[[genus]] <- lm_stats_print
+  }
+  
+  return(list(boxplots = plot_list, lm_stats = stats_list))
+}
+
+# Run function on data
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_genus)
+
+results$lm_stats$Escherichia_Shigella
+results$boxplots$Escherichia_Shigella
+results$boxplots$Haemophilus
+all_stats <- as.data.frame(results$lm_stats) # that is unfortunately in a wide format
+```
+
+# print only significant boxplots and stats
+```{r}
+lm_corrected_pvalues_boxplot_sig <- function(x, taxonomic_rank) {
+  
+  # List to store plots and stats
+  plot_list <- list()
+  stats_list <- list()
+  significant_taxa <- list()
+  
+  for (taxa in unique(x[[taxonomic_rank]])) {
+    cat("Processing", taxonomic_rank, ":", taxa, "\n")
+    
+    # Filter data for the current taxa
+    taxa_data <- subset(x, x[[taxonomic_rank]] == taxa)
+    
+    # Check for problematic values
+    if (anyNA(taxa_data$Abundance) || any(is.nan(taxa_data$Abundance)) || any(is.infinite(taxa_data$Abundance))) {
+      cat("Problematic values found in", taxonomic_rank, ":", taxa, "\n")
+      next
+    }
+    
+    # Linear mixed-effects model
+    lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data=taxa_data))
+    
+    # Coefficients and FDR correction
+    coefs <- data.frame(coef(lm))
+    fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+    
+    lm_stats <- bind_cols(coefs, fdr = fdr) %>%
+      mutate(p = Pr...t.., fdr = fdr) %>%
+      rownames_to_column() %>%
+      mutate(Months_after_ETI_start = rowname) %>%
+      mutate(Months_after_ETI_start = case_when(
+        Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+        Months_after_ETI_start == "visit_sum2" ~ "3",
+        Months_after_ETI_start == "visit_sum3-5" ~ "6-12",
+        Months_after_ETI_start == "visit_sum6-7" ~ "15-18",
+        Months_after_ETI_start == "visit_sum8-10" ~ "21-24",
+        Months_after_ETI_start == "age_y" ~ "age_y",
+        Months_after_ETI_start == "sex2" ~ "sex")) %>%
+      mutate(fdr_star = case_when(
+        fdr <= 0.001 ~ "***",
+        fdr <= 0.01 ~ "**",
+        fdr <= 0.05 ~ "*",
+        fdr <= 0.1 ~ ".",
+        fdr > 0.1 ~ "ns")) %>%
+      mutate(p_star = case_when(
+        p <= 0.001 ~ "***",
+        p <= 0.01 ~ "**",
+        p <= 0.05 ~ "*",
+        p <= 0.1 ~ ".",
+        p > 0.1 ~ "ns")) %>%
+      dplyr::select(-rowname) %>%
+      dplyr::select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star) %>%
+      mutate(p = round(p, 5)) %>%
+      mutate(fdr = round(fdr, 5)) 
+    
+    # Check if any visit_sum term is significant and store the significant taxa
+    if (any(lm_stats$fdr <= 0.05 & lm_stats$Months_after_ETI_start %in% c("3", "6-12", "15-18", "21-24"))) {
+      significant_taxa[[taxa]] <- lm_stats
+    }
+    
+    # Create boxplot only for significant taxa
+    if (!is.null(significant_taxa[[taxa]])) {
+      group1 <- rep("1", nrow(lm_stats))
+      
+      lm_stats <- lm_stats %>%
+        bind_cols(group1 = group1) %>%
+        mutate(group2 = case_when(
+          Months_after_ETI_start == "Baseline (Intercept)" ~ "(Intercept)",
+          Months_after_ETI_start == "3" ~ "2",
+          Months_after_ETI_start == "6-12" ~ "3-5",
+          Months_after_ETI_start == "15-18" ~ "6-7",
+          Months_after_ETI_start == "21-24" ~ "8-10")) %>%
+        filter(group2 != "(Intercept)")
+      
+      xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+      # Create boxplot
+      boxplot <- taxa_data %>%
+        ggplot(aes(visit_sum, Abundance)) +
+        geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.65) +
+        geom_jitter(width = 0.1) +
+        scale_fill_manual(values = visit_sum_palette) +
+        theme_classic() +
+        ylab("Z-score transformed rel. abundance") +
+        xlab("Months from ETI treatment start") +
+        facet_wrap(as.formula(paste("~", taxonomic_rank)), scales = "free") +
+        scale_x_discrete(labels = xlabels) +
+        theme(text = element_text(size = 16), legend.position = "none") +
+        guides(fill = 'none') +
+        stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = (lm_stats[1,3]+lm_stats[1,4]), step.increase = 0.05)
+      
+      # Store plot and stats
+      plot_list[[taxa]] <- boxplot
+      stats_list[[taxa]] <- lm_stats
+    }
+  }
+  
+  # Print a table of significant taxa
+  significant_taxa_table <- do.call(rbind, significant_taxa)
+  if (!is.null(significant_taxa_table)) {
+    print("Significant taxa based on FDR-corrected p-values:")
+    print(significant_taxa_table)
+  }
+  
+  return(list(boxplots = plot_list, lm_stats = stats_list, significant_taxa = significant_taxa_table))
+}
+
+# Run function on data
+results_genus <- lm_corrected_pvalues_boxplot_sig(ps_iqr_z_df_genus, "Genus")
+results_class <- lm_corrected_pvalues_boxplot_sig(ps_iqr_z_df_class, "Class")
+results_family <- lm_corrected_pvalues_boxplot_sig(ps_iqr_z_df_family, "Family")
+results_order <- lm_corrected_pvalues_boxplot_sig(ps_iqr_z_df_order, "Order")
+results_phylum <- lm_corrected_pvalues_boxplot_sig(ps_iqr_z_df_phylum, "Phylum")
+
+# Access the results
+results_genus$boxplots
+results_genus$significant_taxa
+
+results_class$boxplots
+results_class$significant_taxa
+
+results_family$boxplots
+results_family$significant_taxa
+
+results_order$boxplots
+results_order$significant_taxa
+
+results_phylum$boxplots
+results_phylum$significant_taxa
+
+# bind table
+
+all_stats_iqr <- rbind(results_phylum$significant_taxa,results_class$significant_taxa, results_order$significant_taxa,results_family$significant_taxa,  results_genus$significant_taxa)
+
+all_stats_iqr$Taxa <- rownames(all_stats_iqr)
+all_stats_iqr$Taxa  <- gsub("\\.\\d+", "", all_stats_iqr$Taxa)
+```
+
+```{r}
+stool_sig_baseline_control <- read_excel("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/Stool_sigComp_p0.05_BaselineVsControl.xlsx")
+
+# now filter stats for significant taxa that were observed in stool samples 
+all_stats_iqr_filtered_taxa <- all_stats_iqr %>% 
+  filter(Taxa %in% stool_sig_baseline_control$Taxa) %>% 
+  distinct(Taxa) %>% 
+  left_join(stool_sig_baseline_control, by="Taxa")
+
+view(all_stats_iqr_filtered_taxa)
+
+tax <- as.data.frame(tax_table(ps_stool_relab))
+
+tax_genus <- tax %>% 
+  filter(Genus %in% all_stats_iqr_filtered_taxa$Taxa)
+
+tax_fam <- tax %>% 
+  filter(Family %in% all_stats_iqr_filtered_taxa$Taxa)
+
+tax_order <- tax %>% 
+  filter(Order %in% all_stats_iqr_filtered_taxa$Taxa)
+
+tax_class <- tax %>% 
+  filter(Class %in% all_stats_iqr_filtered_taxa$Taxa)
+
+tax_all <- rbind(tax_class,tax_order, tax_fam, tax_genus)
+tax_all <- tax_all %>% 
+  distinct(Genus, .keep_all = T)
+
+view(tax_all)
+```
+
+# run function only on those specified genera:
+```{r}
+lm_corrected_pvalues_boxplot <- function(data, taxonomic_rank, taxa_to_run = NULL, y_pos = NULL) {
+  
+  # List to store plots and stats
+  plot_list <- list()
+  stats_list <- list()
+  
+  # Filter the data to only include specified taxa if provided
+  if (!is.null(taxa_to_run)) {
+    data <- subset(data, data[[taxonomic_rank]] %in% taxa_to_run)
+  }
+  
+  for (taxa in unique(data[[taxonomic_rank]])) {
+    cat("Processing", taxonomic_rank, ":", taxa, "\n")
+    
+    # Filter data for the current taxa
+    taxa_data <- subset(data, data[[taxonomic_rank]] == taxa)
+    
+    # Add a column with the current taxa name for faceting
+    taxa_data$taxa <- taxa
+    
+    # Check for problematic values
+    if (anyNA(taxa_data$Abundance) || any(is.nan(taxa_data$Abundance)) || any(is.infinite(taxa_data$Abundance))) {
+      cat("Problematic values found in", taxonomic_rank, ":", taxa, "\n")
+      next
+    }
+    
+    # Linear mixed-effects model
+    lm <- summary(lmerTest::lmer(Abundance ~ visit_sum + age_y + sex + (1|id), data = taxa_data))
+    
+    # Coefficients and FDR correction
+    coefs <- data.frame(coef(lm))
+    fdr <- p.adjust(coefs$Pr...t.., method = "fdr", n = nrow(coefs))
+    
+    lm_stats <- bind_cols(coefs, fdr = fdr) %>%
+      mutate(p = Pr...t.., fdr = fdr) %>%
+      rownames_to_column() %>%
+      mutate(Months_after_ETI_start = rowname) %>%
+      mutate(Months_after_ETI_start = case_when(
+        Months_after_ETI_start == "(Intercept)" ~ "Baseline (Intercept)",
+        Months_after_ETI_start == "visit_sum2" ~ "3",
+        Months_after_ETI_start == "visit_sum3-5" ~ "6-12",
+        Months_after_ETI_start == "visit_sum6-7" ~ "15-18",
+        Months_after_ETI_start == "visit_sum8-10" ~ "21-24",
+        Months_after_ETI_start == "age_y" ~ "age_y",
+        Months_after_ETI_start == "sex2" ~ "sex")) %>%
+      mutate(fdr_star = case_when(
+        fdr <= 0.001 ~ "***",
+        fdr <= 0.01 ~ "**",
+        fdr <= 0.05 ~ "*",
+        fdr <= 0.1 ~ ".",
+        fdr > 0.1 ~ "ns")) %>%
+      mutate(p_star = case_when(
+        p <= 0.001 ~ "***",
+        p <= 0.01 ~ "**",
+        p <= 0.05 ~ "*",
+        p <= 0.1 ~ ".",
+        p > 0.1 ~ "ns")) %>%
+      dplyr::select(-rowname) %>%
+      dplyr::select(Months_after_ETI_start, Estimate, Std..Error, df, t.value, p, fdr, p_star, fdr_star) %>%
+      mutate(p = round(p, 5)) %>%
+      mutate(fdr = round(fdr, 5)) 
+    
+    lm_stats_print <- lm_stats %>%
+      mutate(taxa = taxa) %>% 
+      dplyr::select(taxa, everything())
+    
+    # Define group1 and group2 for significance labeling
+    group1 <- rep("1", nrow(lm_stats))
+    
+    lm_stats <- lm_stats %>%
+      bind_cols(group1 = group1) %>%
+      mutate(group2 = case_when(
+        Months_after_ETI_start == "Baseline (Intercept)" ~ "(Intercept)",
+        Months_after_ETI_start == "3" ~ "2",
+        Months_after_ETI_start == "6-12" ~ "3-5",
+        Months_after_ETI_start == "15-18" ~ "6-7",
+        Months_after_ETI_start == "21-24" ~ "8-10")) %>%
+      filter(group2 != "(Intercept)")
+    
+    xlabels <- c("0", "3", "6-12", "15-18", "21-24")
+    
+    # Create boxplot
+   library(ggtext)
+
+boxplot <- taxa_data %>%
+  ggplot(aes(visit_sum, Abundance)) +
+  geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.65) +
+  geom_jitter(width = 0.1) +
+  scale_fill_manual(values = visit_sum_palette) +
+  theme_classic() +
+  ylab("IQR Z-score: Rel. abundance to health") +
+  xlab("Months from ETI treatment start") +
+  facet_wrap(~ taxa, scales = "free") +
+  scale_x_discrete(labels = xlabels) +
+  theme(
+    text = element_text(size = 16), 
+    legend.position = "none",
+    strip.text = ggtext::element_markdown(size = 16, face = "italic")  # This makes facet labels italic
+  ) +
+  #scale_y_log10()+
+  guides(fill = 'none') +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = y_pos, step.increase = 0.05)
+
+    # Store plot and stats
+    plot_list[[taxa]] <- boxplot
+    stats_list[[taxa]] <- lm_stats_print
+  }
+  
+  return(list(boxplots = plot_list, lm_stats = stats_list))
+}
+
+# Run function on specific taxa and then store in specified object
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_genus, taxonomic_rank = "Genus", taxa_to_run = c("Escherichia_Shigella"), y_pos=150)
+bp1 <- results$boxplots$Escherichia_Shigella #+scale_y_log10()
+lm1 <- results$lm_stats$Escherichia_Shigella
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_genus, taxonomic_rank = "Genus", taxa_to_run = c("[Clostridium] innocuum group"), y_pos=100)
+bp2 <- results$boxplots$`[Clostridium] innocuum group`
+lm2 <- results$lm_stats$`[Clostridium] innocuum group`
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_genus, taxonomic_rank = "Genus", taxa_to_run = c("Romboutsia"), y_pos=4)
+bp3 <- results$boxplots$Romboutsia
+lm3 <- results$lm_stats$Romboutsia
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_genus, taxonomic_rank = "Genus", taxa_to_run = c("Parabacteroides"), y_pos=3)
+bp4 <- results$boxplots$Parabacteroides+ylim(-1,4.5)
+lm4 <- results$lm_stats$Parabacteroides
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_family, taxonomic_rank = "Family", taxa_to_run = c("Ruminococcaceae"), y_pos=0.5)
+bp5 <- results$boxplots$Ruminococcaceae
+lm5 <- results$lm_stats$Ruminococcaceae
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_family, taxonomic_rank = "Family", taxa_to_run = c("Tannerellaceae"), y_pos=2.5)
+bp6 <- results$boxplots$Tannerellaceae+ylim(-1,4.5)
+lm6 <- results$lm_stats$Tannerellaceae
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_family, taxonomic_rank = "Family", taxa_to_run = c("Oscillospiraceae"), y_pos=25)
+bp7 <- results$boxplots$Oscillospiraceae+ylim(-0.2,31)
+lm7 <- results$lm_stats$Oscillospiraceae
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_order, taxonomic_rank = "Order", taxa_to_run = c("Oscillospirales"), y_pos=0.2)
+bp8 <- results$boxplots$Oscillospirales
+lm8 <- results$lm_stats$Oscillospirales
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_phylum, taxonomic_rank = "Phylum", taxa_to_run = c("Proteobacteria"), y_pos = 35)
+bp9 <- results$boxplots$Proteobacteria
+lm9 <- results$lm_stats$Proteobacteria
+
+results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_phylum, taxonomic_rank = "Phylum", taxa_to_run = c("Firmicutes"), y_pos=2.3)
+bp10 <- results$boxplots$Firmicutes
+lm10 <- results$lm_stats$Firmicutes
+
+# Optionally, combine all boxplots and lm_stats for further analysis or plotting
+boxplots_list <- list(bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8, bp9, bp10)
+lm_stats_list <- list(lm1, lm2, lm3, lm4, lm5, lm6, lm7, lm8, lm9, lm10)
+
+# Access stat results
+lm_stats_list
+# access boxplots
+boxplots_list
+
+```
+# combine relevant plots
+```{r fig.height=20, fig.width=8}
+ggarrange(bp1, bp2, bp3, bp4, bp5, bp6, bp7, bp8, bp9, bp10, ncol = 2, nrow = 5)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_stool.png", height = 20, width = 8)
+```
+
+```{r fig.height=12, fig.width=12}
+
+ggarrange(bp9, bp1, NULL, bp10, bp8, bp7, bp5, bp3, bp2, ncol = 3, nrow = 3)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_stool.png", height = 12, width = 12)
+```
+
+# run linear models on ordered visit_sum factor for the ones that were identified to be different.
+```{r}
+# Define a function to filter the data, fit the model, and summarize the model
+run_lmer_on_taxon <- function(data, taxon, taxon_column) {
+  filtered_data <- data %>%
+    filter(!!sym(taxon_column) == taxon)
+print(taxon)
+  model <- lmerTest::lmer(Abundance ~ visit_sum_ordered + age_y + sex + (1 | id), data = filtered_data)
+  summary(model)
+}
+
+# Run models for each taxon
+esch_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_genus, "Escherichia_Shigella", "Genus")
+print(esch_lm_ordered)
+
+c_inno_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_genus, "[Clostridium] innocuum group", "Genus")
+print(c_inno_lm_ordered)
+
+romb_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_genus, "Romboutsia", "Genus")
+print(romb_lm_ordered)
+
+para_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_genus, "Parabacteroides", "Genus")
+print(para_lm_ordered)
+
+rumi_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_family, "Ruminococcaceae", "Family")
+print(rumi_lm_ordered)
+
+tanne_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_family, "Tannerellaceae", "Family")
+print(tanne_lm_ordered)
+
+oscillo_f_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_family, "Oscillospiraceae", "Family")
+print(oscillo_f_lm_ordered)
+
+oscillo_o_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_order, "Oscillospirales", "Order")
+print(oscillo_o_lm_ordered)
+
+proteo_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_phylum, "Proteobacteria", "Phylum")
+print(proteo_lm_ordered)
+proteo_df <- as.data.frame(coef(proteo_lm_ordered))
+proteo_df$taxa <- "Proteobacteria"
+
+firmi_lm_ordered <- run_lmer_on_taxon(ps_iqr_z_df_phylum, "Firmicutes", "Phylum")
+print(firmi_lm_ordered)
+firmi_df <- as.data.frame(coef(firmi_lm_ordered))
+firmi_df$taxa <- "Firmicutes"
+
+coef_all <- rbind(proteo_df, firmi_df)
+```
+```{r}
+# Define the function to run the model
+run_lmer_on_taxon <- function(data, taxon, taxon_column) {
+  filtered_data <- data %>%
+    filter(!!sym(taxon_column) == taxon)
+
+  model <- lmer(Abundance ~ visit_sum_ordered + age_y + sex + (1 | id), data = filtered_data)
+  return(model)
+}
+
+# Initialize the combined dataframe
+coef_all <- data.frame()
+
+# Define a helper function to extract coefficients and add taxa information
+extract_coefs <- function(model, taxa) {
+  df <- as.data.frame(coef(summary(model)))
+  df$taxa <- taxa
+  return(df)
+}
+
+# List of taxa, data frames, and columns
+taxa_info <- list(
+  list(data = ps_iqr_z_df_genus, taxon = "Escherichia_Shigella", column = "Genus"),
+  list(data = ps_iqr_z_df_genus, taxon = "[Clostridium] innocuum group", column = "Genus"),
+  list(data = ps_iqr_z_df_genus, taxon = "Romboutsia", column = "Genus"),
+  list(data = ps_iqr_z_df_genus, taxon = "Parabacteroides", column = "Genus"),
+  list(data = ps_iqr_z_df_family, taxon = "Ruminococcaceae", column = "Family"),
+  list(data = ps_iqr_z_df_family, taxon = "Tannerellaceae", column = "Family"),
+  list(data = ps_iqr_z_df_family, taxon = "Oscillospiraceae", column = "Family"),
+  list(data = ps_iqr_z_df_order, taxon = "Oscillospirales", column = "Order"),
+  list(data = ps_iqr_z_df_phylum, taxon = "Proteobacteria", column = "Phylum"),
+  list(data = ps_iqr_z_df_phylum, taxon = "Firmicutes", column = "Phylum")
+)
+
+# Process each taxon
+for (info in taxa_info) {
+  model <- run_lmer_on_taxon(info$data, info$taxon, info$column)
+  df <- extract_coefs(model, info$taxon)
+  coef_all <- rbind(coef_all, df)
+}
+
+# Print the combined coefficients data frame
+
+coef_all <- coef_all %>%
+  mutate(variable= rownames(coef_all)) %>% 
+  dplyr::select(taxa, variable, everything())
+
+print(coef_all)
+```
+

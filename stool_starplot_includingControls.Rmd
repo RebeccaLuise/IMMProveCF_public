@@ -1,0 +1,967 @@
+---
+title: "starplot stool including Controls"
+author: "Rebecca L. Knoll and Theda Bartholomaeus"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yesn
+---
+
+```{r setup 2, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache= FALSE, warning = FALSE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(datarium)
+library(dplyr)
+#library(ggplot2)
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+
+# Create a named vector for shape labels
+shape_labels <- c("0", "3", "6-12", "15-18", "21-24 months from ETI tt start")
+```
+
+```{r subset per material}
+
+# subset per material
+ps_stool <- subset_samples(ps_full, material== "Stool")
+
+# remove zero abundances from each dataset
+ps_stool <- microViz::tax_filter(ps_stool, min_prevalence = 1,
+  prev_detection_threshold = 1, min_total_abundance = 0, min_sample_abundance = 0, tax_level = NA,
+  names_only = FALSE, use_counts = TRUE, undetected = NULL,verbose = TRUE)
+
+# calculate relative abundances
+ps_stool_relab <- transform_sample_counts(ps_stool, function(x) x/sum(x))
+
+```
+
+```{r}
+PCA_all_visit_stool <- plot_ordination(ps_stool_relab, ordinate(ps_stool_relab, "MDS"), color = "visit_sum")
+```
+
+
+# Starplot for PCoA 
+
+## stool
+
+```{r calculate distances and prepare data}
+metadata_stool <- (sample_data(ps_stool_relab))
+metadata_stool <- as(metadata_stool, "data.frame")
+
+##### Create dissimilarity indices
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_stool_relab,
+                             method="bray", weighted=F)
+
+bray <- as.matrix(BC_dist)
+  
+# Principal Coordinate Analysis (PCoA)
+  beta <- as.data.frame(cmdscale(bray, k = 2))
+  
+  # Add metadata
+  beta <- base::transform(merge(sample_data(ps_stool_relab), beta, by = 0, all = TRUE), row.names = Row.names, Row.names = NULL)
+  
+beta <- beta%>%
+  dplyr::select(id.x, visit_cal_cor, sex, age_y, visit_sum, V1, V2)
+
+# Ensure "Control" is a level in the factor
+beta$visit_cal_cor <- factor(beta$visit_cal_cor, levels = c(levels(beta$visit_cal_cor), "Control"))
+
+# Replace NA values with "Control"
+beta$visit_cal_cor[is.na(beta$visit_cal_cor)] <- "Control"
+
+```
+
+
+
+```{r starplot stool Teil C}
+
+time_a <- beta[beta$visit_sum == "1", ]
+time_f <- beta[beta$visit_sum == "Control", ]
+
+# Add a constant key column to both data frames for the Cartesian join
+time_a$key <- 1
+time_f$key <- 1
+
+# Perform the Cartesian join
+all <- merge(time_a, time_f, by = "key", suffixes = c("", ".f"))
+
+# for each donor, center PCoA Dims to the Upper lobe samples
+center.2 <- all
+for (i in c("V1","V1.f")){
+  center.2[,i] <- (all[, i] - all[, "V1"])
+}
+for (i in c("V2","V2.f")){
+  center.2[,i] <- (all[, i] - all[, "V2"])
+}
+center.2 <- center.2[, c("V1","V1.f","V2","V2.f", "key")]
+
+#center.v <- na.exclude(center.v) # nur Donoren die alle swabsite haben
+
+# get mean of the to arrow categories (arrows to lower lobe, arrows to stool)
+arrowCentroids.2 <- as.data.frame(matrix(c(mean(na.exclude(center.2$V1.f)),
+                                           mean(na.exclude(center.2$V2.f)), 
+                                        
+                                           center.2$V1[1], center.2$V2[1]), ncol = 4))
+
+# plot centered 
+#plot_all.v <- ggplot(center.v, aes(x = V1, y = V2)) +
+
+plot_all <- ggplot(center.2, aes(x = V1, y = V2)) +
+  geom_point(data = center.2, aes(x = V1, y = V2), size = 4, alpha = 0.8) + 
+  theme_classic() +
+  #geom_point(data = center, aes(x = V1.b, y = V2.b),color = "#C3BC3FFF", pch=17, size = 3, alpha = 0.8) +
+  #geom_point(data = center, aes(x = V1.c, y = V2.c),color = "#6388B4FF", pch=15, size = 3, alpha = 0.8) +
+  scale_x_continuous(limits = c(-0.4,0.4))+
+  #scale_y_continuous(breaks = c( -0.50, -0.25, 0.00,0.25, 0.5), limits = c(-0.50, 0.50))+
+  geom_segment(data = center.2, color = "#8175AA",
+          aes(x = V1,
+         y = V2,
+         xend = V1.f,
+          yend = V2.f,
+        color = "a to c", alpha = .1),
+         arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "#8175AA", size = 5) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "#8175AA", size = 5) +
+  geom_segment(data = arrowCentroids.2,
+               aes(x = V3,
+                   y = V4,
+                   xend = V1,
+                  yend = V2,
+                  color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color = "black") +
+  xlab ("PCo 1") +
+  ylab ("PCo 2") +
+  guides(color = guide_legend(title = "trajectory from baseline to")) +
+  theme (axis.title.x = element_text (size = 16), 
+         axis.text.x = element_text (size = 16), 
+         axis.text.y = element_text (size = 16), 
+         axis.title.y = element_text (size = 16),
+         legend.position = "bottom",
+         title = element_text(size=18))+
+  ggtitle("Stool")-> plot.controls
+
+print(plot.controls)
+```
+
+```{r starplot stool Teil A}
+#write_csv(beta, "~/Documents/Forschung/IMMProveCF/R_analysis/data/beta_starplot.csv")
+
+time_a <- beta[beta$visit_sum == "1", ]
+time_b <- beta[beta$visit_sum == "2", ]
+time_c <- beta[beta$visit_sum == "3-5", ]
+
+# we will toss a - since there not much information 
+# we will put c to 0 so we can see the trajectory 
+# join df zu einem df 
+all <- merge(time_b, time_c, by = "id.x", all = TRUE, suffixes = c(".b",".c"))
+all <- merge(all, time_a, by = "id.x", all = TRUE)
+
+# for each donor, center PCoA Dims to the Upper lobe samples
+center <- all
+for (i in c("V1","V1.b","V1.c")){
+  center[,i] <- (all[, i] - all[, "V1"])
+}
+for (i in c("V2","V2.b","V2.c")){
+  center[,i] <- (all[, i] - all[, "V2"])
+}
+center <- center[, c("V1","V1.b","V1.c","V2","V2.b","V2.c", "id.x")]
+
+pal.treat  <- c("#803300ff", "#822bc1ff")
+# center <- na.exclude(center) # nur Donoren die alle swabsite haben
+
+# get mean of the to arrow categories (arrows to lower lobe, arrows to stool)
+arrowCentroids <- as.data.frame(matrix(c(mean(na.exclude(center$V1.b)),
+                                         mean(na.exclude(center$V2.b)), 
+                                         mean(na.exclude(center$V1.c)),
+                                         mean(na.exclude(center$V2.c)),
+                                         center$V1[1], center$V2[1]), ncol = 6))
+
+# plot centered 
+plot.controls +
+  scale_x_continuous(limits = c(-0.4,0.4))+
+  #scale_y_continuous(breaks = c( -0.50, -0.25, 0.00,0.25, 0.5), limits = c(-0.50, 0.50))+
+  geom_segment(data = center,color ="#C3BC3FFF",
+               aes(x = V1,
+                  y = V2,
+                   xend = V1.b,
+                   yend = V2.b,
+                   color = "a to b", alpha = .2),
+               arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_segment(data = center, color = "#6388B4FF",
+              aes(x = V1,
+                y = V2,
+                 xend = V1.c,
+                 yend = V2.c,
+                color = "a to c", alpha = .2),
+               arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_point(data = arrowCentroids, aes(x = V1, y = V2),pch=17, color = "black", size = 6) +
+  geom_point(data = arrowCentroids, aes(x = V3, y = V4), pch=15, color = "black", size = 6) +
+  geom_point(data = arrowCentroids, aes(x = V5, y = V6), color = "black", size = 2) +
+  geom_point(data = arrowCentroids, aes(x = V1, y = V2),pch=17, color = "#C3BC3FFF", size = 5) +
+  geom_point(data = arrowCentroids, aes(x = V3, y = V4), pch=15, color = "#6388B4FF", size = 5) +
+  geom_segment(data = arrowCentroids,
+               aes(x = V5,
+                   y = V6,
+                   xend = V3,
+                   yend = V4,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color = "black") +
+  geom_segment(data = arrowCentroids,
+               aes(x = V5,
+                   y = V6,
+                   xend = V1,
+                   yend = V2,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color ="black") +
+  xlab ("PCo 1") +
+  ylab ("PCo 2") +
+  guides(color = guide_legend(title = "trajectory")) +
+  # scale_color_manual(values = c("#4DBBD5FF", "#00A087FF", "black"))+
+  
+  theme (axis.title.x = element_text (size = 13), 
+         axis.text.x = element_text (size = 13), 
+         axis.text.y = element_text (size = 13), 
+         axis.title.y = element_text (size = 13))->plot.2
+
+print(plot.2)
+```
+
+```{r starplot stool Teil B}
+
+time_a <- beta[beta$visit_sum == "1", ]
+time_d <- beta[beta$visit_sum == "6-7", ]
+time_e <- beta[beta$visit_sum == "8-10", ]
+
+# we will toss a - since there not much information 
+# we will put c to 0 so we can see the trajectory 
+# join df zu einem df 
+all <- merge(time_d, time_e, by = "id.x", all = TRUE, suffixes = c(".d",".e"))
+all <- merge(all, time_a, by = "id.x", all = TRUE)
+
+# for each donor, center PCoA Dims to the Upper lobe samples
+center.2 <- all
+for (i in c("V1","V1.d","V1.e")){
+  center.2[,i] <- (all[, i] - all[, "V1"])
+}
+for (i in c("V2","V2.d","V2.e")){
+  center.2[,i] <- (all[, i] - all[, "V2"])
+}
+center.2 <- center.2[, c("V1","V1.d","V1.e","V2","V2.d","V2.e", "id.x")]
+
+
+
+#center.v <- na.exclude(center.v) # nur Donoren die alle swabsite haben
+
+# get mean of the to arrow categories (arrows to lower lobe, arrows to stool)
+arrowCentroids.2 <- as.data.frame(matrix(c(mean(na.exclude(center.2$V1.d)),
+                                           mean(na.exclude(center.2$V2.d)), 
+                                           mean(na.exclude(center.2$V1.e)),
+                                           mean(na.exclude(center.2$V2.e)),
+                                           center.2$V1[1], center.2$V2[1]), ncol = 6))
+
+# plot centered 
+#plot_all.v <- ggplot(center.v, aes(x = V1, y = V2)) +
+
+
+plot.2+
+  geom_point(data = center.2, aes(x = V1, y = V2), size = 5, alpha = 0.8) + 
+  theme_classic() +
+  #geom_point(data = center.2, aes(x = V1.d, y = V2.d),pch=16, color = "#BB7693FF", size = 3, alpha = 0.8) +
+  #geom_point(data = center.2, aes(x = V1.e, y = V2.e), pch=18,color = "#55AD89FF", size = 3, alpha = 0.8) +
+  scale_x_continuous(limits = c(-0.4,0.4))+
+  # scale_y_continuous(breaks = c( -0.50, -0.25, 0.00,0.25, 0.5), limits = c(-0.50, 0.50))+
+  geom_segment(data = center.2, color = "#BB7693FF", 
+             aes(x = V1,
+             y = V2,
+             xend = V1.d,
+             yend = V2.d,
+             color = "a to b", alpha = .15),
+             arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_segment(data = center.2, color = "#55AD89FF",
+          aes(x = V1,
+         y = V2,
+          xend = V1.e,
+          yend = V2.e,
+         color = "a to c", alpha = .15),
+          arrow = arrow (length = unit(0.3,"cm"))) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "black", size = 6) +
+  geom_point(data = arrowCentroids.2, aes(x = V5, y = V6), color = "black", size = 2) +
+  geom_point(data = arrowCentroids.2, aes(x = V1, y = V2), pch=16, color = "#BB7693FF", size = 5) +
+  geom_point(data = arrowCentroids.2, aes(x = V3, y = V4), pch=18, color = "#55AD89FF", size = 5) +
+  geom_segment(data = arrowCentroids.2,
+               aes(x = V5,
+                   y = V6,
+                   xend = V3,
+                   yend = V4,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color = "black") +
+  geom_segment(data = arrowCentroids.2,
+               aes(x = V5,
+                   y = V6,
+                   xend = V1,
+                   yend = V2,
+                   color = "mean"),
+               arrow = arrow (length = unit(0.3,"cm")), color= "black") +
+  xlab ("PCo 1") +
+  ylab ("PCo 2") +
+  guides(color = guide_legend(title = "trajectory from baseline to")) +
+  theme (axis.title.x = element_text (size = 16), 
+         axis.text.x = element_text (size = 16), 
+         axis.text.y = element_text (size = 16), 
+         axis.title.y = element_text (size = 16),
+         legend.position = "none",
+         title = element_text(size=18))+
+  ggtitle("Stool")-> plot.plot_stool
+
+print(plot.plot_stool)
+#saveRDS(plot.plot_stool, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool.rds")
+```
+
+# now inverse the plot so that Controls are in the center
+
+```{r}
+# Create subsets based on 'visit_cal_cor'
+time_a <- beta[beta$visit_cal_cor == "Control", ]
+time_b <- beta[beta$visit_cal_cor == "1", ]
+time_c <- beta[beta$visit_cal_cor == "2", ]
+time_d <- beta[beta$visit_cal_cor == "3", ]
+time_e <- beta[beta$visit_cal_cor == "4", ]
+time_f <- beta[beta$visit_cal_cor == "5", ]
+time_g <- beta[beta$visit_cal_cor == "6", ]
+time_h <- beta[beta$visit_cal_cor == "7", ]
+time_i <- beta[beta$visit_cal_cor == "8", ]
+time_j <- beta[beta$visit_cal_cor == "9", ]
+
+# Add a constant key column for Cartesian joins
+time_a$key <- 1
+time_b$key <- 1
+time_a$key.2 <- 2
+time_c$key.2 <- 2
+time_a$key.3 <- 3
+time_d$key.3 <- 3
+time_a$key.4 <- 4
+time_e$key.4 <- 4
+time_a$key.5 <- 5
+time_f$key.5 <- 5
+time_a$key.6 <- 6
+time_g$key.6 <- 6
+time_a$key.7 <- 7
+time_h$key.7 <- 7
+time_a$key.8 <- 8
+time_i$key.8 <- 8
+time_a$key.9 <- 9
+time_j$key.9 <- 9
+
+# Perform the Cartesian joins
+ab <- merge(time_a, time_b, by = "key", all = TRUE, suffixes = c("", ".b")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ac <- merge(time_a, time_c, by = "key.2", all = TRUE, suffixes = c("", ".c")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ad <- merge(time_a, time_d, by = "key.3", all = TRUE, suffixes = c("", ".d")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ae <- merge(time_a, time_e, by = "key.4", all = TRUE, suffixes = c("", ".e")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+af <- merge(time_a, time_f, by = "key.5", all = TRUE, suffixes = c("", ".f")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ag <- merge(time_a, time_g, by = "key.6", all = TRUE, suffixes = c("", ".g")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ah <- merge(time_a, time_h, by = "key.7", all = TRUE, suffixes = c("", ".h")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+ai <- merge(time_a, time_i, by = "key.8", all = TRUE, suffixes = c("", ".i")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+aj <- merge(time_a, time_j, by = "key.9", all = TRUE, suffixes = c("", ".j")) %>%
+  dplyr::select(-c(key, key.2, key.3, key.4, key.5, key.6, key.7, key.8, key.9))
+
+# Compute differences for V1 and V2 for each merged dataset and dplyr::select relevant columns
+
+# For ab
+ab_center <- ab
+ab_center$V1_diff <- ab$V1.b - ab$V1
+ab_center$V2_diff <- ab$V2.b - ab$V2
+ab_center <- ab_center[, c("V1", "V1.b", "V1_diff", "V2", "V2.b", "V2_diff")]
+
+# For ac
+ac_center <- ac
+ac_center$V1_diff <- ac$V1.c - ac$V1
+ac_center$V2_diff <- ac$V2.c - ac$V2
+ac_center <- ac_center[, c("V1", "V1.c", "V1_diff", "V2", "V2.c", "V2_diff")]
+
+# For ad
+ad_center <- ad
+ad_center$V1_diff <- ad$V1.d - ad$V1
+ad_center$V2_diff <- ad$V2.d - ad$V2
+ad_center <- ad_center[, c("V1", "V1.d", "V1_diff", "V2", "V2.d", "V2_diff")]
+
+# For ae
+ae_center <- ae
+ae_center$V1_diff <- ae$V1.e - ae$V1
+ae_center$V2_diff <- ae$V2.e - ae$V2
+ae_center <- ae_center[, c("V1", "V1.e", "V1_diff", "V2", "V2.e", "V2_diff")]
+
+# For af
+af_center <- af
+af_center$V1_diff <- af$V1.f - af$V1
+af_center$V2_diff <- af$V2.f - af$V2
+af_center <- af_center[, c("V1", "V1.f", "V1_diff", "V2", "V2.f", "V2_diff")]
+
+# For ag
+ag_center <- ag
+ag_center$V1_diff <- ag$V1.g - ag$V1
+ag_center$V2_diff <- ag$V2.g - ag$V2
+ag_center <- ag_center[, c("V1", "V1.g", "V1_diff", "V2", "V2.g", "V2_diff")]
+
+# For ah
+ah_center <- ah
+ah_center$V1_diff <- ah$V1.h - ah$V1
+ah_center$V2_diff <- ah$V2.h - ah$V2
+ah_center <- ah_center[, c("V1", "V1.h", "V1_diff", "V2", "V2.h", "V2_diff")]
+
+# For ai
+ai_center <- ai
+ai_center$V1_diff <- ai$V1.i - ai$V1
+ai_center$V2_diff <- ai$V2.i - ai$V2
+ai_center <- ai_center[, c("V1", "V1_diff", "V2", "V2_diff", "visit_sum.i")]
+ai_center$visit_sum <- ai_center$visit_sum.i
+ai_center <- ai_center[, c("V1", "V1_diff", "V2", "V2_diff", "visit_sum")]
+ai_center$comparison_visit <- "8"
+
+# For aj
+aj_center <- aj
+aj_center$V1_diff <- aj$V1.j - aj$V1
+aj_center$V2_diff <- aj$V2.j - aj$V2
+aj_center <- aj_center[, c("V1", "V1_diff", "V2", "V2_diff")]
+aj_center$comparison_visit <- "9"
+```
+```{r}
+# Create subsets based on 'visit_cal_cor'
+time_a <- beta[beta$visit_cal_cor == "Control", ]
+time_b <- beta[beta$visit_cal_cor == "1", ]
+time_c <- beta[beta$visit_cal_cor == "2", ]
+time_d <- beta[beta$visit_cal_cor == "3", ]
+time_e <- beta[beta$visit_cal_cor == "4", ]
+time_f <- beta[beta$visit_cal_cor == "5", ]
+time_g <- beta[beta$visit_cal_cor == "6", ]
+time_h <- beta[beta$visit_cal_cor == "7", ]
+time_i <- beta[beta$visit_cal_cor == "8", ]
+time_j <- beta[beta$visit_cal_cor == "9", ]
+
+# Add a constant key column for Cartesian joins
+time_a$key <- 1
+time_b$key <- 1
+time_a$key.2 <- 2
+time_c$key.2 <- 2
+time_a$key.3 <- 3
+time_d$key.3 <- 3
+time_a$key.4 <- 4
+time_e$key.4 <- 4
+time_a$key.5 <- 5
+time_f$key.5 <- 5
+time_a$key.6 <- 6
+time_g$key.6 <- 6
+time_a$key.7 <- 7
+time_h$key.7 <- 7
+time_a$key.8 <- 8
+time_i$key.8 <- 8
+time_a$key.9 <- 9
+time_j$key.9 <- 9
+
+# Perform the Cartesian joins and compute differences
+calculate_center <- function(time_a, time_other, suffix, key_col, comparison_visit) {
+  merged <- merge(time_a, time_other, by = key_col, all = TRUE, suffixes = c("", suffix)) %>%
+    dplyr::select(-contains("key"))
+  center <- merged
+  center$V1_diff <- merged[[paste0("V1", suffix)]] - merged$V1
+  center$V2_diff <- merged[[paste0("V2", suffix)]] - merged$V2
+  center$visit_sum <- merged[[paste0("visit_sum", suffix)]]
+  center$comparison_visit <- comparison_visit
+  center <- center[, c("V1", "V1_diff", "V2", "V2_diff", "visit_sum", "comparison_visit")]
+  return(center)
+}
+
+ab_center <- calculate_center(time_a, time_b, ".b", "key", "1")
+ac_center <- calculate_center(time_a, time_c, ".c", "key.2", "2")
+ad_center <- calculate_center(time_a, time_d, ".d", "key.3", "3")
+ae_center <- calculate_center(time_a, time_e, ".e", "key.4", "4")
+af_center <- calculate_center(time_a, time_f, ".f", "key.5", "5")
+ag_center <- calculate_center(time_a, time_g, ".g", "key.6", "6")
+ah_center <- calculate_center(time_a, time_h, ".h", "key.7", "7")
+ai_center <- calculate_center(time_a, time_i, ".i", "key.8", "8")
+aj_center <- calculate_center(time_a, time_j, ".j", "key.9", "9")
+
+# Combine all the center dataframes
+all_centers <- rbind(
+  ab_center,
+  ac_center,
+  ad_center,
+  ae_center,
+  af_center,
+  ag_center,
+  ah_center,
+  ai_center,
+  aj_center
+)
+
+# Set V1 and V2 from time_a (control) to 0
+all_centers$V1 <- 0
+all_centers$V2 <- 0
+
+# View the final combined dataframe
+print(all_centers)
+
+```
+```{r}
+# calculate the means of bc distances per visit_sum
+means <- all_centers %>% 
+  group_by(visit_sum) %>% 
+  summarise(Mean_V1=median(V1_diff), Mean_V2=median(V2_diff))
+
+means$center_v1 <- 0
+means$center_v2 <- 0
+```
+
+# plot arrows
+```{r, fig.height=5, fig.width=5}
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+
+# Create a named vector for shape labels
+shape_labels <- c("0", "3", "6-12", "15-18", "21-24 months from ETI tt start")
+
+p1 <-ggplot(all_centers, aes(x = V1, y = V2)) +
+  geom_point(data = all_centers, aes(x = V1, y = V2), size = 6,color="#8176AA", shape=8) + 
+  geom_segment(aes(x = V1,
+                  y = V2,
+                   xend = V1_diff,
+                   yend = V2_diff,
+                   color = visit_sum), alpha = 0.045,
+               arrow = arrow (length = unit(0.3,"cm")))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V2,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v2,
+                   xend = Mean_V1,
+                   yend = Mean_V2,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  xlim(-0.6,0.15)+
+  ylim(-0.45, 0.4)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab ("PCo 1") +
+  ylab ("PCo 2")
+p1
+saveRDS(p1,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool_controls.rds")
+```
+
+# plot median arrows only
+```{r}
+ggplot(all_centers, aes(x = V1, y = V2)) +
+  geom_point(data = all_centers, aes(x = V1, y = V2), size = 6, color="#8176AA") + 
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette)+
+  scale_shape_manual(values = c(21:25))+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V2, color=visit_sum, fill= visit_sum, shape = visit_sum), size = 6)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v2,
+                   xend = Mean_V1,
+                   yend = Mean_V2,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype =                2)+
+  xlab ("PCo 1") +
+  ylab ("PCo 2") 
+```
+
+# create 3 Axes plots
+```{r}
+##### Create dissimilarity indices
+set.seed(100)
+
+# Bray-Curtis distance axis comparisons
+BC_dist <- phyloseq::distance(ps_stool_relab, method="bray", weighted=F)
+# Perform Principal Coordinate Analysis (PCoA)
+pcoa_result <- ape::pcoa(BC_dist)
+# Extract eigenvalues
+eigenvalues <- pcoa_result$values$Eigenvalues
+# Create a scree plot
+plot(eigenvalues, type = "b", xlab = "Principal Coordinates", ylab = "Eigenvalue", 
+     main = "Scree Plot", pch = 19)
+
+# Calculate total variance
+total_variance <- sum(eigenvalues)
+
+# Calculate variance explained by each component
+variance_explained <- eigenvalues / total_variance
+
+# Convert to percentage
+percentage_explained <- variance_explained * 100
+# Optionally, create a scree plot showing the percentage of variance explained
+plot(percentage_explained, type = "b", xlab = "Principal Coordinates", ylab = "Percentage of Variance Explained",
+     main = "Percentage of Variance Explained", pch = 19)
+percentage_explained[1]
+
+bray <- as.matrix(BC_dist)
+
+# MDS comparison
+pcoa_result <- ordinate(ps_stool_relab, method = "MDS")
+# Extract eigenvalues
+eigenvalues <- pcoa_result$values$Eigenvalues
+# Create a scree plot
+plot(eigenvalues, type = "b", xlab = "Principal Coordinates", ylab = "Eigenvalue", 
+     main = "Scree Plot", pch = 19)
+# the eigenvalues are exactly the same, it does not matter whether calculated on MDS or bray
+
+# Extract the coordinates from the ordination result
+ordination_df <- as.data.frame(pcoa_result$vectors[, 1:3])
+
+# Add metadata from the phyloseq object
+ordination_df <- cbind(ordination_df, sample_data(ps_stool_relab))
+
+# PCo1 vs. PCo2
+plot1 <- ggplot(ordination_df, aes(x = Axis.1, y = Axis.2, color = visit_sum)) +
+  geom_point(size = 4) +
+  theme_classic() +
+  scale_color_manual(values = visit_sum_palette)+
+  xlab("PCo1") +
+  ylab("PCo2") +
+  ggtitle("PCo1 vs. PCo2")+
+  stat_ellipse()
+
+# PCo1 vs. PCo3
+plot2 <- ggplot(ordination_df, aes(x = Axis.1, y = Axis.3, color = visit_sum)) +
+  geom_point(size = 4) +
+  theme_classic() +
+  scale_color_manual(values = visit_sum_palette)+
+  xlab("PCo1") +
+  ylab("PCo3") +
+  ggtitle("PCo1 vs. PCo3")+
+  stat_ellipse()
+
+# PCo2 vs. PCo3
+plot3 <- ggplot(ordination_df, aes(x = Axis.2, y = Axis.3, color = visit_sum)) +
+  geom_point(size = 4) +
+  theme_classic() +
+  scale_color_manual(values = visit_sum_palette)+
+  #xlab("PCo2") +
+  #ylab("PCo3") +
+  ggtitle("PCo2 vs. PCo3")+
+  stat_ellipse()
+
+# Display the plots
+print(plot1)
+print(plot2)
+print(plot3)
+```
+My problem now is that my data has 6 timepoints, and I relate my ordination analysis to timepoint 1, which I put in the center of my ordination plot, does the variance explained remains the same?
+
+Versa
+When you perform ordination analysis (such as PCA, PCoA, or NMDS), the variance explained by each axis is determined by the eigenvalues or stress values derived from the overall dataset. This variance explanation is a property of the data structure and its configuration in the chosen ordination method.
+
+If you relate your ordination results to a specific timepoint (e.g., timepoint 1) and place this timepoint in the center of your ordination plot, you are essentially re-centering or possibly rotating the ordination plot. However, this does not change the underlying eigenvalues, stress values, or the total variance explained by the ordination axes. Re-centering can change the visual interpretation or emphasize certain relationships, but the total variance explained by the axes remains constant because it is a property of the dataset as a whole.
+
+So, in summary:
+
+The variance explained by each axis remains the same regardless of re-centering the plot around a specific timepoint.
+The visual representation may change, but this does not affect the quantitative measures of variance explained.
+# try to create 3 axes plot for my centered analysis
+```{r}
+# Principal Coordinate Analysis (PCoA)
+beta <- as.data.frame(cmdscale(bray, k = 3))  # Extract the first 3 principal coordinates
+
+# Add metadata
+beta <- base::transform(merge(sample_data(ps_stool_relab), beta, by = 0, all = TRUE), row.names = Row.names, Row.names = NULL)
+
+beta <- beta%>%
+  dplyr::select(id.x, visit_cal_9, sex, age_y, visit_sum, V1, V2, V3)
+
+# Create subsets based on 'visit_cal_9'
+time_a <- beta[beta$visit_cal_9 == "Control", ]
+time_b <- beta[beta$visit_cal_9 == "1", ]
+time_c <- beta[beta$visit_cal_9 == "2", ]
+time_d <- beta[beta$visit_cal_9 == "3", ]
+time_e <- beta[beta$visit_cal_9 == "4", ]
+time_f <- beta[beta$visit_cal_9 == "5", ]
+time_g <- beta[beta$visit_cal_9 == "6", ]
+time_h <- beta[beta$visit_cal_9 == "7", ]
+time_i <- beta[beta$visit_cal_9 == "8", ]
+time_j <- beta[beta$visit_cal_9 == "9", ]
+
+# Add a constant key column for Cartesian joins
+time_a$key <- 1
+time_b$key <- 1
+time_a$key.2 <- 2
+time_c$key.2 <- 2
+time_a$key.3 <- 3
+time_d$key.3 <- 3
+time_a$key.4 <- 4
+time_e$key.4 <- 4
+time_a$key.5 <- 5
+time_f$key.5 <- 5
+time_a$key.6 <- 6
+time_g$key.6 <- 6
+time_a$key.7 <- 7
+time_h$key.7 <- 7
+time_a$key.8 <- 8
+time_i$key.8 <- 8
+time_a$key.9 <- 9
+time_j$key.9 <- 9
+
+# Perform the Cartesian joins and compute differences
+calculate_center <- function(time_a, time_other, suffix, key_col, comparison_visit) {
+  merged <- merge(time_a, time_other, by = key_col, all = TRUE, suffixes = c("", suffix)) %>%
+    dplyr::select(-contains("key"))
+  center <- merged
+  center$V1_diff <- merged[[paste0("V1", suffix)]] - merged$V1
+  center$V2_diff <- merged[[paste0("V2", suffix)]] - merged$V2
+  center$V3_diff <- merged[[paste0("V3", suffix)]] - merged$V3
+  center$visit_sum <- merged[[paste0("visit_sum", suffix)]]
+  center$comparison_visit <- comparison_visit
+  center <- center[, c("V1", "V1_diff", "V2", "V2_diff", "V3", "V3_diff", "visit_sum", "comparison_visit")]
+  return(center)
+}
+
+ab_center <- calculate_center(time_a, time_b, ".b", "key", "1")
+ac_center <- calculate_center(time_a, time_c, ".c", "key.2", "2")
+ad_center <- calculate_center(time_a, time_d, ".d", "key.3", "3")
+ae_center <- calculate_center(time_a, time_e, ".e", "key.4", "4")
+af_center <- calculate_center(time_a, time_f, ".f", "key.5", "5")
+ag_center <- calculate_center(time_a, time_g, ".g", "key.6", "6")
+ah_center <- calculate_center(time_a, time_h, ".h", "key.7", "7")
+ai_center <- calculate_center(time_a, time_i, ".i", "key.8", "8")
+aj_center <- calculate_center(time_a, time_j, ".j", "key.9", "9")
+
+# Combine all the center dataframes
+all_centers <- rbind(
+  ab_center,
+  ac_center,
+  ad_center,
+  ae_center,
+  af_center,
+  ag_center,
+  ah_center,
+  ai_center,
+  aj_center
+)
+
+# Set V1, V2, and V3 from time_a (control) to 0
+all_centers$V1 <- 0
+all_centers$V2 <- 0
+all_centers$V3 <- 0
+
+# Calculate the means of BC distances per visit_sum
+means <- all_centers %>%
+  group_by(visit_sum) %>%
+  summarise(Mean_V1 = median(V1_diff), Mean_V2 = median(V2_diff), Mean_V3 = median(V3_diff))
+
+means$center_v1 <- 0
+means$center_v2 <- 0
+means$center_v3 <- 0
+
+# Plot arrows for each pair of coordinates V1 and V2
+p1 <- ggplot(all_centers, aes(x = V1, y = V2)) +
+  geom_point(aes(x = V1, y = V2), size = 6,color="#8176AA", shape=8) + 
+  geom_segment(aes(x = V1,
+                  y = V2,
+                   xend = V1_diff,
+                   yend = V2_diff,
+                   color = visit_sum), alpha = 0.045,
+               arrow = arrow (length = unit(0.3,"cm")))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V2,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v2,
+                   xend = Mean_V1,
+                   yend = Mean_V2,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  xlim(-0.6,0.15)+
+  ylim(-0.45, 0.4)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo1 (", round(percentage_explained[1], digits = 1), "%)")) +
+  ylab(paste0("PCo2 (", round(percentage_explained[2], digits = 1), "%)"))
+
+# plot "V1", "V3"
+p2 <- ggplot(all_centers, aes(x = V1, y = V3)) +
+  geom_point(aes(x = V1, y = V3), size = 6,color="#8176AA", shape=8) + 
+  geom_segment(aes(x = V1,
+                  y = V3,
+                   xend = V1_diff,
+                   yend = V3_diff,
+                   color = visit_sum), alpha = 0.045,
+               arrow = arrow (length = unit(0.3,"cm")))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V3,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v3,
+                   xend = Mean_V1,
+                   yend = Mean_V3,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  xlim(-0.6,0.15)+
+  ylim(-0.45, 0.4)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo1 (", round(percentage_explained[1], digits = 1), "%)"))+
+  ylab(paste0("PCo3 (", round(percentage_explained[3], digits = 1), "%)"))
+
+#plot "V2", "V3"
+p3 <- ggplot(all_centers, aes(x = V2, y = V3)) +
+  geom_point(aes(x = V2, y = V3), size = 6,color="#8176AA", shape=8) + 
+  geom_segment(aes(x = V2,
+                  y = V3,
+                   xend = V2_diff,
+                   yend = V3_diff,
+                   color = visit_sum), alpha = 0.045,
+               arrow = arrow (length = unit(0.3,"cm")))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V2, y = Mean_V3,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v2,
+                   y = center_v3,
+                   xend = Mean_V2,
+                   yend = Mean_V3,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  xlim(-0.45,0.45)+
+  ylim(-0.35, 0.45)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo2 (", round(percentage_explained[2], digits = 1), "%)"))+
+  ylab(paste0("PCo3 (", round(percentage_explained[3], digits = 1), "%)"))
+```
+
+
+```{r, fig.width=16, fig.height=5}
+# Display plots
+ggarrange(p1,p2,p3, nrow = 1, common.legend = T, legend = "bottom")
+
+```
+```{r}
+p1 <- ggplot(all_centers, aes(x = V1, y = V2)) +
+  geom_point(aes(x = V1, y = V2), size = 6,color="#8176AA", shape=8) + 
+  geom_point(aes(x = V1_diff,
+                  y = V2_diff,
+                   color = visit_sum), alpha = 0.05)+
+  stat_ellipse(aes(x = V1_diff,
+                  y = V2_diff,
+                   color = visit_sum))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V2,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v2,
+                   xend = Mean_V1,
+                   yend = Mean_V2,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  #xlim(-0.45,0.45)+
+  #ylim(-0.35, 0.45)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo1 (", round(percentage_explained[1], digits = 1), "%)"))+
+  ylab(paste0("PCo2 (", round(percentage_explained[2], digits = 1), "%)"))
+
+p2 <- ggplot(all_centers, aes(x = V1, y = V3)) +
+  geom_point(aes(x = V1, y = V3), size = 6,color="#8176AA", shape=8) + 
+  geom_point(aes(x = V1_diff,
+                  y = V3_diff,
+                   color = visit_sum), alpha = 0.05)+
+  stat_ellipse(aes(x = V1_diff,
+                  y = V3_diff,
+                   color = visit_sum))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V1, y = Mean_V3,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v1,
+                   y = center_v3,
+                   xend = Mean_V1,
+                   yend = Mean_V3,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  #xlim(-0.45,0.45)+
+  #ylim(-0.35, 0.45)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo1 (", round(percentage_explained[1], digits = 1), "%)"))+
+  ylab(paste0("PCo3 (", round(percentage_explained[3], digits = 1), "%)"))
+
+p3 <- ggplot(all_centers, aes(x = V2, y = V3)) +
+  geom_point(aes(x = V2, y = V3), size = 6,color="#8176AA", shape=8) + 
+  geom_point(aes(x = V2_diff,
+                  y = V3_diff,
+                   color = visit_sum), alpha = 0.05)+
+  stat_ellipse(aes(x = V2_diff,
+                  y = V3_diff,
+                   color = visit_sum))+
+  theme_classic()+
+  scale_color_manual(values = visit_sum_palette)+
+  scale_fill_manual(values = visit_sum_palette, labels=shape_labels)+
+  scale_shape_manual(values = c(21:25),labels=shape_labels)+
+  geom_point(data = means, aes(x = Mean_V2, y = Mean_V3,  fill= visit_sum, shape = visit_sum), color="black", size = 4)+
+  # add arrow centroids (mean per visit sum)
+  geom_segment(data = means,
+               aes(x = center_v2,
+                   y = center_v3,
+                   xend = Mean_V2,
+                   yend = Mean_V3,
+                   color = visit_sum),
+               arrow = arrow (length = unit(0.4,"cm")), linetype = 2)+
+  xlim(-0.45,0.45)+
+  ylim(-0.35, 0.5)+
+  guides(color="none",shape = guide_legend(title = "Median BC dissimilarity to controls by"),fill = guide_legend(title = "Median BC dissimilarity to controls by"))+
+  theme(legend.position = "bottom", legend.title.position = "top",text=element_text(size=20))+
+  xlab(paste0("PCo2 (", round(percentage_explained[2], digits = 1), "%)"))+
+  ylab(paste0("PCo3 (", round(percentage_explained[3], digits = 1), "%)"))
+```
+
+```{r, fig.width=16, fig.height=5}
+# Display plots
+ggarrange(p1,p2,p3, nrow = 1, common.legend = T, legend = "bottom")
+
+```
+

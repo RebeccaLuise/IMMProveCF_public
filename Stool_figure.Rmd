@@ -1,0 +1,82 @@
+---
+title: "stool figure"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+#install.packages("ggplot2")
+#install.packages("gridExtra")
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, microViz, knitr, lubridate, naniar, readxl, ggplot2, ggpubr, ggalluvial, metadeconfoundR)
+
+#pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
+
+library(gridExtra)
+library(scales)
+library(ggplot2)
+library(metadeconfoundR)
+
+packageVersion("ggplot2")
+library(dplyr)
+library(gridExtra)
+library(scales)
+remotes::install_version("ggplot2", version = "3.1.0")
+library(ggplot2)
+```
+
+# read figures from rds files
+```{r}
+tax_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_stool_patients.rds")
+tax_stool
+
+tax_stool_legend <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_stool.rds")
+tax_stool_legend
+
+metad_stool <-  readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/stool_metaD_25percentprevalence.rds")
+metad_stool
+
+cor <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/cor_esch_cale_stool.rds")
+cor
+
+hm_div_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/stool_div_hm.rds")
+hm_div_stool
+
+```
+
+# harmonize font size
+```{r}
+metad_stool <- metad_stool+ theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+
+hm_div_stool <- hm_div_stool+ theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+
+tax_stool_legend <- tax_stool_legend+ theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+
+cor <- cor + theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+```
+# arrange figure
+```{r, fig.width=16, fig.height=10}
+
+library(gridExtra)
+
+
+grid_arranged <- grid.arrange(
+  tax_stool_legend + labs(tag = "A") ,
+  metad_stool + labs(tag = "B") ,
+  hm_div_stool + labs(tag = "D"),
+  cor+ labs(tag = "C"),
+  ncol = 4, nrow = 4,
+  heights = c(1, 1, 0.75, 0.75),
+  widths=c(1.25,1.15,1.5,1.5),
+  layout_matrix = rbind(c(1,1,2,2),
+                        c(1,1,2,2),
+                        c(4,3,2,2),
+                        c(4,3,2,2))
+                       )
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure.png",grid_arranged, dpi = 300, width = 16, height = 10)
+```

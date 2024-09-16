@@ -1,0 +1,139 @@
+---
+title: "Combine sputum plot"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+#install.packages("ggplot2")
+#install.packages("gridExtra")
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, microViz, knitr, lubridate, naniar, readxl, ggplot2, ggpubr, ggalluvial, metadeconfoundR)
+
+#pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
+
+library(gridExtra)
+library(scales)
+```
+
+# read figures from rds files
+```{r}
+dom_spu <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.rds")
+tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum.rds")
+tax_sputum_woLegend <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum_woLegend.rds")
+
+metad_sputum <-  readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metad.rds")
+
+staph <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/staph_sweat_chloride.rds")
+
+hm_div_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/hm_div_sputum.rds")
+
+ic <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IC25_Annes_Version.rds")
+ic
+#ic <- readRDS("/Users/rebecca/Downloads/IC25_Annes_Version.rds") at the current this does not work, so I create a dummy below
+#class(ic)
+
+#ic <- ic+
+  # theme(
+    #text = element_text(size = 10),
+  #  axis.text = element_text(size = 10))+
+  #ggtitle("High-throughput testing of bacteria-drug interaction")
+```
+# harmonize font size
+```{r}
+
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF")
+
+dom_spu <- dom_spu + theme(text = element_text(size = 12), legend.text = element_text(size = 12)) +
+  scale_fill_manual(values= dom_palette,guide =
+                         guide_legend(label.theme = element_text(angle = 0, face = "italic", size = 12)))
+
+tax_sputum <- tax_sputum
+
+metad_sputum <- metad_sputum + theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+  
+
+hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 12), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
+  guides(title.position = "left")
+
+staph <- staph +theme(text = element_text(size = 12))
+
+```
+
+```{r}
+# Load the necessary libraries
+library(ggplot2)
+library(reshape2)
+
+# Create a dummy dataset
+data <- data.frame(
+  Bacteria = rep(c("S. pneumoniae", "S. aureus", "P. aeruginosa1", "P. aeruginosa2", "P. aeruginosa3", 
+                   "P. aeruginosa4", "P. putida", "P. citronellolis", "V. alginolyticus", "S. anginosus", 
+                   "N. mucosa", "S. oralis", "L. sakei", "B. cereus", "L. fermentum", "B. subtilis", 
+                   "P. mirabilis", "H. parainfluenzae", "P. parainfluenzae", "F. nucleatum", "S. salivarius", "M. tuberculosis", "L. pneumophila", "K. pneumoniae", "B. eggertii", "S. parasanguinis", "M. catarrhalis", "V. parvula", "P. melaninogenica"), each=6),
+  Drug = rep(c("Ciprofloxacin", "Cefuroxime", "Ivacaftor", "Elexacaftor", "Lumacaftor", "Tezacaftor"), 29),
+  IC25 = runif(174, min = 0, max = 20)
+)
+
+
+# Set specific ranges for IC25 for better visualization
+data$IC25[data$IC25 < 1.25] <- runif(sum(data$IC25 < 1.25), min = 0, max = 1.25)
+data$IC25[data$IC25 >= 1.25 & data$IC25 < 2.5] <- runif(sum(data$IC25 >= 1.25 & data$IC25 < 2.5), min = 1.25, max = 2.5)
+data$IC25[data$IC25 >= 2.5 & data$IC25 < 5] <- runif(sum(data$IC25 >= 2.5 & data$IC25 < 5), min = 2.5, max = 5)
+data$IC25[data$IC25 >= 5 & data$IC25 < 10] <- runif(sum(data$IC25 >= 5 & data$IC25 < 10), min = 5, max = 10)
+data$IC25[data$IC25 >= 10 & data$IC25 < 20] <- runif(sum(data$IC25 >= 10 & data$IC25 < 20), min = 10, max = 20)
+data$IC25[data$IC25 >= 20] <- runif(sum(data$IC25 >= 20), min = 20, max = 40)
+
+# Reshape the data for plotting
+data_melt <- melt(data, id.vars = c("Bacteria", "Drug"))
+
+data_melt
+
+# Create the heatmap
+ic <- ggplot(data_melt, aes(x = Bacteria, y = Drug, fill = value)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = c("#d73027", "#fc8d59", "#fee08b", "#d9ef8b", "#91cf60", "#1a9850"),
+                       values = rescale(c(0, 1.25, 2.5, 5, 10, 20, 40)),
+                       limits = c(0, 40),
+                       name = "IC25 [μM]") +
+  labs(title = "High-throughput testing of bacteria-drug interaction") +
+  theme_minimal() +
+  theme(text=element_text(size = 12), axis.text.x = element_text(angle = 45, hjust = 1, size = 12))
+
+ic
+```
+```{r}
+#try to create plot on existing data
+
+
+```
+
+
+```{r, fig.width=16, fig.height=20}
+library(ggplot2)
+library(gridExtra)
+library(ggalluvial)
+
+grid_arranged <- grid.arrange(
+  dom_spu + labs(tag = "A") ,
+  tax_sputum + labs(tag = "B") ,
+  metad_sputum + labs(tag = "C") +ggtitle(""),
+  ic + labs(tag = "F"),
+  hm_div_sputum + labs(tag = "E"),
+  staph+ labs(tag = "D"),
+  ncol = 4, nrow = 4,
+  heights = c(0.75, 1.5, 1, 1),
+  widths=c(1.25,1.25,1.5,1.5),
+  layout_matrix = rbind(c(1,1,3,3),
+                        c(2,2,3,3),
+                        c(6,5,3,3),
+                        c(4,4,4,4))
+                       )
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure.png",grid_arranged, dpi = 300, width = 16, height = 20)
+```
+

@@ -1,0 +1,584 @@
+---
+title: "Mediation analysis"
+author: "Rebecca L. Knoll"
+date: "last edit `r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar,  ggplot2, microViz)
+#install.packages("mediation")
+library(mediation) #Mediation package
+library(rockchalk) #Graphing simple slopes; moderation
+library(multilevel) #Sobel Test
+library(bda) #Another Sobel Test option
+library(gvlma) #Testing Model Assumptions 
+library(stargazer) #Handy regression tables
+```
+# load data
+```{r}
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+ps_full_sputum <- subset_samples(ps_full, material== "Sputum")
+ps_full_stool <- subset_samples(ps_full, material== "Stool")
+ps_full_throat <- subset_samples(ps_full, material== "Throat")
+
+ps_full_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1) # has 632 taxa
+
+set.seed(100)
+ps_full_sputum_rar <- rarefy_even_depth(ps_full_sputum, rngseed=FALSE, sample.size=8000, replace=T, trimOTUs = T, verbose = T) # has 597 taxa
+ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.25) # has 101 taxa
+ps_sputum_filtered_rar <- tax_filter(ps_full_sputum_rar, min_prevalence = 0.25) # has 39 taxa
+
+ps_full_throat <- tax_filter(ps_full_throat, min_prevalence = 1) # removes 0s, has 2237 taxa
+ps_full_throat_rar <- rarefy_even_depth(ps_full_throat, rngseed=FALSE, sample.size=5500, replace=T, trimOTUs = T, verbose = T)
+ps_throat_filtered <- tax_filter(ps_full_throat, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 107 taxa
+ps_throat_filtered_rar <- tax_filter(ps_full_throat_rar, min_prevalence = 0.25) # has 70 taxa
+
+
+ps_full_stool <- tax_filter(ps_full_stool, min_prevalence = 1) # removes 0s, has 2341 taxa
+ps_full_stool_rar <- rarefy_even_depth(ps_full_stool, rngseed=FALSE, sample.size=6500, replace=T, trimOTUs = T, verbose = T) # has 1935 taxa
+ps_stool_filtered <- tax_filter(ps_full_stool, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 124 taxa
+ps_stool_filtered_rar <- tax_filter(ps_full_stool_rar, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 123 taxa
+
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x))
+ps_sputum_filtered_relab <- transform_sample_counts(ps_sputum_filtered, function(x) x/sum(x))
+ps_throat_filtered_relab <- transform_sample_counts(ps_throat_filtered, function(x) x/sum(x))
+ps_stool_filtered_relab <- transform_sample_counts(ps_stool_filtered, function(x) x/sum(x))
+
+# extract Staphylococcus abundance from Sputum
+
+sputum_df <- psmelt(ps_sputum_filtered_relab)
+sputum_df <- sputum_df %>% 
+  mutate(Abundance=Abundance*100) # transform relative abundance into percentages
+
+staph_df <- sputum_df%>% 
+  filter(Genus=="Staphylococcus")
+
+tabyl(staph_df, id.x,visit_cal_cor) # summary of sputum samples and to check that there is only 1 sample per patient per visit
+```
+# Mediation analysis on Staphylococcus abundance mediated by sweat chloride, dependent on ETI treatment duration (days) using`JSmediation` package, as in Morgan Essex Gespic Paper
+
+```{r}
+# Install and load necessary packages
+#install.packages("JSmediation")
+#install.packages("lme4")
+library(JSmediation)
+library(lme4)
+
+# Fit the mixed-effects models
+fitM_staph <- lmer(chlorid_mmol_cl_l ~ delta_ETI_merged + sex + age_y + (1 | id.x), data = staph_df)
+fitY_staph <- lmer(Abundance ~ delta_ETI_merged + chlorid_mmol_cl_l + sex + age_y + (1 | id.x), data = staph_df)
+
+# Perform the mediation analysis using mdt_simple
+mediation_result <- mdt_simple(staph_df, # data set
+                               delta_ETI_merged, # predictor
+                               Abundance, # outcome
+                               chlorid_mmol_cl_l) # mediator
+mediation_result
+med_output <- add_index(mediation_result)
+med_output$type
+med_output$method
+med_output$params
+med_output$paths
+med_output$indirect_index
+med_output$indirect_index_infos
+med_output$js_models
+
+# Summarize the mediation analysis
+summary(mediation_result)
+
+```
+
+
+
+
+
+
+Interpretation of mediation analysis using the `mdt_simple()` function from the `JSmediation` package, lets break down the key components:
+
+### Variables:
+- **IV (Independent Variable)**: `delta_ETI_merged`
+- **DV (Dependent Variable)**: `Abundance`
+- **M (Mediator)**: `chlorid_mmol_cl_l`
+
+### Paths:
+- **Path a (IV to Mediator)**:
+  - Point Estimate: -0.07241581
+  - Standard Error: 0.01501267
+  - t(31) = 4.82, p < .001
+  - Interpretation: There is a significant negative effect of `delta_ETI_merged` on `chlorid_mmol_cl_l`. This means that as `delta_ETI_merged` increases, `chlorid_mmol_cl_l` decreases significantly.
+
+- **Path b (Mediator to DV, controlling for IV)**:
+  - Point Estimate: 0.331141
+  - Standard Error: 0.1500046
+  - t(30) = 2.21, p = .035
+  - Interpretation: There is a significant positive effect of `chlorid_mmol_cl_l` on `Abundance`, controlling for `delta_ETI_merged`. This means that as `chlorid_mmol_cl_l` increases, `Abundance` increases significantly.
+
+- **Path c (Total effect of IV on DV)**:
+  - Point Estimate: -0.02906967
+  - Standard Error: 0.007989211
+  - t(55) = 3.64, p < .001
+  - Interpretation: There is a significant negative total effect of `delta_ETI_merged` on `Abundance`. This means that as `delta_ETI_merged` increases, `Abundance` decreases significantly.
+
+- **Path c (Direct effect of IV on DV, controlling for Mediator)**:
+  - Point Estimate: -0.0097406
+  - Standard Error: 0.01658947
+  - t(30) = 0.59, p = .561
+  - Interpretation: The direct effect of `delta_ETI_merged` on `Abundance`, controlling for `chlorid_mmol_cl_l`, is not significant. This suggests that the relationship between `delta_ETI_merged` and `Abundance` is largely mediated by `chlorid_mmol_cl_l`.
+
+### Indirect Effect:
+- **Indirect effect (a * b)**:
+  - Point Estimate: -0.024
+  - Confidence Interval (95%): [-0.0498, -0.00286]
+  - Method: Monte Carlo (5000 iterations)
+  - Interpretation: The indirect effect of `delta_ETI_merged` on `Abundance` through `chlorid_mmol_cl_l` is significant (since the confidence interval does not include zero). This indicates that `chlorid_mmol_cl_l` significantly mediates the relationship between `delta_ETI_merged` and `Abundance`.
+
+### Summary:
+- **Significant Indirect Effect**: The mediation analysis reveals that `chlorid_mmol_cl_l` significantly mediates the effect of `delta_ETI_merged` on `Abundance`. This is supported by the significant paths a and b, as well as the significant indirect effect.
+- **Non-significant Direct Effect**: The direct effect of `delta_ETI_merged` on `Abundance`, controlling for `chlorid_mmol_cl_l`, is not significant. This suggests that the effect of `delta_ETI_merged` on `Abundance` is primarily through its effect on `chlorid_mmol_cl_l`.
+
+### Reporting the Results
+
+The mediation analysis examined whether `chlorid_mmol_cl_l` mediated the relationship between `delta_ETI_merged` and `Abundance`. 
+
+The analysis revealed a significant negative total effect of `delta_ETI_merged` on `Abundance` (c path: β = -0.029, SE = 0.008, t(55) = 3.64, p < .001). The direct effect of `delta_ETI_merged` on `Abundance`, controlling for `chlorid_mmol_cl_l`, was not significant (c`'` path: β = -0.010, SE = 0.017, t(30) = 0.59, p = .561).
+
+The effect of `delta_ETI_merged` on `chlorid_mmol_cl_l` was significant and negative (a path: β = -0.072, SE = 0.015, t(31) = 4.82, p < .001). Additionally, the effect of `chlorid_mmol_cl_l` on `Abundance`, controlling for `delta_ETI_merged`, was significant and positive (b path: β = 0.331, SE = 0.150, t(30) = 2.21, p = .035).
+
+The indirect effect of `delta_ETI_merged` on `Abundance` through `chlorid_mmol_cl_l` was significant (β = -0.024, 95% CI [-0.0498, -0.00286]), indicating that `chlorid_mmol_cl_l` significantly mediated the relationship between `delta_ETI_merged` and `Abundance`.
+
+These results suggest that the impact of `delta_ETI_merged` on `Abundance` is largely mediated by changes in `chlorid_mmol_cl_l`, highlighting the important role of `chlorid_mmol_cl_l` in this relationship.
+
+# Mediation analysis with the mediate package on Staphylococcus abundance mediated by sweat chloride, dependent on ETI treatment duration (days)
+```{r}
+
+# perform mediation analysis for Staphylococcus
+fitM_staph <- lm(staph_df$chlorid_mmol_cl_l ~ staph_df$delta_ETI_merged + staph_df$sex + staph_df$age_y)   ####### M: sweat chloride predicting X: tt time
+fitY_staph <- lm(staph_df$Abundance ~ staph_df$delta_ETI_merged + staph_df$chlorid_mmol_cl_l + staph_df$sex + staph_df$age_y) 
+                 ###### X: tt time and M: sweat chloride predicting Y:Staph abundance
+
+summary(fitM_staph)
+summary(fitY_staph)
+gvlma(fitM_staph)
+gvlma(fitY_staph)
+
+fitMed_staph <- mediate(fitM_staph, fitY_staph, treat="staph_df$delta_ETI_merged", mediator="staph_df$chlorid_mmol_cl_l")
+summary(fitMed_staph)
+plot(fitMed_staph)
+
+```
+Mediation Analysis Overview
+
+In a mediation analysis, we are interested in understanding whether the effect of an independent variable (treatment) on a dependent variable (outcome) is mediated through a third variable (mediator).
+
+Here, the variables are:
+
+    Treatment (X): staph_df$delta_ETI_merged (tt time)
+    Mediator (M): staph_df$chlorid_mmol_cl_l (sweat chloride)
+    Outcome (Y): staph_df$Abundance (Staphylococcus abundance)
+
+Fit Models
+
+    Mediator Model (fitM_staph):
+    Mediator (M)=β0+β1⋅Treatment (X)+β2⋅sex+β3⋅age
+    Mediator (M)=β0​+β1​⋅Treatment (X)+β2​⋅sex+β3​⋅age
+
+    This model examines how the treatment (tt time) affects the mediator (sweat chloride).
+
+    Outcome Model (fitY_staph):
+    Outcome (Y)=γ0+γ1⋅Treatment (X)+γ2⋅Mediator (M)+γ3⋅sex+γ4⋅age
+    Outcome (Y)=γ0​+γ1​⋅Treatment (X)+γ2​⋅Mediator (M)+γ3​⋅sex+γ4​⋅age
+
+    This model examines how both the treatment (tt time) and the mediator (sweat chloride) affect the outcome (Staphylococcus abundance).
+
+Mediation Analysis Results
+
+The mediate function combines the results from these models to decompose the total effect of the treatment on the outcome into:
+
+    ACME (Average Causal Mediation Effect): The effect of the treatment on the outcome that is mediated through the mediator.
+    ADE (Average Direct Effect): The effect of the treatment on the outcome that is not mediated through the mediator.
+    Total Effect: The combined effect of ACME and ADE.
+    Proportion Mediated: The proportion of the total effect that is mediated through the mediator.
+
+Interpretation of Results
+
+    ACME: Estimate = -0.02675, 95% CI = [-0.05391, 0.00], p-value = 0.022
+        The average causal mediation effect is significant at the 5% level (p-value < 0.05), suggesting that the treatment's effect on the outcome is mediated through the sweat chloride levels.
+
+    ADE: Estimate = -0.00621, 95% CI = [-0.04021, 0.03], p-value = 0.720
+        The average direct effect is not significant (p-value > 0.05), indicating that the treatment does not have a significant direct effect on the outcome when controlling for the mediator.
+
+    Total Effect: Estimate = -0.03296, 95% CI = [-0.05993, 0.00], p-value = 0.014
+        The total effect is significant at the 5% level (p-value < 0.05), indicating that the treatment has a significant overall effect on the outcome.
+
+    Proportion Mediated: Estimate = 0.80567, 95% CI = [0.08188, 3.86], p-value = 0.036
+        The proportion of the total effect that is mediated through sweat chloride is significant, with about 80.57% of the total effect being mediated.
+
+Conclusion
+
+The results suggest that the effect of tt time on Staphylococcus abundance is largely mediated through sweat chloride levels. This means that changes in sweat chloride due to the treatment (tt time) play a crucial role in influencing Staphylococcus abundance. The direct effect of the treatment on Staphylococcus abundance, independent of sweat chloride levels, is not significant.
+
+# revers the mediation effect for confirmation
+```{r}
+# perform mediation analysis for Staphylococcus
+fitM_staph_r <- lm(staph_df$delta_ETI_merged ~ staph_df$chlorid_mmol_cl_l + staph_df$sex + staph_df$age_y)   ####### M: sweat chloride predicting X: tt time
+fitY_staph <- lm(staph_df$Abundance ~ staph_df$delta_ETI_merged + staph_df$chlorid_mmol_cl_l + staph_df$sex + staph_df$age_y) 
+                 ###### X: tt time and M: sweat chloride predicting Y:Staph abundance
+
+summary(fitM_staph_r)
+summary(fitY_staph)
+gvlma(fitM_staph_r)
+gvlma(fitY_staph)
+
+fitMed_staph_r <- mediate(fitM_staph_r, fitY_staph, treat= "staph_df$chlorid_mmol_cl_l", mediator= "staph_df$delta_ETI_merged")
+summary(fitMed_staph_r)
+plot(fitMed_staph)
+```
+
+# add random effects for repeated measures:
+
+```{r}
+# perform mediation analysis for Staphylococcus
+fit.totaleffect <- lmer(Abundance ~ delta_ETI_merged + (1|id.x) + sex + age_y, data = staph_df) # this is computed for all sputum samples (N=57) and not truely needed for the subsequent analysis
+fit.mediator <- lmer(chlorid_mmol_cl_l ~ delta_ETI_merged + (1|id.x) + sex + age_y, data = staph_df)
+fitY<- lmer(Abundance ~ delta_ETI_merged + (1|id.x) + chlorid_mmol_cl_l + sex + age_y, data = staph_df) 
+
+summary(fit.totaleffect)
+summary(fit.mediator)
+summary(fitY)
+
+fitMed_staph <- mediate(fit.mediator, fitY, treat= "delta_ETI_merged", mediator=  "chlorid_mmol_cl_l")
+summary(fitMed_staph)
+plot(fitMed_staph)
+```
+# function for mediation analysis with repeated measures
+```{r}
+library(lme4)
+library(mediation)
+
+# Define the function for mediation analysis
+perform_mediation_analysis <- function(data, mediator, outcome, predictor, id_var, covariates) {
+  # Construct the covariates string
+  covariates_str <- paste(covariates, collapse = " + ")
+  
+  # Construct formulas for the models
+  mediator_formula <- as.formula(paste(mediator, "~", predictor, "+ (1|", id_var, ") +", covariates_str))
+  outcome_formula <- as.formula(paste(outcome, "~", predictor, "+ (1|", id_var, ") +", mediator, "+", covariates_str))
+  
+  # Fit the models
+  fit.mediator <- lmer(mediator_formula, data = data)
+  fitY <- lmer(outcome_formula, data = data)
+  
+  # Print summaries of the models
+  print(summary(fit.mediator))
+  print(summary(fitY))
+  
+  # Perform mediation analysis
+  fitMed <- mediate(fit.mediator, fitY, treat = predictor, mediator = mediator)
+  
+  # Print summary and plot the results
+  print(summary(fitMed))
+  plot(fitMed)
+  
+  return(fitMed)
+}
+```
+
+# Staphylococcus abundance in Sputum, mediated by sweat chloride, corrected for id as repeated measure
+```{r}
+# Define the dataset and variables
+data <- staph_df
+mediator <- "chlorid_mmol_cl_l"
+outcome <- "Abundance"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis
+fitMed_result_staph <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+summary(fitMed_result_staph)
+```
+# Staphylococcus abundance in Sputum, mediated by sweat chloride, corrected for id as repeated measure
+```{r}
+# Define the dataset and variables
+data <- staph_df
+mediator <- "chlorid_mmol_cl_l"
+outcome <- "Abundance"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis
+fitMed_result_staph <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+summary(fitMed_result_staph)
+```
+
+# reversed
+```{r}
+# Define the dataset and variables
+data <- staph_df
+mediator <-  "delta_ETI_merged"
+outcome <- "Abundance"
+predictor <- "chlorid_mmol_cl_l"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis
+fitMed_result_staph_r <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+summary(fitMed_result_staph_r)
+```
+
+# Test sputum diversity in mediation
+```{r}
+alphadiversity_df_sputum <- microbiome::alpha(ps_full_sputum_rar, index = "all")
+alphadiversity_df_sputum$x_sample_id <- rownames(alphadiversity_df_sputum)
+alphadiversity_df_sputum_sel <- alphadiversity_df_sputum %>% 
+  dplyr::select(diversity_shannon, observed, evenness_pielou, dominance_dbp, x_sample_id)
+
+ps_full_sputum_df <- as.data.frame(sample_data(ps_full_sputum))
+
+diversity_df_sputum_metadata<- alphadiversity_df_sputum%>%
+left_join(ps_full_sputum_df, by = "x_sample_id")
+
+summary(diversity_df_sputum_metadata$diversity_shannon)
+# Define the dataset and variables
+data <- diversity_df_sputum_metadata
+mediator <- "chlorid_mmol_cl_l"
+outcome <- "diversity_shannon"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis for shannon and sweat chloride
+fitMed_result_shannon <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for observed and sweat chloride
+outcome <- "observed"
+fitMed_result_obs <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for diversity and levofloxacin
+diversity_df_sputum_metadata <- diversity_df_sputum_metadata %>% 
+  mutate(levofloxacin_inhal=case_when(levofloxacin_inhal==0~0, levofloxacin_inhal==2~1))
+summary(diversity_df_sputum_metadata$levofloxacin_inhal)
+data <- diversity_df_sputum_metadata
+outcome <- "diversity_shannon"
+mediator <- "levofloxacin_inhal"
+fitMed_result_shannon_levofloxacin <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and levofloxacin
+outcome <- "observed"
+mediator <- "levofloxacin_inhal"
+fitMed_result_richness_levofloxacin <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and levofloxacin, predictor: lung function
+outcome <- "diversity_shannon"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_diversity_levofloxacin <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and levofloxacin, predictor: lung function
+outcome <- "observed"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_richness_levofloxacin <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and levofloxacin, predictor: lung function, include treatment days as an additional fixed effect
+outcome <- "diversity_shannon"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y", "delta_ETI_merged")
+fitMed_result_diversity_levofloxacin_eti <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and levofloxacin, predictor: lung function, include treatment time as a fixed effect
+outcome <- "observed"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y", "delta_ETI_merged")
+fitMed_result_richness_levofloxacin_eti <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# test lung function as predictor of diversity independent of levofloxacin
+model <- lmer(diversity_shannon ~ pp_fev_percent + (1|id.x) + sex + age_y, data = diversity_df_sputum_metadata)
+
+# in metadeconfoundR the confounder of this is sweat chloride concentration, so I rerun mediation analysis inspecting: diversity (outcome) ~ lung function (predictor) + sweat chloride (mediator)
+outcome <- "diversity_shannon"
+mediator <- "chlorid_mmol_cl_l"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_diversity_chloride <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+outcome <- "observed"
+mediator <- "chlorid_mmol_cl_l"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_richness_chloride <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# next I include sweat chloride as a covariate, as it has been identified as a confounder, thus should be included in the model
+outcome <- "diversity_shannon"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y","chlorid_mmol_cl_l")
+fitMed_result_diversity_levo_chloride <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Rerun for richness (richness prediced from lung function has no confounders in metadeconfoundR reported, as it was also not significant)
+outcome <- "observed"
+mediator <- "levofloxacin_inhal"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_richness_levo <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# chloride as mediator
+outcome <- "observed"
+mediator <- "chlorid_mmol_cl_l"
+predictor <- "pp_fev_percent"
+covariates <- c("sex", "age_y")
+fitMed_result_richness_chloride <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+```
+# Stool
+## investigating the effect of total number of antibiotic treatment days on alpha diversity
+```{r}
+alphadiversity_df_stool <- microbiome::alpha(ps_full_stool_rar, index = "all")
+alphadiversity_df_stool$x_sample_id <- rownames(alphadiversity_df_stool)
+alphadiversity_df_stool_sel <- alphadiversity_df_stool %>% 
+  dplyr::select(diversity_shannon, observed, evenness_pielou, dominance_dbp, x_sample_id)
+
+ps_full_stool_df <- as.data.frame(sample_data(ps_full_stool))
+
+diversity_df_stool_metadata<- alphadiversity_df_stool%>%
+left_join(ps_full_stool_df, by = "x_sample_id")
+
+summary(diversity_df_stool_metadata$diversity_shannon)
+# Define the dataset and variables
+data <- diversity_df_stool_metadata
+mediator <- "chlorid_mmol_cl_l"
+outcome <- "diversity_shannon"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis for shannon and sweat chloride
+fitMed_result_shannon <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for observed and sweat chloride
+outcome <- "observed"
+fitMed_result_obs <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for diversity and antibiotic treatment days
+summary(diversity_df_stool_metadata$treatmentdays_365prior_visit)
+data <- diversity_df_stool_metadata
+outcome <- "diversity_shannon"
+mediator <- "treatmentdays_365prior_visit"
+covariates <- c("sex", "age_y")
+
+fitMed_result_shannon_atb <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for richness and antibiotic treatment days
+outcome <- "observed"
+mediator <- "treatmentdays_365prior_visit"
+fitMed_result_richness_levofloxacin <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+```
+```{r}
+
+# extract Escherichia abundance from Stool
+
+stool_df <- psmelt(ps_stool_filtered_relab)
+stool_df <- stool_df %>% 
+  mutate(Abundance=Abundance*100) # transform relative abundance into percentages
+
+esch_df <- stool_df%>% 
+  filter(Genus=="Escherichia_Shigella")
+
+tabyl(esch_df, id.x,visit_cal_cor) # summary of stool samples and to check that there is only 1 sample per patient per visit
+
+# Define the dataset and variables
+data <- esch_df
+mediator <- "calprotectin_amg_g_stuhl"
+outcome <- "Abundance"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis 
+fitMed_result_esch_calp <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Define the dataset and variables
+data <- esch_df
+mediator <- "delta_ETI_merged"
+outcome <- "Abundance"
+predictor <- "calprotectin_amg_g_stuhl"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis 
+fitMed_result_reversed <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Define the dataset and variables
+data <- esch_df
+mediator <- "calprotectin_amg_g_stuhl"
+outcome <- "Abundance"
+predictor <- "BMI"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis 
+fitMed_result_reversed <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Define the dataset and variables
+data <- esch_df
+mediator <- "BMI" 
+outcome <- "Abundance"
+predictor <- "calprotectin_amg_g_stuhl"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis 
+fitMed_result_reversed <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+summary(lmerTest::lmer(Abundance~BMI+calprotectin_amg_g_stuhl+age_y+sex+(1|id.x), data = esch_df))
+summary(lmerTest::lmer(Abundance~log10(calprotectin_amg_g_stuhl)+age_y+sex+(1|id.x), data = esch_df))
+
+
+# Define the dataset and variables
+data <- esch_df
+mediator <- "BMI"
+outcome <- "Abundance"
+predictor <- "delta_ETI_merged"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+
+# Perform the mediation analysis 
+fitMed_result_reversed <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for PPI
+mediator <- "ppi"
+fitMed_result_esch_ppi <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+
+# Perform the mediation analysis for PPI on calprotectin
+mediator <- "ppi"
+outcome <- "Abundance"
+predictor <- "calprotectin_amg_g_stuhl"
+id_var <- "id.x"
+covariates <- c("sex", "age_y")
+fitMed_result_esch_ppi_calp <- perform_mediation_analysis(data, mediator, outcome, predictor, id_var, covariates)
+```
+
+
+

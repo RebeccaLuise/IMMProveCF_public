@@ -1,0 +1,434 @@
+---
+title: "Permanova analysis throat"
+author: "Rebecca L. Knoll"
+date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    number_sections: yes
+    smart: no
+    toc: yes
+    df_print: paged
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load libraries and run functions script}
+library(microViz)
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+library(dendextend)
+library(vegan)
+
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+
+```
+
+```{r, prepare data}
+
+ps_full_relab <- transform_sample_counts(ps_full, function(x) x/sum(x)*100)
+
+#subset materials
+ps_full_throat <- subset_samples(ps_full_relab, material== "Throat")
+
+```
+
+### plot principal component analysi
+```{r}
+PCA_all_visit_throat <- plot_ordination(ps_full_throat, ordinate(ps_full_throat, "MDS"), color = "visit_sum")
+
+xlabels <- c("0","3","6-12","15-18","21-24","Control")
+
+p1 <- PCA_all_visit_throat +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values = visit_sum_palette, labels = xlabels) +
+  theme_classic() +
+  theme(text = element_text(size = 18), legend.position = "left", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 2))+
+  stat_ellipse()
+p1
+
+```
+# PERMANOVA in throat, all timepoints and Controls together
+```{r calculate bray curtis distance for all throat samples and run PERMANOVA}
+
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_full_throat,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_full_throat),"data.frame")
+
+### unstratified
+adonis2(formula = BC_dist ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+
+### stratified PERMANOVA per id
+adonis2(formula = BC_dist ~ visit_sum , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+```
+
+# PERMANOVA per time point comparison
+## compared to controls
+```{r}
+set.seed(100)
+# Define the function
+perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_sum) {
+  
+  # Initialize a list to store results
+  results_list <- list()
+  
+  for (timepoint in timepoints_visit_sum) {
+    # Filter metadata for the current timepoint
+    metadata_v <- metadata %>%
+      filter(visit_sum %in% c(timepoint, "Control"))
+    
+    # Extract relevant sample IDs
+    sample_ids <- metadata_v$x_sample_id
+    
+    # Filter the distance matrix to include only relevant samples
+    BC_df <- as.data.frame(as.matrix(BC_dist))
+    
+    # Filter rows and columns based on sample IDs
+    df_v <- BC_df[rownames(BC_df) %in% sample_ids, ]
+    df_v <- df_v[, colnames(df_v) %in% sample_ids]
+    
+    # Convert to matrix
+    BC_v <- as.matrix(df_v)
+    
+    # Perform PERMANOVA
+    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin")
+    
+    # Extract results
+    result_df <- as.data.frame(permanova_result)
+    result_df$timepoint <- timepoint
+    
+    # add the current comparison
+    result_df$comparison <- "Control"
+    
+    # Add to results list
+    results_list[[timepoint]] <- result_df
+  }
+  
+  # Combine results into a single data frame
+  results_combined <- do.call(rbind, results_list)
+  
+  # Write results to a table (you can specify the file path and format)
+  write.csv(results_combined, file = "permanova_results.csv", row.names = TRUE)
+  
+  # Return results
+  return(results_combined)
+}
+
+# Example usage
+timepoints_visit_sum <- c("1", "2", "3-5", "6-7", "8-10")
+# Assuming metadata and BC_dist are already defined
+results_controls <- perform_permanova_by_timepoint(metadata, BC_dist, timepoints_visit_sum)
+
+```
+
+## compared to baseline (visit 1)
+```{r}
+set.seed(100)
+# Define the function
+perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_sum) {
+  
+  # Initialize a list to store results
+  results_list <- list()
+  
+  for (timepoint in timepoints_visit_sum) {
+    # Filter metadata for the current timepoint
+    metadata_v <- metadata %>%
+      filter(visit_sum %in% c(timepoint, "1"))
+    
+    # Extract relevant sample IDs
+    sample_ids <- metadata_v$x_sample_id
+    
+    # Filter the distance matrix to include only relevant samples
+    BC_df <- as.data.frame(as.matrix(BC_dist))
+    
+    # Filter rows and columns based on sample IDs
+    df_v <- BC_df[rownames(BC_df) %in% sample_ids, ]
+    df_v <- df_v[, colnames(df_v) %in% sample_ids]
+    
+    # Convert to matrix
+    BC_v <- as.matrix(df_v)
+    
+    # Perform PERMANOVA
+    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
+    
+    # Extract results
+    result_df <- as.data.frame(permanova_result)
+    result_df$timepoint <- timepoint
+    
+    # add the current comparison
+    result_df$comparison <- "1"
+    
+    # Add to results list
+    results_list[[timepoint]] <- result_df
+  }
+  
+  # Combine results into a single data frame
+  results_combined <- do.call(rbind, results_list)
+  
+  # Write results to a table (you can specify the file path and format)
+  write.csv(results_combined, file = "permanova_results.csv", row.names = TRUE)
+  
+  # Return results
+  return(results_combined)
+}
+
+# Example usage
+timepoints_visit_sum <- c("2", "3-5", "6-7", "8-10")
+# Assuming metadata and BC_dist are already defined
+results_baseline <- perform_permanova_by_timepoint(metadata, BC_dist, timepoints_visit_sum)
+
+```
+## compared to 3 months (visit 2)
+```{r}
+set.seed(100)
+# Define the function
+perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_sum) {
+  
+  # Initialize a list to store results
+  results_list <- list()
+  
+  for (timepoint in timepoints_visit_sum) {
+    # Filter metadata for the current timepoint
+    metadata_v <- metadata %>%
+      filter(visit_sum %in% c(timepoint, "2"))
+    
+    # Extract relevant sample IDs
+    sample_ids <- metadata_v$x_sample_id
+    
+    # Filter the distance matrix to include only relevant samples
+    BC_df <- as.data.frame(as.matrix(BC_dist))
+    
+    # Filter rows and columns based on sample IDs
+    df_v <- BC_df[rownames(BC_df) %in% sample_ids, ]
+    df_v <- df_v[, colnames(df_v) %in% sample_ids]
+    
+    # Convert to matrix
+    BC_v <- as.matrix(df_v)
+    
+    # Perform PERMANOVA
+    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", , strata = metadata_v$id.x)
+    
+    # Extract results
+    result_df <- as.data.frame(permanova_result)
+    result_df$timepoint <- timepoint
+    
+    # add the current comparison
+    result_df$comparison <- "2"
+    
+    # Add to results list
+    results_list[[timepoint]] <- result_df
+  }
+  
+  # Combine results into a single data frame
+  results_combined <- do.call(rbind, results_list)
+  
+  # Write results to a table (you can specify the file path and format)
+  write.csv(results_combined, file = "permanova_results.csv", row.names = TRUE)
+  
+  # Return results
+  return(results_combined)
+}
+
+# Example usage
+timepoints_visit_sum <- c("3-5", "6-7", "8-10")
+# Assuming metadata and BC_dist are already defined
+results_3months <- perform_permanova_by_timepoint(metadata, BC_dist, timepoints_visit_sum)
+
+```
+## compared to 6-12 months (visit 3-5)
+```{r}
+set.seed(100)
+# Define the function
+perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_sum) {
+  
+  # Initialize a list to store results
+  results_list <- list()
+  
+  for (timepoint in timepoints_visit_sum) {
+    # Filter metadata for the current timepoint
+    metadata_v <- metadata %>%
+      filter(visit_sum %in% c(timepoint, "3-5"))
+    
+    # Extract relevant sample IDs
+    sample_ids <- metadata_v$x_sample_id
+    
+    # Filter the distance matrix to include only relevant samples
+    BC_df <- as.data.frame(as.matrix(BC_dist))
+    
+    # Filter rows and columns based on sample IDs
+    df_v <- BC_df[rownames(BC_df) %in% sample_ids, ]
+    df_v <- df_v[, colnames(df_v) %in% sample_ids]
+    
+    # Convert to matrix
+    BC_v <- as.matrix(df_v)
+    
+    # Perform PERMANOVA
+    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
+    
+    # Extract results
+    result_df <- as.data.frame(permanova_result)
+    result_df$timepoint <- timepoint
+    
+    # add the current comparison
+    result_df$comparison <- "3-5"
+    
+    # Add to results list
+    results_list[[timepoint]] <- result_df
+  }
+  
+  # Combine results into a single data frame
+  results_combined <- do.call(rbind, results_list)
+  
+  # Write results to a table (you can specify the file path and format)
+  write.csv(results_combined, file = "permanova_results.csv", row.names = TRUE)
+  
+  # Return results
+  return(results_combined)
+}
+
+# Example usage
+timepoints_visit_sum <- c("6-7", "8-10")
+# Assuming metadata and BC_dist are already defined
+results_6T12months <- perform_permanova_by_timepoint(metadata, BC_dist, timepoints_visit_sum)
+
+```
+
+## comparison between to 15-18 months and 21-24 months
+```{r}
+set.seed(100)
+# Define the function
+perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_sum) {
+  
+  # Initialize a list to store results
+  results_list <- list()
+  
+  for (timepoint in timepoints_visit_sum) {
+    # Filter metadata for the current timepoint
+    metadata_v <- metadata %>%
+      filter(visit_sum %in% c(timepoint, "6-7"))
+    
+    # Extract relevant sample IDs
+    sample_ids <- metadata_v$x_sample_id
+    
+    # Filter the distance matrix to include only relevant samples
+    BC_df <- as.data.frame(as.matrix(BC_dist))
+    
+    # Filter rows and columns based on sample IDs
+    df_v <- BC_df[rownames(BC_df) %in% sample_ids, ]
+    df_v <- df_v[, colnames(df_v) %in% sample_ids]
+    
+    # Convert to matrix
+    BC_v <- as.matrix(df_v)
+    
+    # Perform PERMANOVA
+    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
+    
+    # Extract results
+    result_df <- as.data.frame(permanova_result)
+    result_df$timepoint <- timepoint
+    
+    # add the current comparison
+    result_df$comparison <- "6-7"
+    
+    # Add to results list
+    results_list[[timepoint]] <- result_df
+  }
+  
+  # Combine results into a single data frame
+  results_combined <- do.call(rbind, results_list)
+  
+  # Write results to a table (you can specify the file path and format)
+  write.csv(results_combined, file = "permanova_results.csv", row.names = TRUE)
+  
+  # Return results
+  return(results_combined)
+}
+
+# Example usage
+timepoints_visit_sum <- c("8-10")
+# Assuming metadata and BC_dist are already defined
+results_15T18months <- perform_permanova_by_timepoint(metadata, BC_dist, timepoints_visit_sum)
+
+```
+# combine tables and plot a triangle heatmap displaying the comparisons
+```{r}
+
+permanova_result_combined <- rbind(results_controls, results_baseline, results_3months, results_6T12months, results_15T18months)
+
+permanova_result_combined$comparison <- factor(permanova_result_combined $comparison, levels = c("Control","1", "2","3-5","6-7","8-10"))
+
+tabyl(permanova_result_combined, timepoint, comparison) # all comparisons are there
+
+permanova_result_combined <- permanova_result_combined %>% 
+  mutate(p_label= as_factor(case_when(`Pr(>F)` <= 0.05 ~ "*", `Pr(>F)` <= 0.01 ~ "**", `Pr(>F)` <= 0.001 ~ "***", `Pr(>F)` <= 0.1 ~ ".", `Pr(>F)` > 0.1 ~ "ns")))
+
+permanova_result_combined %>% 
+  filter(Df==1) %>% 
+  ggplot(aes(x=timepoint, y=comparison, fill = as.numeric(R2)))+
+  geom_tile()+
+  coord_flip()+
+  geom_text(aes(label = p_label))+
+  theme_classic()
+```
+# improve plot
+```{r, fig.height=3.5, fig.width=5}
+# Define significance levels
+permanova_result_combined <- permanova_result_combined %>%
+  mutate(Significance = case_when(
+    `Pr(>F)` <= 0.001 ~ "≤ 0.001",
+    `Pr(>F)` <= 0.01 ~ "≤ 0.01",
+    `Pr(>F)` <= 0.05 ~ "≤ 0.05",
+    TRUE ~ "ns"
+  ))
+
+custom_labels <- c("1" = "0", 
+                   "2" = "3", 
+                   "3-5" = "6-12", 
+                   "6-7" = "15-18", 
+                   "8-10" = "21-24", 
+                   "Control" = "Control")
+
+permanova_result_combined %>% 
+  filter(Df==1) %>% 
+ggplot(aes(x = comparison, y = timepoint)) +
+  geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
+  scale_fill_manual(values = c("≤ 0.001" = "darkred", "≤ 0.01" = "red", "≤ 0.05" = "orange", "ns" = "grey"),
+                     na.value = "grey") +
+  scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(fill = "p value", size = "Explained variance (1%)") +
+  ggtitle("Explained variance and p-values across timepoint comparisons") 
+
+p1 <- permanova_result_combined %>% 
+  filter(Df==1) %>% 
+ggplot(aes(x = comparison, y = timepoint)) +
+  geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
+  theme_minimal() +
+  scale_x_discrete(labels=custom_labels)+
+  scale_y_discrete(labels=custom_labels)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("months from ETI treatment start")+
+  xlab("months from ETI treatment start")#+
+ # ggtitle("Throat: PERMANOVA between sample timepoints") 
+
+p1
+saveRDS(p1, "~/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_stool.rds")
+
+
+write.csv(permanova_result_combined, "~/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/PERMANOVA_timepoints_throat.csv")
+
+```
