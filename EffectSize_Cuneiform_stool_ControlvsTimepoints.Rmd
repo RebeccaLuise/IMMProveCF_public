@@ -1878,4 +1878,132 @@ effect_table_sig_all_control %>%
 
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_stool_Controls.png", width = 11, height = 5)
 ```
+# do a volcano plot instead
+```{r, fig.height=10, fig.width=10}
+effect_table_sig_all_control %>%
+  mutate(taxa=gsub("ASV\\d{3}_", "", taxa)) %>% 
+  mutate(taxa=gsub("ASV\\d{2}_", "", taxa)) %>% 
+  arrange(ASV) %>%
+  filter(corr_p<=0.05) %>% 
+  filter(comparison_p == "Control_V1") %>% 
+  ggplot(aes(x = effectSize, y = -log10(corr_p))) + 
+  geom_point(aes(color=ASV))+
+  geom_hline(yintercept = 0.05, linetype = 'dotted', col = 'red')+
+  theme(legend.position = "bottom")
+```
 
+# bar plot for CF baseline vs Control
+```{r, fig.height=5.5, fig.width=4.5}
+effect_table_sig_all_control %>%
+  mutate(taxa = gsub("ASV\\d{3}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{2}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{1}_", "", taxa)) %>% 
+  mutate(taxa = factor(taxa, levels = unique(taxa[order(ASV)]))) %>% # Order taxa by ASV
+  arrange(ASV) %>%
+  filter(corr_p <= 0.05) %>% 
+  filter(comparison_p == "Control_V1") %>% 
+  ggplot(aes(y = taxa, x = effectSize * -1)) + 
+  geom_bar(aes(fill = effectSize < 0), stat = "identity") +
+  scale_fill_manual(values = c("TRUE" = "#69b3a2", "FALSE" = "#746999"), 
+                    labels = c("Negative Effect", "Positive Effect")) +
+  theme_bw() +
+  theme(axis.text.y = element_text(face = "italic"), legend.position = "none") +
+  ylab("") +
+  xlab("Effect Size") 
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_barplot_stool_Controls_V1.png", width = 4.5, height = 5.5)
+```
+
+# plot Escherichia vs time
+```{r}
+ps_glom_melt <- psmelt(ps_stool_relab)
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+p1 <- ps_glom_melt %>% 
+  filter(project=="IMP") %>% 
+  filter(Genus=="Escherichia_Shigella") %>% 
+  ggplot(aes(y = Abundance * 100 + 0.01, x=delta_ETI_merged)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("N ETI treatment days") +
+  ylab("*Escherichia-Shigella* (%)") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_Escherichia_NETI.pdf", p1,  width = 4, height = 4)
+
+p2 <- ps_glom_melt %>% 
+  filter(project=="IMP") %>% 
+  filter(Genus=="Escherichia_Shigella") %>% 
+  ggplot(aes(y = Abundance * 100 + 0.01, x=calprotectin_amg_g_stuhl)) +
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  scale_x_log10()+
+  xlab("Fecal calprotectin [mg/g]") +
+  ylab("*Escherichia-Shigella* (%)") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_Escherichia_calp.pdf",p2, width = 4, height = 4)
+
+ggarrange(p1,p2, common.legend = T, legend = "bottom", nrow = 1)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_Escherichia_NETI_calp.pdf", width = 8, height = 4)
+
+ps_glom_melt %>% 
+  filter(project=="IMP") %>% 
+  filter(Genus=="Escherichia_Shigella") %>% 
+  ggplot(aes(y = Abundance * 100 + 0.01, x=visit_sum)) +
+  geom_boxplot(aes(color = visit_sum))+
+  geom_jitter(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("N ETI treatment days") +
+  ylab("*Escherichia-Shigella* (%)") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+
+
+
+ps_glom_melt %>% 
+  filter(project_2=="IMP") %>% 
+  filter(Genus=="Escherichia_Shigella") %>% 
+  count(visit_sum)
+```

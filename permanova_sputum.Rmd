@@ -22,7 +22,7 @@ library(microViz)
 pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
 
 library(dendextend)
-library(vegan)
+#library(vegan)
 
 ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
 
@@ -66,10 +66,10 @@ BC_dist<- phyloseq::distance(ps_full_sputum,
 metadata<- as(sample_data(ps_full_sputum),"data.frame")
 
 ### unstratified
-adonis2(formula = BC_dist ~ visit_sum, data = metadata, permutations = 999, by = "margin")
+vegan::adonis2(formula = BC_dist ~ visit_sum, data = metadata, permutations = 999, by = "margin")
 
 ### stratified PERMANOVA per id
-adonis2(formula = BC_dist ~ visit_sum , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
+vegan::adonis2(formula = BC_dist ~ visit_sum , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
 ```
 
 # PERMANOVA per time point comparison
@@ -102,7 +102,7 @@ perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_s
     BC_v <- as.matrix(df_v)
     
     # Perform PERMANOVA
-    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin",, strata = metadata_v$id.x)
+    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin",, strata = metadata_v$id.x)
     
     # Extract results
     result_df <- as.data.frame(permanova_result)
@@ -159,7 +159,7 @@ perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_s
     BC_v <- as.matrix(df_v)
     
     # Perform PERMANOVA
-    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", , strata = metadata_v$id.x)
+    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", , strata = metadata_v$id.x)
     
     # Extract results
     result_df <- as.data.frame(permanova_result)
@@ -216,7 +216,7 @@ perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_s
     BC_v <- as.matrix(df_v)
     
     # Perform PERMANOVA
-    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
+    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
     
     # Extract results
     result_df <- as.data.frame(permanova_result)
@@ -274,7 +274,7 @@ perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_s
     BC_v <- as.matrix(df_v)
     
     # Perform PERMANOVA
-    permanova_result <- adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
+    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
     
     # Extract results
     result_df <- as.data.frame(permanova_result)
@@ -374,3 +374,341 @@ saveRDS(p1, "~/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_tim
 write.csv(permanova_result_combined, "~/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/PERMANOVA_timepoints_sputum.csv")
 
 ```
+# investigate which clinical metadata drive variance observed in sputum samples
+
+## univariate
+
+```{r}
+features.p <- as.data.frame(otu_table(ps_full_sputum))
+
+# Variables to test (same as for the MetadeconfoundR analysis)
+metadata_to_test <- metadata %>%
+  filter(project=="IMP") %>% 
+  select(sex, id.y, visit_sum, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
+
+xlabels= c("visit_sum"="Sampling time point (months)", "tobramycin_inhal" = "Tobramycin Inhalation", "isotonic_na_cl"="Isotonic NaCl Inhalation", "saba_inhal"="(SABA) Inhaler", "cortison_inhal" = "Cortisone Inhalation", "antihistaminikum"="Oral Antihistamine", "orale_zusatznahrung"="Oral Nutritional Supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic Medication (Oral)", "ab_15dprior_visit"="Antibiotic 15 Days before Visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte Count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total Reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin Inhalation", "azetronam_inhal"="Aztreonam Inhalation", "anticholinergic"="Anticholinergic Inhalation", "dn_ase"="DNAse Inhalation", "cortison_nasal"="Cortisone Nasal Spray", "nasenspray"= "Nasal Spray", "ursodesoxychols_a_ure"="Ursodeoxycholic Acid", "tranexams_a_ure"="Tranexamic Acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N Antibiotic tt Days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI tt Days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin Inhalation",
+"hypertonic_na_cl"="Hypertonic Saline Inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol Inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin Inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
+
+variables_test <- colnames(metadata_to_test)
+
+# Initialize an empty data frame to store the results
+results <- data.frame(variable = character(), R2 = numeric(), p_value = numeric(), N = numeric(), stringsAsFactors = FALSE)
+
+# Loop through each variable
+for (var in variables_test) {
+  
+  # Clean metadata by removing rows with missing data for the current variable
+  metadata_clean <- na.omit(metadata_to_test[, c(var, "id.y")])
+  
+  # Subset features.p to match the cleaned metadata
+  features_clean <- features.p[rownames(metadata_clean), ]
+  
+  # Construct the formula dynamically
+  formula <- as.formula(paste("features_clean ~", var))
+  
+  # Perform PERMANOVA
+  set.seed(111)
+  perm_result <- vegan::adonis2(formula, 
+                         data = metadata_clean, 
+                         permutations = 999, 
+                         method = "bray", 
+                         by = "margin", 
+                         strata = metadata_clean$id.y)
+  
+  perm_result <- clean_names(as_tibble(perm_result))
+  
+  # Calculate number of observations (N)
+  N <- nrow(metadata_clean)  # Number of rows in cleaned metadata
+  
+  # Extract the results: R2, p-value
+  R2 <- perm_result[1, 3]
+  p_value <- perm_result[1, 5]
+  
+  # Append the results to the data frame
+  results <- rbind(results, data.frame(variable = var, R2 = R2, p_value = p_value, N = N))
+}
+
+# View the results
+print(results)
+```
+
+
+```{r}
+# filter the results and calculate fdr
+results_filtered <- results %>% 
+  filter(variable!="id.y") %>% #in the above I stratify for id, thus it's not truly tested here
+  mutate(fdr = p.adjust(pr_f, method=c("fdr"))) %>%  # fdr adjust for multiple comparisons
+  filter(pr_f<=0.05) # filter for p-value below 0.05
+
+# Optionally, save the results to a CSV file
+# write.csv(results, "permanova_results.csv", row.names = FALSE)
+```
+
+## plot univariate permanova
+```{r}
+
+# Reorder the 'Variable' factor levels based on 'r2'
+results_filtered <- results_filtered %>%
+  arrange(desc(r2)) %>%
+  mutate(variable = factor(variable, levels = unique(variable))) %>% 
+  mutate(y="Y") %>% 
+  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f <= 0.05 ~ "≤ 0.05"))
+
+p1 <- results_filtered %>%
+  ggplot(aes(x = variable, y = r2 * 100, fill = p_sig)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), 
+        legend.position = "right", 
+        legend.title.position = "top") +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("Explained variance (%)") +
+  xlab("") +
+  scale_x_discrete(labels = xlabels)+
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
+p1
+saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_univariate_permanova_stratified.rds")
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/sputum_univariate_permanova_stratified.png")
+
+```
+
+## fdr adjusted
+```{r}
+results_filtered_fdr <- results_filtered %>% 
+  arrange(desc(r2)) %>%
+  mutate(variable = factor(variable, levels = unique(variable))) %>% 
+  mutate(fdr_sig = case_when(fdr <= 0.001 ~ "≤ 0.001", fdr <= 0.01 ~"≤ 0.01", fdr<= 0.05 ~ "≤ 0.05", fdr<= 0.1 ~ "≤ 0.1" )) %>% 
+  filter(fdr<=0.1) 
+
+results_filtered_fdr%>% 
+  ggplot(aes(x = variable, y = r2 * 100, fill = fdr_sig)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "≤ 0.1"  = "grey")) +
+  theme_minimal() +
+  #scale_x_discrete(labels=custom_labels)+
+  #scale_y_discrete(labels=custom_labels)+
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top") +
+  labs(fill = "fdr value", size = "Explained variance (%)") +
+  ylab("Explained variance (%)")+
+  xlab("Variables tested")
+
+```
+
+## combined PERMANOVA on variables that had a significant p in the univariate testing
+```{r}
+p_filtered <- results%>% 
+  filter(pr_f<=0.05)
+
+variables_p_sig <- c(p_filtered$variable)
+variables_p_sig
+
+# Run one single PERMANOVA through those
+  metadata.p <- metadata_to_test %>% 
+  select(id.y, any_of(variables_p_sig)) %>%  # has 57 samples
+  select(-calprotectin_amg_g_stuhl)
+  
+metadata.p_woNA <- metadata.p %>% na.omit() # this tests on 31 samples that have all of the variable entries besides, calprotectin, because including this would reduce the available samples on 14 only
+
+pat_N <- as_data_frame(tabyl(metadata.p_woNA,id.y)) %>% 
+  filter(n!=0) # has 16 patients analyzed
+
+metadata.p_woNA$pat_N = 16
+
+# Subset features.p to match the cleaned metadata
+  features_clean <- features.p[rownames(metadata.p_woNA), ]
+  
+  # Perform PERMANOVA
+  set.seed(111)
+  perm_result <- vegan::adonis2(features_clean ~ visit_sum+dn_ase+chlorid_mmol_cl_l+gpt_alat_u_l,
+                         data = metadata.p_woNA, 
+                         permutations = 999, 
+                         method = "bray", 
+                         by = "margin", 
+                         na.action = na.exclude,
+                         strata = metadata.p_woNA$id.y)
+  perm_result
+  perm_result_df<- clean_names(as.data.frame(perm_result))
+
+   # Calculate number of observations (N)
+  metadata.p_woNA$N <- nrow(metadata.p_woNA)  # Number of rows in cleaned metadata
+  
+# Set row names
+  rownames(perm_result_df) <- c(colnames(metadata.p_woNA)[c(2:5)], "Residual", "Total")
+  perm_result_df$variable <- rownames(perm_result_df)
+  perm_result_df<- perm_result_df %>% 
+    select(variable, everything())
+  
+perm_result_df
+
+# plot it
+perm_result_df <- perm_result_df %>% 
+arrange(desc(r2)) %>%
+  mutate(variable = factor(variable, levels = unique(variable))) %>% 
+  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) %>% 
+  mutate(N_obs=mean(metadata.p_woNA$N)) %>% 
+  mutate(N_pat=mean(metadata.p_woNA$pat_N))
+
+perm_result_df %>% 
+  filter(pr_f<=0.1) %>% 
+  ggplot(aes(x = variable, y = r2 * 100, fill = p_sig)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "≤ 0.1"  = "grey")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top") +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("Explained variance (%)")+
+  xlab("Variables tested")+
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N_obs)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/sputum_combined_permanova_stratified_31Samples.png")
+```
+
+## explore collinearity
+```{r}
+# Load necessary packages
+library(car)
+#library(ggplot2)
+
+# Fit a linear model to calculate VIF (you can adjust the formula)
+model <- lm(delta_ETI_merged ~ visit_sum+dn_ase+chlorid_mmol_cl_l+gpt_alat_u_l, data = metadata.p_woNA)
+
+# Calculate VIF
+vif_values <- vif(model)
+
+# Convert to a dataframe for plotting
+vif_df <- as.data.frame(vif_values)
+vif_df$variable <- rownames(vif_df)
+rownames(vif_df) <- NULL
+
+# Plot VIF values
+ggplot(vif_df, aes(x = variable, y = GVIF)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  geom_hline(yintercept = 5, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Variance Inflation Factor (VIF) for Predictor Variables::ETI tt in days",
+       x = "Variables", y = "VIF") +
+  coord_flip()  # Rotate for better readability
+
+```
+
+```{r}
+## repeat without ETI treatment days, because other parameters are often collinear to that
+  perm_result_woETI <- vegan::adonis2(features_clean ~ dn_ase+chlorid_mmol_cl_l+gpt_alat_u_l, 
+                         data = metadata.p_woNA, 
+                         permutations = 999, 
+                         method = "bray", 
+                         by = "margin", 
+                         na.action = na.exclude,
+                         strata = metadata.p_woNA$id.y)
+  perm_result_woETI
+  perm_result_df_woETI<- clean_names(as.data.frame(perm_result_woETI))
+  
+  # Set row names
+  rownames(perm_result_df_woETI) <- c(colnames(metadata.p_woNA)[c(3:5)], "Residual", "Total")
+  perm_result_df_woETI$variable <- rownames(perm_result_df_woETI)
+  perm_result_df_woETI<- perm_result_df_woETI %>% 
+    select(variable, everything())
+perm_result_df_woETI
+
+# plot it
+perm_result_df_woETI <- perm_result_df_woETI %>% 
+arrange(desc(r2)) %>%
+  mutate(variable = factor(variable, levels = unique(variable))) %>% 
+  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) %>% 
+  mutate(N_obs=mean(metadata.p_woNA$N)) %>% 
+  mutate(N_pat=mean(metadata.p_woNA$pat_N))
+
+p2 <- perm_result_df_woETI %>% 
+  filter(pr_f<=0.1) %>% 
+  ggplot(aes(x = variable, y = r2 * 100, fill = p_sig)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "≤ 0.1"  = "grey")) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top") +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("Explained variance (%)")+
+  xlab("")  +
+  scale_x_discrete(name = xlabels)+
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N_obs)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
+p2
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/sputum_combined_permanova_stratified_31Samples:withoutETI.png")
+
+saveRDS(p2, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_stratified_31Samples:withoutETI.rds")
+```
+
+# check changes in DNAse treatment
+```{r}
+metadata_to_test %>% 
+  ggplot(aes(delta_ETI_merged, fill=as_factor(dn_ase)))+
+  geom_bar()+
+  facet_wrap(~id.y)
+  
+tabyl(metadata_to_test, visit_sum, dn_ase)
+
+metadata_to_test <- metadata_to_test %>% 
+  mutate(dnase_binary = case_when(dn_ase==2~1, T~dn_ase)) 
+
+metadata_to_test%>% 
+  group_by(visit_sum) %>% 
+  count(dnase_binary)
+
+# Calculate percentages of dnase_binary per visit_sum
+metadata_percentages <- metadata_to_test %>% 
+  group_by(visit_sum) %>% 
+  count(dnase_binary) %>% 
+  mutate(percentage = n / sum(n) * 100)  # Calculate the percentage
+
+metadata_percentages %>% 
+  filter(dnase_binary==1) # this gives the percentage of samples that received dnase treatment
+
+library(lme4)
+
+# Fit mixed-effects logistic regression model
+mixed_logit_model <- glmer(dnase_binary ~ visit_sum + (1 | id.y), data = metadata_to_test, family = binomial)
+
+# Summarize the model
+summary(mixed_logit_model)
+
+# Generate predicted probabilities for each time point
+metadata_to_test$predicted_prob <- predict(mixed_logit_model, type = "response")
+
+# Plot predicted probabilities over time
+ggplot(metadata_to_test, aes(x = visit_sum, y = predicted_prob)) +
+  geom_line(color = "#31A1B3FF", size = 1.5) +
+  geom_point(aes(y = dnase_binary), color = "grey", alpha = 0.5, size = 2) +
+  theme_minimal() +
+  labs(x = "Visit Time (visit_sum)", y = "Predicted Probability of DNase Usage", 
+       title = "Trend of DNase Usage Over Time")
+
+# Calculate the percentage of dnase_binary == 1 per visit_sum
+dnase_summary <- metadata_to_test %>%
+  group_by(visit_sum) %>%
+  summarise(percentage_dnase = mean(dnase_binary == 1) * 100)
+
+# Create the bar plot
+ggplot(dnase_summary, aes(x = visit_sum, y = percentage_dnase)) +
+  geom_bar(stat = "identity", fill = "#765085", color = "black") +
+  theme_minimal() +
+  labs(x = "Visit Time (visit_sum)", y = "Percentage DNase Usage (%)", 
+       title = "Percentage of Samples Receiving DNase Treatment Over Time") +
+  geom_text(aes(label = round(percentage_dnase, 1)), vjust = -0.5)
+
+```
+

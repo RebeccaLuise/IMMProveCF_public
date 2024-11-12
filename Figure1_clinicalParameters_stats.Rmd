@@ -58,8 +58,78 @@ full_metadata_distinct <- full_metadata%>% # to not have multiple data entries p
   group_by(id)%>%
   fill(baseline_igG)%>%
   mutate(delta_igG = ig_g_g_l-baseline_igG)%>%
+  ungroup() %>% 
+  mutate(baseline_il6 = case_when(visit_cal_9 == "1" ~ interleukin6_pg_ml))%>%
+  group_by(id)%>%
+  fill(baseline_il6)%>%
+  mutate(delta_il6 = interleukin6_pg_ml-baseline_igG)%>%
+  ungroup() %>% 
+  mutate(baseline_cal = case_when(visit_cal_9 == "1" ~ calprotectin_amg_g_stuhl))%>%
+  group_by(id)%>%
+  fill(baseline_cal)%>%
+  mutate(delta_cal = calprotectin_amg_g_stuhl-baseline_cal)%>%
+  ungroup() %>% 
+  mutate(baseline_alat = case_when(visit_cal_9 == "1" ~ gpt_alat_u_l))%>%
+  group_by(id)%>%
+  fill(baseline_alat )%>%
+  mutate(delta_alat = gpt_alat_u_l-baseline_alat)%>%
   ungroup()
+
+full_metadata_hba1c <- full_metadata%>% distinct(id_visit, .keep_all = T)%>%
+  filter(!is.na(visit_cal_cor))%>%
+  filter(!is.na(hb_a1c_percent)) %>% 
+  mutate(baseline_hba1c = case_when(visit_cal_9 == "1" ~ hb_a1c_percent))%>%
+  group_by(id)%>%
+  fill(baseline_hba1c)%>%
+  mutate(delta_hba1c = hb_a1c_percent-baseline_hba1c)%>%
+  ungroup() 
+
 ```
+
+
+# get medians per timepoint
+```{r}
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_ppfev1)) %>% 
+  summarise(median=median(delta_ppfev1))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_chloride)) %>% 
+  summarise(median=median(delta_chloride))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_atb_tt_days)) %>% 
+  summarise(median=median(delta_atb_tt_days))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_igG)) %>% 
+  summarise(median=median(delta_igG))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_il6)) %>% 
+  summarise(median=median(delta_il6))
+
+full_metadata_hba1c %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_hba1c)) %>% 
+  summarise(median=median(delta_hba1c))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_cal)) %>% 
+  summarise(median=median(delta_cal))
+
+full_metadata_distinct %>% 
+  group_by(visit_cal_9) %>% 
+  filter(!is.na(delta_alat)) %>% 
+  summarise(median=median(delta_alat))
+```
+
 
 ```{r delta manuscript plot and stats}
 

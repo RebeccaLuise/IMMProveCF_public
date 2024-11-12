@@ -179,8 +179,33 @@ metadata %>%
   #geom_boxplot()+
   geom_point()+
   geom_smooth(method = "lm")
-  
-#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_selected.png", width = 5.5, height = 3)
+```
+
+
+```{r, fig.height=4, fig.width=5.5}
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+
+diversity_df_sputum_metadata%>% 
+  ggplot(aes(x=pp_fev_percent, y=diversity_shannon))+
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  xlab("Lung function (ppfev1)") +
+  ylab("Diversity (Shannon)") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_lungFunction_diversity.png", width = 5, height = 4)
 ```
 
 ## MetadeconfoundR for throat diversity
@@ -826,7 +851,7 @@ features_named$Genus <- NULL
 features_named <- as.data.frame(t(features_named))
 
 stool_metad_glom<- MetaDeconfound(featureMat = features_named,metaMat = metadata, randomVar = c("id.y"),  nnodes=9, returnLong = T)
-hm_05 <- BuildHeatmap(stool_metad_glom, intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.3)
+hm_05 <- BuildHeatmap(stool_metad_glom, keepMeta = "delta_ETI_merged", intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.3)
 
 stool_metad_glom <- stool_metad_glom %>% 
   mutate(Sample="Stool")
