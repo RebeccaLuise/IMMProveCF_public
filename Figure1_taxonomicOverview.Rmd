@@ -81,5 +81,5 @@ p1
 
 ##ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.png", p1, width = 17, height = 7)
 
-#write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.rds")
+write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.rds")
 ```

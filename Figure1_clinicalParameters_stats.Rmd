@@ -416,11 +416,11 @@ phylum_bars <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis
 library(gridExtra)
 # Arrange the ggplot objects in a grid
 grid_arranged <- grid.arrange(
-  phylum_bars + labs(tag = "A") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
-  Dchloride + labs(tag = "B"),
-  Dppfev1 + labs(tag = "C"),
-  Digg + labs(tag = "D"),
-  Datb+ labs(tag = "E"),
+  phylum_bars + labs(tag = "a") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
+  Dchloride + labs(tag = "b"),
+  Dppfev1 + labs(tag = "c"),
+  Digg + labs(tag = "d"),
+  Datb+ labs(tag = "e"),
   ncol = 4, nrow = 2,
   heights = c(1.5, 1),
   widths=c(1.15,1.5,1.5,1.5),
@@ -431,12 +431,14 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 grid_arranged
 
-#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/figure1.tiff",grid_arranged, dpi = 600, width = 17, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/figure1.tiff",grid_arranged, dpi = 600, width = 17, height = 10)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/figure1.png",grid_arranged, dpi = 600, width = 17, height = 10)
 
 ```
+
 # Plot evolution of clinical parameters and run linear mixed effect models for statistical testing
 ```{r clincial parameter plots and stats}
-
 #### Sweat chloride ####
 lm <- summary(lmerTest::lmer(chlorid_mmol_cl_l~ visit_cal_9 + sex + age_y+ (1|id), data=full_metadata_distinct))
 
@@ -1228,7 +1230,7 @@ leucos<- full_metadata_distinct%>%
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.5))+
     theme_classic()+
     theme_classic()+
     ylab("Leucocytes (/nl)")+
@@ -1239,15 +1241,19 @@ leucos<- full_metadata_distinct%>%
     #guides(fill='none') +
    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.4, step.increase = 0.05)
 leucos
+```
 
-ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, calp_stool, gpt, hba1c, nrow = 2, ncol = 4)
 
+```{r, fig.width=16, fig.height=12}
+p1 <- ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, Il8, calp_stool, gpt, got, hba1c, leucos, CRP, nrow = 3, ncol = 4, labels = c("a","b","c","d","e","f","g","h","i","j","k","l"))
+
+write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/clinical_evolution.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/supp_figure1.tiff", width = 14, height = 7)
 ```
 
 ```{r}
 
-stats_table <- rbind(lmm_chloride,lmm_ppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c)
+stats_table <- rbind(lmm_chloride,lmm_ppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c, lmm_crp)
 #install.packages("writexl")
 library(writexl)
 write_xlsx(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/SuppMaterial/Supplementary_table_2.xlsx")

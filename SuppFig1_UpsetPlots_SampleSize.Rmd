@@ -134,8 +134,10 @@ summary(lmerTest::lmer(quantity_mean ~ material + (1|id.x), data=metadata))
 kruskal.test(quantity_mean ~ material, data=metadata)
 ```
 
-```{r, fig.height=8, fig.width=14}
-ggarrange(sputum, throat, stool, e, d, legend, labels = c("A", "B", "C", "D", "E"), heights = c(1.5,1))
+```{r, fig.height=24, fig.width=16}
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/upsetPlots_LibrarySize.png", height = 8, width = 16)
+clin_evol <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/clinical_evolution.rds")
+samples <- ggarrange(sputum, throat, stool, e, d, legend, labels = c("m", "n", "o", "p", "q"), heights = c(1.5,1))
+ggarrange(clin_evol, samples, nrow = 2, ncol=1, heights = c(1.25,1))
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/supp_fig1_clinevol_upsetplots.png", height = 24, width = 16)
 ```
