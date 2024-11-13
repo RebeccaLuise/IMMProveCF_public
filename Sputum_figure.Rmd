@@ -29,6 +29,7 @@ star <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figure
 permanova_bubble <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_sputum.rds")
 permanova_univariate <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_univariate_permanova_stratified.rds")
 permanova_combined<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_stratified_31Samples:withoutETI.rds")
+permanova_barplot_2 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_barplot.rds")
 ```
 
 # upload pdf/png files
@@ -72,12 +73,94 @@ hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = elemen
 staph <- staph +theme(text = element_text(size = 12))
 
 ```
+```{r, fig.width=16, fig.height=24}
+library(ggplot2)
+library(scales)
+
+grid_arranged <- grid.arrange(
+  star+ggtitle("") + labs(tag = "a"), #1
+  permanova_bubble + theme(legend.position = "bottom", legend.title.position = "left") + guides(fill = guide_legend(nrow = 3), size=guide_legend(nrow = 2))  +labs(tag = "b"), #2
+  dom_spu+theme(legend.position = "bottom", legend.title.position = "top") + guides(fill = guide_legend(nrow = 4)) + labs(tag = "c"), #3
+  permanova_barplot_2 +  labs(tag = "d"), #4
+  metad_sputum + ggtitle("") + labs(tag = "e"), #5
+  staph+ labs(tag = "f"), #6
+  g + labs(tag = "g"), #7
+  ic25 + labs(tag = "h"), #8
+ 
+  ncol = 3, nrow = 5,
+  heights = c(1.2, 1.2, 1, 1, 1),
+  widths=c(1,1,1.2),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,5,5),
+                        c(6,5,5),
+                        c(7,5,5),
+                        c(8,8,8))
+                       )
+
+# Print or save the arranged plot
+print(grid_arranged)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_11122024.png",grid_arranged, dpi = 300, width = 16, height = 24)
+```
+```{r, fig.width=16, fig.height=24}
+library(ggplot2)
+library(scales)
+
+grid_arranged <- grid.arrange(
+  star+ggtitle("") + labs(tag = "a"), #1
+  permanova_bubble+labs(tag = "b"), #2
+  dom_spu + theme(legend.position = "bottom")+ labs(tag = "c"), #3
+  permanova_barplot_2+theme(legend.position = "right") +  labs(tag = "d"), #4
+  metad_sputum + ggtitle("") + labs(tag = "e"), #5
+  staph+ labs(tag = "f"), #6
+  g + labs(tag = "g"), #7
+  ic25 + labs(tag = "h"), #8
+ 
+  ncol = 6, nrow = 5,
+  #heights = c(1, 1, 1.5, 1, 1),
+  widths=c(1,1.5,1,1,1,1),
+  layout_matrix = rbind(c(1,1,1,2,2,2),
+                        c(3,3,5,5,5,5),
+                        c(4,4,5,5,5,5),
+                        c(6,6,6,7,7,7),
+                        c(8,8,8,8,8,8))
+                       )
+
+# Print or save the arranged plot
+print(grid_arranged)
+```
+
+```{r, fig.width=16, fig.height=24}
+library(ggplot2)
+library(scales)
+
+grid_arranged <- grid.arrange(
+  star+ggtitle("") + labs(tag = "a"), #1
+  permanova_bubble+labs(tag = "b"), #2
+  permanova_univariate +  labs(tag = "d"), #3
+  permanova_combined +  labs(tag = "e"), #4
+  dom_spu + labs(tag = "c"), #5
+  metad_sputum + ggtitle("") + labs(tag = "f"), #6
+  staph+ labs(tag = "g"), #7
+  g + labs(tag = "h"), #8
+  ic25 + labs(tag = "i"), #9
+ 
+  ncol = 5, nrow = 5,
+  heights = c(1, 1, 1.5, 1, 1),
+ # widths=c(1,1,0.5),
+  layout_matrix = rbind(c(1,1,5,5,5),
+                        c(2,2,3,3,4),
+                        c(6,6,6,7,7),
+                        c(6,6,6,8,8),
+                        c(9,9,9,9,9))
+                       )
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_11122024.png",grid_arranged, dpi = 300, width = 16, height = 24)
+```
 
 ```{r, fig.width=16, fig.height=20}
-#library(ggplot2)
-#library(gridExtra)
-#library(ggalluvial)
-
 library(ggplot2)
 library(scales)
 
@@ -105,7 +188,6 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_10182024.png",grid_arranged, dpi = 300, width = 16, height = 22)
 ```
 
 ```{r, fig.width=16, fig.height=20}
@@ -132,6 +214,6 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure.png",grid_arranged, dpi = 300, width = 16, height = 20)
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure.png",grid_arranged, dpi = 300, width = 16, height = 20)
 ```
 
