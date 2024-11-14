@@ -921,6 +921,13 @@ write_csv(lmm_diversity_control, "/Users/rebecca/Documents/Forschung/IMMProveCF/
 
 ggarrange(p1,p2,p3,p4,p5,p6, nrow = 3, ncol = 2)
 
+saveRDS(p1,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_shannon.rds")
+saveRDS(p2,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_observed.rds")
+saveRDS(p3,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_shannon.rds")
+saveRDS(p4,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_observed.rds")
+saveRDS(p5,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_shannon.rds")
+saveRDS(p6,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_observed.rds")
+
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_combined.png", width = 8, height = 12)
 
 # plots below are derived from the 13_starplot_PCOA files

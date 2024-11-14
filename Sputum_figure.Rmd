@@ -30,6 +30,9 @@ permanova_bubble <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_ana
 permanova_univariate <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_univariate_permanova_stratified.rds")
 permanova_combined<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_stratified_31Samples:withoutETI.rds")
 permanova_barplot_2 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_barplot.rds")
+
+sputum_shannon<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_shannon.rds")
+sputum_observed <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_observed.rds")
 ```
 
 # upload pdf/png files
@@ -66,13 +69,17 @@ star <- star + theme(text = element_text(size = 12), legend.text = element_text(
 
 metad_sputum <- metad_sputum + theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
   
-
 hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 12), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
   guides(title.position = "left")
 
 staph <- staph +theme(text = element_text(size = 12))
 
+sputum_observed <- sputum_observed+theme(text = element_text(size = 12))
+sputum_shannon <- sputum_shannon+theme(text = element_text(size = 12))
+
+
 ```
+
 ```{r, fig.width=16, fig.height=24}
 library(ggplot2)
 library(scales)
@@ -216,4 +223,40 @@ print(grid_arranged)
 
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure.png",grid_arranged, dpi = 300, width = 16, height = 20)
 ```
+# Supplementary figure for sputum
+```{r, fig.height=8, fig.width=8}
+
+grid_arranged <- grid.arrange(
+  sputum_shannon + labs(tag = "a") ,
+  sputum_observed + labs(tag = "b") ,
+  tax_sputum_woLegend + labs(tag = "c"), #+ggtitle(""),
+  hm_div_sputum + labs(tag = "d"),
+  ncol = 2, nrow = 3,
+  heights = c(1, 1, 1.5),
+  widths=c(1,1.75),
+  layout_matrix = rbind(c(1,3),
+                        c(2,3),
+                        c(4,3))
+                       )
+
+```
+```{r, fig.height=12, fig.width=6}
+
+grid_arranged <- grid.arrange(
+  sputum_shannon + labs(tag = "a") ,
+  sputum_observed + labs(tag = "b") ,
+  tax_sputum_woLegend + labs(tag = "c"), #+ggtitle(""),
+  NULL,
+  hm_div_sputum + labs(tag = "d") + theme(legend.position = "right"),
+  ncol = 2, nrow = 4,
+  heights = c(0.95, 1.75, 0.25, 1),
+  #widths=c(1,1.75),
+  layout_matrix = rbind(c(1,2),
+                        c(3,3),
+                        c(4,4),
+                        c(5,5))
+                       )
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_supp.png",grid_arranged, dpi = 300, width = 6, height = 12)
+```
+
 
