@@ -91,7 +91,7 @@ p1 <- bp_rm+
         legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "none",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
   scale_fill_manual(values=dom_palette)+
   scale_color_manual(values=dom_palette)+
-  scale_x_discrete(name="Sample time point")+
+  scale_x_discrete(name="")+
   scale_y_continuous(name="Relative abundance (%)", limits = c(0, 100))+
   facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
 p1
@@ -106,12 +106,14 @@ p2 <- bp_v1+
         legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "right",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
   scale_fill_manual(values=dom_palette)+
   scale_color_manual(values=dom_palette)+
-  scale_x_discrete(name="Sample time point")+
-  scale_y_continuous(name="Relative abundance (%)", limits = c(0, 100))+
+  scale_x_discrete(name="")+
+  scale_y_continuous(name="", limits = c(0, 100))+
   facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
 p2
 
-ggarrange(p1,p2, nrow = 1, widths = c(2.5,1), labels = c("A","B"))
+p3 <- ggarrange(p1,p2, nrow = 1, widths = c(3,1), labels = c("e","f"), legend = "bottom", common.legend = T )
+
+saveRDS(p3, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.rds")
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.png", width = 20, height = 7)
 ```

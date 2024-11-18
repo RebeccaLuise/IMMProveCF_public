@@ -33,6 +33,8 @@ permanova_barplot_2 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_
 
 sputum_shannon<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_shannon.rds")
 sputum_observed <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_observed.rds")
+
+sputum_barplot <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.rds")
 ```
 
 # upload pdf/png files
@@ -77,6 +79,7 @@ staph <- staph +theme(text = element_text(size = 12))
 sputum_observed <- sputum_observed+theme(text = element_text(size = 12))
 sputum_shannon <- sputum_shannon+theme(text = element_text(size = 12))
 
+sputum_barplot <- sputum_barplot+theme(text = element_text(size = 12))
 
 ```
 
@@ -241,7 +244,7 @@ grid_arranged <- grid.arrange(
 
 ```
 ```{r, fig.height=12, fig.width=6}
-
+sputum_barplot
 grid_arranged <- grid.arrange(
   sputum_shannon + labs(tag = "a") ,
   sputum_observed + labs(tag = "b") ,
@@ -259,4 +262,19 @@ grid_arranged <- grid.arrange(
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_supp.png",grid_arranged, dpi = 300, width = 6, height = 12)
 ```
 
-
+```{r, fig.height=12, fig.width=16}
+grid_arranged <- grid.arrange(
+  sputum_shannon + labs(tag = "a") ,
+  sputum_observed + labs(tag = "b") ,
+  tax_sputum + labs(tag = "c"), #+ggtitle(""),
+  hm_div_sputum + labs(tag = "d") + theme(legend.position = "right"),
+  sputum_barplot+theme(legend.position = "bottom"), 
+  ncol = 3, nrow = 3,
+  heights = c(0.95, 0.75, 1.05),
+  widths=c(1,1,2),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,4,3),
+                        c(6,6,6))
+                       )
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 12)
+```

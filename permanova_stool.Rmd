@@ -496,10 +496,13 @@ for (var in variables_test) {
                          strata = metadata_clean$id.y)
   
   perm_result<- clean_names(as_tibble(perm_result))
-  # Extract the results: R2, p-value, and number of observations
-  R2 <- perm_result[1,3]
-  p_value <- perm_result[1,5]
-  N <- perm_result[3,1]
+
+  # Calculate number of observations (N)
+  N <- nrow(metadata_clean)  # Number of rows in cleaned metadata
+  
+  # Extract the results: R2, p-value
+  R2 <- perm_result[1, 3]
+  p_value <- perm_result[1, 5]
   
   # Append the results to the data frame
   results <- rbind(results, data.frame(variable = var, R2 = R2, p_value = p_value, N = N))
@@ -552,10 +555,16 @@ ggplot(aes(x = variable, y = r2 * 100, fill = p_sig)) +
   theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top") +
   labs(fill = "p value", size = "Explained variance (%)") +
   ylab("Explained variance (%)")+
-  xlab("Variables tested")
+  xlab("Variables tested")+
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/stool_univariate_permanova_stratified.png")
 ```
+
 ```{r}
 results_filtered_fdr <- results_filtered %>% 
   arrange(desc(r2)) %>%
@@ -714,11 +723,15 @@ pat_N <- as_data_frame(tabyl(metadata.p_woNA,id.y)) %>%
     select(variable, everything())
 perm_result_df
 
+   # Calculate number of observations (N)
+  metadata.p_woNA$N <- nrow(metadata.p_woNA) 
+
 # plot it
 perm_result_df <- perm_result_df %>% 
 arrange(desc(r2)) %>%
   mutate(variable = factor(variable, levels = unique(variable))) %>% 
-  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) 
+  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) %>% 
+  mutate(N_obs=mean(metadata.p_woNA$N)) 
 
 perm_result_df %>% 
   filter(pr_f<=0.1) %>% 
@@ -729,7 +742,12 @@ perm_result_df %>%
   theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top") +
   labs(fill = "p value", size = "Explained variance (%)") +
   ylab("Explained variance (%)")+
-  xlab("Variables tested")
+  xlab("Variables tested")+
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N_obs)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/stool_combined_permanova_stratified_202Samples.png")
     
@@ -756,7 +774,8 @@ perm_result_df_woETI
 perm_result_df_woETI <- perm_result_df_woETI %>% 
 arrange(desc(r2)) %>%
   mutate(variable = factor(variable, levels = unique(variable))) %>% 
-  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) 
+  mutate(p_sig = case_when(pr_f <= 0.001 ~ "≤ 0.001", pr_f <= 0.01 ~"≤ 0.01", pr_f<= 0.05 ~ "≤ 0.05", pr_f<= 0.1 ~ "≤ 0.1" )) %>% 
+  mutate(N_obs=mean(metadata.p_woNA$N)) 
 
 perm_result_df_woETI %>% 
   filter(pr_f<=0.1) %>% 
@@ -767,7 +786,129 @@ perm_result_df_woETI %>%
   theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "right", legend.title.position = "top")+
   labs(fill = "p value", size = "Explained variance (%)") +
   ylab("Explained variance (%)")+
-  xlab("Variables tested")  
+  xlab("Variables tested")+
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=",N_obs)), 
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")  # Text color
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/stool_combined_permanova_stratified_202Samples_woETI.png")
+```
+
+## combine 2 barplots into 1
+```{r}
+perm_result_df$test <- "2. PERMANOVA combined"
+results_filtered$test <- "1. PERMANOVA per variable"
+
+a <- perm_result_df %>% 
+  select(variable,r2,pr_f,N_obs,p_sig,test ) %>% 
+  rename(N=N_obs)
+b <- results_filtered %>% 
+  select(variable, r2, pr_f, N, p_sig, test) 
+
+df_ab <- rbind(a,b) %>% arrange(desc(r2))
+
+# rename the variable to sth more meaningful
+
+df_ab <- df_ab %>%
+  mutate(variable_new = case_when(
+    variable == "visit_sum" ~ "Sampling time point (months)",
+    variable == "tobramycin_inhal" ~ "Tobramycin Inhalation",
+    variable == "isotonic_na_cl" ~ "Isotonic NaCl Inhalation",
+    variable == "saba_inhal" ~ "(SABA) Inhaler",
+    variable == "cortison_inhal" ~ "Cortisone Inhalation",
+    variable == "antihistaminikum" ~ "Oral Antihistamine",
+    variable == "orale_zusatznahrung" ~ "Oral Nutritional Supplement",
+    variable == "laxantien" ~ "Laxatives",
+    variable == "antidiabetic_oral" ~ "Antidiabetic Medication (Oral)",
+    variable == "ab_15dprior_visit" ~ "Antibiotic 15 Days before Visit",
+    variable == "hb_a1c_percent" ~ "Hb A1c %",
+    variable == "interleukin8_pg_ml" ~ "Interleukin-8 (pg/ml)",
+    variable == "leukozyten_nl" ~ "Leukocyte Count /nl",
+    variable == "pp_fev_percent" ~ "Lung function (ppFEV1)",
+    variable == "total_reads" ~ "Total Reads",
+    variable == "sex" ~ "Sex",
+    variable == "age_y" ~ "Age",
+    variable == "levofloxacin_inhal" ~ "Levofloxacin Inhalation",
+    variable == "azetronam_inhal" ~ "Aztreonam Inhalation",
+    variable == "anticholinergic" ~ "Anticholinergic Inhalation",
+    variable == "dn_ase" ~ "DNAse Inhalation",
+    variable == "cortison_nasal" ~ "Cortisone Nasal Spray",
+    variable == "nasenspray" ~ "Nasal Spray",
+    variable == "ursodesoxychols_a_ure" ~ "Ursodeoxycholic Acid",
+    variable == "tranexams_a_ure" ~ "Tranexamic Acid",
+    variable == "acetylcystein" ~ "Acetylcysteine",
+    variable == "furosemid" ~ "Furosemide",
+    variable == "treatmentdays_365prior_visit" ~ "N Antibiotic tt Days",
+    variable == "crp_mg_l" ~ "CRP mg/l",
+    variable == "ig_g_g_l" ~ "IgG g/l",
+    variable == "gpt_alat_u_l" ~ "GPT/ALAT U/l",
+    variable == "pp_fvc_percent" ~ "Lung function (ppFVC)",
+    variable == "delta_ETI_merged" ~ "N ETI tt Days",
+    variable == "id.y" ~ "ID",
+    variable == "BMI" ~ "BMI",
+    variable == "colistin_inhal" ~ "Colistin Inhalation",
+    variable == "hypertonic_na_cl" ~ "Hypertonic Saline Inhalation",
+    variable == "laba_inhal" ~ "Long-Acting Beta-Agonist (LABA) Inhaler",
+    variable == "mannitol" ~ "Mannitol Inhalation",
+    variable == "cortison_oral" ~ "Cortisone",
+    variable == "na_cl_oral" ~ "Sodium suppl.",
+    variable == "ppi" ~ "PPI",
+    variable == "nsaid" ~ "NSAIDs",
+    variable == "insulin" ~ "Insulin",
+    variable == "ssri" ~ "SSRIs",
+    variable == "chlorid_mmol_cl_l" ~ "Sweat chloride (mmol/l)",
+    variable == "interleukin6_pg_ml" ~ "Interleukin-6 (pg/ml)",
+    variable == "calprotectin_amg_g_stuhl" ~ "Calprotectin (μg/g Stool)",
+    variable == "got_asat_u_l" ~ "GOT/ASAT U/l",
+    variable == "cftr_prior_v1" ~ "prior CFTR-modulator tt",
+    variable == "mutation_status" ~ "Mutation (homo- vs heterozygous",
+    variable == "azithromycin_oral" ~ "Azithromycin (Oral)",
+    variable == "dpi_colistin" ~ "DPI Colistin Inhalation",
+    variable == "bristol" ~ "Bristol Score",
+    variable == "basic_nutrition" ~ "Basic nutrition",
+    variable == "staph_pos_throat" ~ "Staphylococcus positive throat",
+    variable == "staph_pos_sputum" ~ "Staphylococcus positive sputum",
+    variable == "pseudo_pos_sputum" ~ "Pseudomonas positive sputum",
+    variable == "pseudo_pos_throat" ~ "Pseudomonas positive throat",
+    variable == "Total" ~ "Total",
+    variable == "Residual" ~ "Residual",
+    TRUE ~ as.character(variable) # Default: keep original if not matched
+  ))
+
+```
+
+
+```{r, fig.width=8}
+# Load tidytext for reorder_within
+library(tidytext)
+
+p3 <- df_ab %>% 
+  filter(pr_f <= 0.1) %>% 
+  mutate(variable_new = reorder_within(variable_new, -r2, test)) %>%  # Reorder within each facet
+  ggplot(aes(x = variable_new, y = r2 * 100, fill = p_sig)) +
+  geom_bar(stat = "identity", color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "≤ 0.1"  = "grey")) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 75, hjust = 1), legend.position = "bottom", legend.title.position = "left") +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("Explained variance (%)") +
+  xlab("") +
+  scale_x_discrete(labels = xlabels) +
+  scale_y_continuous(limits = c(0,2.5))+
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=", N)),
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black") +  # Text color
+  
+  # Facet with controlled layout and free scales
+  facet_wrap(~test, scales="free", as.table = TRUE, ncol = 4) +  # Adjust ncol or nrow as needed
+  scale_x_reordered()  # Use this to correctly display reordered x-axis labels
+p3
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/sputum_combined_permanova_")
+
+saveRDS(p3, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_combined_permanova_barplot.rds")
 ```

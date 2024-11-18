@@ -1,0 +1,101 @@
+---
+title: 'Figure: healthy controls vs CF'
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, create phyloseq object (ps_clean) and load libraries
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, microViz, knitr, lubridate, naniar, readxl, ggplot2, ggpubr, ggalluvial, metadeconfoundR)
+
+library(gridExtra)
+```
+
+# read figures from rds files
+
+```{r}
+barplot <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_barplot_stool_Controls_V1.rds")
+bp9 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Proteobacteria.rds")
+bp1 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Escherichia.rds")
+bp10 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Firnicutes.rds")
+bp5 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Ruminococcacae.rds")
+
+```
+
+# combine permanova tables
+```{r}
+
+st_df <- read_delim("~/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/PERMANOVA_timepoints_stool.csv")
+th_df <- read_delim("~/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/PERMANOVA_timepoints_throat.csv")
+
+st_df$material <- "Stool"
+th_df$material <- "Throat"
+
+all_df <- rbind(st_df,th_df)
+
+custom_labels <- c("1" = "0", 
+                   "2" = "3", 
+                   "3-5" = "6-12", 
+                   "6-7" = "15-18", 
+                   "8-10" = "21-24", 
+                   "Control" = "Control")
+
+perm <- all_df %>% 
+  filter(comparison=="Control") %>% 
+  filter(Df==1) %>% 
+ggplot(aes(x = comparison, y = timepoint)) +
+  geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
+  theme_minimal() +
+  scale_x_discrete(labels=custom_labels)+
+  scale_y_discrete(labels=custom_labels)+
+  theme(
+    strip.placement = "outside",  # Place labels outside the plot
+    panel.spacing = unit(0.5, "lines"), legend.title.position = "left") +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("months from ETI treatment start") +
+  xlab("") +
+  facet_grid(cols = vars(material), switch = "y") +  # Move facet labels to the right
+  coord_flip()
+perm  
+  
+```
+
+# harmonize font size
+```{r}
+bp1 <- bp1+ theme(text = element_text(size = 10), strip.text = ggtext::element_markdown(size = 10, face = "italic"))+ylab("")+xlab("")
+bp10 <- bp10+theme(text = element_text(size = 10), strip.text = ggtext::element_markdown(size = 10, face = "italic"))
+bp9 <- bp9+theme(text = element_text(size = 10), strip.text = ggtext::element_markdown(size = 10, face = "italic"))+xlab("")
+bp5 <- bp5+theme(text = element_text(size = 10), strip.text = ggtext::element_markdown(size = 10, face = "italic"))+ylab("")
+
+barplot <- barplot+theme(text = element_text(size = 10), axis.text.y = element_text(size = 10))
+```
+
+```{r, fig.width=12, fig.height=9}
+grid_arranged <- grid.arrange(
+  perm+labs(tag = "a"), #1
+  barplot + labs(tag = "b"), #2
+  bp9 + labs(tag = "c"), #3
+  bp1 + labs(tag = "d"), #3
+  bp10 + labs(tag = "e"), #3
+  bp5 + labs(tag = "f"), #3
+  ncol = 3, nrow = 3,
+  heights = c(0.75, 1, 1),
+  widths=c(2,0.8,0.8),
+  layout_matrix = rbind(c(1,1,1),
+                        c(2,3,4),
+                        c(2,5,6))
+                       )
+# Print or save the arranged plot
+print(grid_arranged)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/control_vsCf_figure.png",grid_arranged, dpi = 300, width = 12, height = 9)
+```
+
+
+
