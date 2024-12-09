@@ -53,6 +53,7 @@ bubble<-  readRDS("/Users/rebecca//Documents/Forschung/IMMProveCF/R_analysis/rds
 
 stool_combined_permanova_barplot <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_combined_permanova_barplot.rds")
 
+lolli <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_permanova_lollipop_plot.rds")
 ```
 
 # harmonize font size
@@ -117,22 +118,47 @@ print(grid_arranged)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure2.png",grid_arranged, dpi = 300, width = 16, height = 12)
 ```
 
+```{r, fig.width=16, fig.height=10}
+
+library(gridExtra)
+
+grid_arranged <- grid.arrange(
+  star+ labs(tag = "a") ,
+  bubble + labs(tag = "b") ,
+  lolli+ labs(tag = "c"),
+  hm_div_stool+ labs(tag = "d"),
+  cor+ labs(tag = "e"),
+  NULL, 
+  ncol = 3, nrow = 2,
+  heights = c(1.1, 1),
+  widths=c(0.9,1,1.3),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,5,6)
+                       ))
+
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure3.png",grid_arranged, dpi = 300, width = 16, height = 10)
+```
+
 # Supplementary figure
-```{r, fig.width=8, fig.height=10}
+```{r, fig.width=16, fig.height=10}
 
 grid_arranged <- grid.arrange(
   stool_shannon + labs(tag = "a") ,
  stool_observed + labs(tag = "b") ,
-  tax_stool_legend+ labs(tag = "c"),
-  ncol = 2, nrow = 2,
+ metad_stool+ labs(tag = "c") ,
+  tax_stool_legend+ labs(tag = "d"),
+  ncol = 3, nrow = 2,
   heights = c(1 , 1.5),
-  #widths=c(0.9,1,1.3),
-  layout_matrix = rbind(c(1,2),
-                        c(3,3))
+  widths=c(0.5,0.5,1),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,4,3))
                        )
 
 # Print or save the arranged plot
 print(grid_arranged)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_supplement_figure.png",grid_arranged, dpi = 300, width = 8, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_supplement_figure.png",grid_arranged, dpi = 300, width = 16, height = 10)
 ```

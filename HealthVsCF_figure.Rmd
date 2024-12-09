@@ -97,5 +97,29 @@ print(grid_arranged)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/control_vsCf_figure.png",grid_arranged, dpi = 300, width = 12, height = 9)
 ```
 
+# Supplementary Figure
+```{r, fig.height=20, fig.width=16}
+bp12 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_throat_Actinobacteriota.rds")
+bp1 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_throat_Rothia.rds")
+throat_da <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_throat_Controls.rds")
+stool_da <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_stool_Controls.rds")
 
+grid_arranged <- grid.arrange(
+  stool_da + labs(tag = "a")+ theme(legend.position = "bottom") + ggtitle("Stool"), #1
+  throat_da + labs(tag = "b") + theme(legend.position = "bottom")+ggtitle("Throat"), #2
+  bp12 + labs(tag = "c"), #3
+  bp1 + labs(tag = "d"), #3
+  NULL,
+  ncol = 4, nrow = 3,
+  heights = c(1.5, 0.75, 1.25),
+  #widths=c(2,0.8,0.8),
+  layout_matrix = rbind(c(1,1,2,2),
+                        c(1,1,3,4),
+                        c(1,1,5,5))
+                       )
+# Print or save the arranged plot
+print(grid_arranged)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/SuppFigure_HealthvsCF.png",grid_arranged, width = 16, height = 20)
+```
 

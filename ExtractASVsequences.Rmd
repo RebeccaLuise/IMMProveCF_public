@@ -1,0 +1,79 @@
+---
+title: "Extract ASV sequences for species annotation"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# load combined ASV tax file
+```{r}
+taxa <- read_delim("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/Run1-23_IMP_ASV_taxonomy.csv")
+
+taxa %>% 
+  filter(Genus=="Staphylococcus")
+
+ps_IMP <- readRDS("/Users/rebecca/Documents/Forschung/16S_Pipeline_Mz/ps_Run1-23_IMMProveCF.rds")
+
+tax_ps <- as.data.frame(tax_table(ps_IMP))
+
+ps_full_clean <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+tax_ps_clean <- as.data.frame(tax_table(ps_full_clean))
+tax_ps_clean$ASV_n <- rownames(tax_ps_clean)
+
+tax_ps_clean <- tax_ps_clean%>%
+  rename_with(~ paste0(.x, "_asv"))
+
+tax_c <- cbind(tax_ps, tax_ps_clean)
+
+which((tax_c$Genus==tax_c$Genus_asv)==F) # those which are false are the divergent writing of Escherichia-Shigella
+
+tax_c %>% 
+  distinct(ASV_n_asv, .keep_all = T) # all sequences are unique
+
+# now extract Staphylococcus sequences
+staph <- tax_c %>% 
+  filter(Genus=="Staphylococcus")
+
+data <- staph
+# Loop through each row and write to FASTA files
+for (i in seq_len(nrow(data))) {
+  # Get the ASV name for the file
+  asv_name <- data$ASV_n_asv[i]
+  
+  # Get the row name to write into the FASTA
+  fasta_content <- paste0(">", rownames(data)[i], "\n", rownames(data)[i])
+  
+  # Define the filename
+  filename <- paste0(asv_name, "Staphylococcus.fasta")
+  
+  # Write to the file
+  writeLines(fasta_content, con = filename)
+}
+
+# now extract Pseudomonas
+# now extract Staphylococcus sequences
+pseu <- tax_c %>% 
+  filter(Genus=="Pseudomonas")
+
+data <- pseu
+# Loop through each row and write to FASTA files
+for (i in seq_len(nrow(data))) {
+  # Get the ASV name for the file
+  asv_name <- data$ASV_n_asv[i]
+  
+  # Get the row name to write into the FASTA
+  fasta_content <- paste0(">", rownames(data)[i], "\n", rownames(data)[i])
+  
+  # Define the filename
+  filename <- paste0(asv_name, "Pseudomonas.fasta")
+  
+  # Write to the file
+  writeLines(fasta_content, con = filename)
+}
+```
+

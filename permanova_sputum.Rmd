@@ -654,8 +654,8 @@ saveRDS(p2, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/
 ```
 ## combine 2 barplots into 1
 ```{r}
-perm_result_df_woETI$test <- "2. PERMANOVA combined"
-results_filtered$test <- "1. PERMANOVA per variable"
+perm_result_df_woETI$test <- "Multiple PERMANOVA"
+results_filtered$test <- "Simple PERMANOVA"
 
 a <- perm_result_df_woETI %>% 
   select(variable, r2, pr_f, N_obs, p_sig, test) %>% 
@@ -669,7 +669,7 @@ df_ab <- rbind(a,b) %>% arrange(desc(r2))
 
 df_ab <- df_ab %>%
   mutate(variable_new = case_when(
-    variable == "visit_sum" ~ "Sampling time point (months)",
+    variable == "visit_sum" ~ "Sampling time point",
     variable == "tobramycin_inhal" ~ "Tobramycin Inhalation",
     variable == "isotonic_na_cl" ~ "Isotonic NaCl Inhalation",
     variable == "saba_inhal" ~ "(SABA) Inhaler",
@@ -768,6 +768,69 @@ p3
 
 saveRDS(p3, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_combined_permanova_barplot.rds")
 ```
+```{r}
+df_ab %>% 
+  filter(pr_f <= 0.05) %>% 
+  mutate(variable_new = fct_reorder(variable_new, -r2)) %>%  # Reorder variables globally
+  ggplot(aes(x = variable_new, y = r2 * 100, fill = test, group = test)) +  # Group by test for pairing
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), color = "black") +  # Dodge bars
+  #scale_fill_manual(values = c("Combined" = "#31A1B3FF", "Not Combined" = "#765085")) +  # Customize test colors
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 75, hjust = 1),
+    legend.position = "bottom",
+    legend.title.position = "left"
+  ) +
+  labs(fill = "Test Type", size = "Explained variance (%)") +
+  ylab("Explained variance (%)") +
+  xlab("") +
+  scale_x_discrete(labels = xlabels) +
+  scale_y_continuous(limits = c(0, 12.5)) +
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=", N), group = test),
+            position = position_dodge(width = 0.8),  # Match the dodge width for labels
+            vjust = -0.5,  # Positioning above the bar
+            size = 3,      # Text size
+            color = "black")
+
+df_ab %>% 
+  filter(pr_f <= 0.1) %>%
+  pivot_wider(names_from = test, values_from = r2, values_fill = 0) %>%
+  ggplot(aes(y = variable_new)) +
+  geom_segment(aes(x = `1. PERMANOVA per variable` * 100, xend = `2. PERMANOVA combined` * 100, yend = variable_new), color = "grey") +
+  geom_point(aes(x = `1. PERMANOVA per variable` * 100), color = "#31A1B3FF", size = 4) +
+  geom_point(aes(x = `2. PERMANOVA combined` * 100), color = "#765085", size = 4) +
+  theme_bw() +
+  labs(x = "Explained variance (%)", y = "Variable")
+
+```
+### Lollipop plot
+```{r}
+p4 <- df_ab %>% 
+  filter(pr_f <= 0.1) %>% 
+  mutate(variable_new = fct_reorder(variable_new, -r2)) %>%
+  ggplot(aes(x = r2 * 100 , y = variable_new, color = test, group = test)) +
+  geom_segment(aes(yend = variable_new, xend = 0), size = 1, position = position_dodge(width = 0.8)) +
+  geom_point(size = 4, position = position_dodge(width = 0.8)) +
+  scale_color_manual(values = c( "#765085","#31A1B3FF")) +
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 12)) +
+  labs(color = "Test Type", x = "Explained variance (%)", y = "") +
+  scale_x_continuous(limits = c(0, 12.5))+
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=", N), group = test),
+            position = position_dodge(width = 0.8),  # Match the dodge width for labels
+            hjust = -0.3,  # Positioning above the bar
+            size = 4,      # Text size
+            color = "black")
+p4
+saveRDS(p4, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_permanova_lollipop_plot.rds")
+
+```
+
+
 
 # check changes in DNAse treatment
 ```{r}

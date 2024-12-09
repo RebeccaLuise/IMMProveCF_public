@@ -16,14 +16,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r run import script, include=FALSE}
-# run script to tidy the data and to load packages, creates phyloseq object per material and per year; load libraries
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
 
 #renv::install("tillbirkner/MetadeconfoundR")
 ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
 
 samples <- read_csv("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/data/samples_sequencedTF.csv")
-
-pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, microViz)
 
 ```
 
@@ -176,7 +174,7 @@ metadata %>%
 ```
 
 ## MetadeconfoundR for throat diversity
-```{r MetadeconfoundR for throat diversity unrarefied, fig.height=4, fig.width=8}
+```{r MetadeconfoundR for throat diversity rarefied, fig.height=4, fig.width=8}
 
 alphadiversity_df_throat <- microbiome::alpha(ps_full_throat_rar, index = "all")
 alphadiversity_df_throat$x_sample_id <- rownames(alphadiversity_df_throat)
@@ -214,6 +212,8 @@ throat_metad_div<- MetaDeconfound(featureMat = features, metaMat = metadata, ran
 
 tab_throat <- BuildHeatmap(throat_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2, keepMeta = c("chlorid_mmol_cl_l", "delta_ETI_merged", "interleukin6_pg_ml", "levofloxacin_inhal", "chlorid_mmol_cl_l","crp_mg_l", "leukozyten_nl", "pp_fev_percent", "delta_ETI_merged", "cortison_oral", "treatmentdays_365prior_visit"))
 
+tab_throat_2 <- BuildHeatmap(throat_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.2)
+
 tab_throat <- tab_throat %>% 
   mutate(Sample="Throat")
 
@@ -223,7 +223,7 @@ stats_throat <- throat_metad_div%>%
     filter(status!="NS") %>% 
     mutate(Sample="Throat")
 
-tab_throat%>% 
+throat_div_hm <- tab_throat_2%>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
@@ -236,6 +236,9 @@ geom_tile(aes(fill = Ds), color = "black") +
   ylab("")+
   scale_x_discrete(labels = xlabels)+
   scale_y_discrete(labels = ylabels)
+throat_div_hm
+
+saveRDS(throat_div_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/throat_div_hm.rds")
 
 tabyl(metadata, insulin, id.y) # 7 patients had insulin
 tabyl(metadata, ssri, id.y) #  3 patients took SSRIs
@@ -686,10 +689,335 @@ summary(lmerTest::lmer(leukozyten_nl ~ visit_sum + age_y + sex +(1|id), data=met
 summary(lmerTest::lmer(ig_g_g_l ~ visit_sum + age_y + sex +(1|id), data=metadata_features_combined_sputum))
 
 
-ggarrange(pseudomonas, pseu_igg, pseu_leuco, leu, igg, pseu_ab, labels = c("A","B","C","D","E","F"), nrow = 2, ncol = 3, legend = "bottom", common.legend = T)
+ggarrange(pseudomonas, pseu_igg, igg_leuco, leu, igg, pseu_ab, labels = c("A","B","C","D","E","F"), nrow = 2, ncol = 3, legend = "bottom", common.legend = T)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation.png", width = 12, height = 8)
+```
+
+## perform little subgroup analysis within pseudomonas positive individuals only for inflammation parameters
+```{r}
+
+
+pseudo_pat_v1 <-  metadata_features_combined_sputum %>%
+  filter(Pseudomonas>0&visit=="1") %>% 
+  select(x_sample_id)
+
+pseu_only_data <- metadata_features_combined_sputum %>%
+  filter(Pseudomonas>0 | x_sample_id%in% c(pseudo_pat_v1$x_sample_id) )
+
+summary(pseu_only_data$age_y)
+
+pseu_ab <- pseu_only_data %>% 
+ggplot(aes(y = Pseudomonas * 100 + 0.01, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Months from treatment start") +
+  ylab("*Pseudomonas* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))
+
+leu <- pseu_only_data %>% 
+  ggplot(aes(y = leukozyten_nl, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  #geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("Leucocytes /nl") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+summary(lmerTest::lmer(Pseudomonas ~ visit_sum + age_y + sex +(1|id), data=pseu_only_data))
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum + age_y + sex +(1|id), data=pseu_only_data))
+summary(lmerTest::lmer(ig_g_g_l ~ visit_sum + age_y + sex +(1|id), data=pseu_only_data))
+
+igg <- pseu_only_data %>% 
+  ggplot(aes(y = ig_g_g_l, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  #geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("IgG g/l") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+ggarrange(igg_leuco, pseudomonas, pseu_igg,pseu_ab, leu, igg, labels = c("a","b","c","d","e","f"), nrow = 2, ncol = 3, legend = "bottom", common.legend = T)
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation.png", width = 12, height = 8)
 ```
+## compare Pseu pos sputum vs non-pos sputum samples
+```{r}
+
+metadata_features_combined_sputum <- metadata_features_combined_sputum %>%
+  mutate(pseudo_pos_sputum_16S = case_when(Pseudomonas>0~T, T~F)) 
+
+summary(lmerTest::lmer(leukozyten_nl ~ pseudo_pos_sputum_16S +age_y + sex +(1|id), data=metadata_features_combined_sputum))
+summary(lmerTest::lmer(leukozyten_nl ~ pseudo_pos_sputum_16S+visit_sum+ +age_y + sex +(1|id), data=metadata_features_combined_sputum))
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum +age_y + sex +(1|id) + (1|pseudo_pos_sputum_16S), data=metadata_features_combined_sputum))
+
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum +age_y + sex +(1|id), data=pseu_only_data))
+
+pseu_neg_data <- metadata_features_combined_sputum %>% 
+  filter(pseudo_pos_sputum_16S==F)
+
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum +age_y + sex +(1|id), data=pseu_neg_data))
+
+
+metadata_features_combined_sputum %>%
+ ggplot(aes(y = leukozyten_nl, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  #geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("Leucocytes /nl") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))+
+  facet_grid(~pseudo_pos_sputum_16S)
+
+metadata_features_combined_sputum %>%
+ ggplot(aes(y = ig_g_g_l, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  #geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("IgG") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))+
+  facet_grid(~pseudo_pos_sputum_16S)
+
+summary(lmerTest::lmer(ig_g_g_l ~ pseudo_pos_sputum_16S +age_y + sex +(1|id), data=metadata_features_combined_sputum))
+summary(lmerTest::lmer(ig_g_g_l ~ visit_sum +age_y + sex +(1|id) + (1|pseudo_pos_sputum_16S), data=metadata_features_combined_sputum))
+
+# only pseu pos. samples:
+summary(lmerTest::lmer(ig_g_g_l~ visit_sum +age_y + sex +(1|id), data=pseu_only_data))
+# only pseu neg. samples:
+summary(lmerTest::lmer(ig_g_g_l ~ visit_sum +age_y + sex +(1|id), data=pseu_neg_data))
+
+igg_pn <- ggplot(metadata_features_combined_sputum, aes(x = visit_sum, y = ig_g_g_l, color = pseudo_pos_sputum_16S)) +
+  geom_point(position = position_jitter(width = 0.2), size=3) +
+  geom_smooth(method = "lm", aes(group = pseudo_pos_sputum_16S), se = TRUE, line=2) +
+  labs(x="Months from treatment start", y = "IgG (g/L)", color = "Pseudomonas") +
+  theme_classic() +
+  scale_color_manual(values = c("#94D0C0FF","#EE6AA7"), labels = c("negative", "positive"))+scale_x_discrete(labels= x2labels)+theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "bottom",
+    axis.text = element_text(size = 12)
+  ) 
+igg_pn
+
+legend2 <- as_ggplot(get_legend(igg_pn))
+
+leu_pn <- ggplot(metadata_features_combined_sputum, aes(x = visit_sum, y = leukozyten_nl, color = pseudo_pos_sputum_16S)) +
+  geom_point(position = position_jitter(width = 0.2), size=3) +
+  geom_smooth(method = "lm", aes(group = pseudo_pos_sputum_16S), se = TRUE, line=2) +
+  labs(x = "Months from treatment start", y = "Leucocytes /nl", color = "Pseudomonas")+
+  theme_classic() +
+  scale_color_manual(values = c("#94D0C0FF","#EE6AA7"), labels = c("negative", "positive"))+scale_x_discrete(labels= x2labels)+theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) 
+leu_pn
+
+legend1 <- as_ggplot(get_legend(igg_leuco))
+
+ggarrange(igg_leuco, pseudomonas, pseu_igg,pseu_ab, leu_pn, igg_pn, labels = c("a","b","c","d","e","f"), nrow = 2, ncol = 3, legend = "none", common.legend = T)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation_new.png", width = 10, height = 7)
+
+Legend_c <- ggarrange(legend1, legend2)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation_legend.png", Legend_c, width = 12, height = 2)
+
+summary(metadata_features_combined_sputum$pseudo_pos_sputum_16S)
+```
+
+## perform little subgroup analysis within Staphylococcus positive individuals only for inflammation parameters
+```{r}
+staph_pat_v1 <-  metadata_features_combined_sputum %>%
+  filter(Staphylococcus>0&visit=="1") %>% 
+  select(x_sample_id)
+
+staph_only_data <- metadata_features_combined_sputum %>%
+  filter(Staphylococcus>0 | x_sample_id%in% c(staph_pat_v1$x_sample_id) )
+
+staph_ch <- staph_only_data %>%
+  distinct(id, .keep_all = TRUE) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    median_age = median(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE),
+    count = n()
+  )%>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Statistic",
+    values_to = "Staphylococcus sputum+"
+  )
+
+metadata_features_combined_sputum %>%
+  filter(Staphylococcus>0 | Pseudomonas>0) %>% 
+  ggplot(aes(y=age_y))
+
+metadata_features_combined_sputum %>%
+  filter(Staphylococcus>0 & Pseudomonas>0) %>% 
+  distinct(id)
+
+
+
+pseu_ch <- pseu_only_data%>%
+  distinct(id, .keep_all = TRUE) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    median_age = median(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE),
+    count = n()
+  )%>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Statistic",
+    values_to = "Pseudomonas sputum+"
+  )
+
+characteristics <- cbind(staph_ch, pseu_ch)
+  
+
+staph_only_data %>% 
+ggplot(aes(y = Staphylococcus * 100 + 0.01, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
+  xlab("Months from treatment start") +
+  ylab("*Staphylococcus* (%) in Sputum") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  #annotate("text", x = , y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
+  #geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
+  #geom_vline(xintercept = 60, linetype = 'dotted', col = 'red') +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5))
+
+
+staph_only_data %>% 
+  ggplot(aes(y = leukozyten_nl, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  #geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("Leucocytes /nl") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+summary(lmerTest::lmer(Staphylococcus ~ visit_sum + age_y + sex +(1|id), data=staph_only_data))
+summary(lmerTest::lmer(leukozyten_nl ~ visit_sum + age_y + sex +(1|id), data=staph_only_data))
+summary(lmerTest::lmer(ig_g_g_l ~ visit_sum + age_y + sex +(1|id), data=staph_only_data))
+
+staph_only_data %>% 
+  ggplot(aes(y = ig_g_g_l, x=visit_sum)) +
+  geom_boxplot()+
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_line(aes(group=id), color="black", alpha=0.5)+
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_x_discrete(labels= x2labels)+
+  xlab("Months from treatment start") +
+  ylab("IgG g/l") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 12),
+    axis.title.x  = ggtext::element_markdown(size = 12),
+    legend.title = element_text(size = 12),
+    text = element_text(size = 12),
+    legend.position = "none",
+    axis.text = element_text(size = 12)
+  ) +
+  guides(color = guide_legend(title = "Months from treatment start", title.position = "left", ncol = 5)) 
+
+```
+
 ## add in vitro testing results
 ```{r}
 
@@ -967,4 +1295,16 @@ p1
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_esch_cale_stool.pdf", width = 4.5, height = 5)
 
 saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/cor_esch_cale_stool.rds")
+
+
+metadata_x_stool %>% 
+  ggplot(aes(as_factor(cortison_oral), calprotectin_amg_g_stuhl, color=cortison_oral))+
+  geom_boxplot()+
+  geom_point()+
+  scale_y_log10()+
+  #scale_x_discrete(labels=xlab)+
+  stat_compare_means(method = "wilcox")+
+  theme_bw()
+
+metadata_features_combined_stool$cortison_oral
 ```

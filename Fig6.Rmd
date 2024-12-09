@@ -25,7 +25,7 @@ ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds
 metadata <- as(sample_data(ps_full), "data.frame")
 
 metadata_v1 <-metadata %>% 
-   filter(project=="IMMPIMMP")
+   filter(project=="IMMPIMMP") %>% 
   filter(visit==1)
 
 pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr,rstatix, metadeconfoundR, LongDat,metacoder,agricolae, ape, gridExtra, stargazer)
@@ -178,6 +178,65 @@ p1 <- v1_df %>%
   guides(fill = guide_legend(title = ""))
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/paired_variance_explained.pdf", width = 5, height = 3)
+
+p1
+
+v1_df <- v1_df%>%
+  mutate(p_sig = case_when(pr_f<=0.001 ~ "***", pr_f<=0.01 ~ "**", pr_f<=0.05 ~ "*",pr_f<=0.1 ~ ".",pr_f>=0.1 ~ "ns"))%>%
+  mutate(r2_percent = r2*100)%>%
+  select(variable, df, sum_of_sqs, r2, r2_percent, f, pr_f, p_sig)
+
+sjPlot::tab_df(v1_df, title= "PERMANOVA of paired sputum/throat samples", file = "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/permanova_paired_sputum_throat.html")
+
+#pagedown::chrome_print("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/table_outputs/permanova_paired_sputum_throat.html") # prints the html file in the same directory as a pdf
+```
+# PERMANOVA stratified by donor and without dominant genus
+```{r}
+# calculate BC_distance
+set.seed(100)
+BC_dist<- phyloseq::distance(ps_sputum_throat_full_unique_2_relab,
+                             method="bray", weighted=F)
+#extract metadata
+metadata<- as(sample_data(ps_sputum_throat_full_unique_2_relab),"data.frame")
+
+#vegan::adonis2(BC_dist ~ material + visit + id,
+              #permutations = 999, na.action=na.exclude, data = metadata)
+
+# margin
+v1 <- vegan::adonis2(BC_dist ~ material + visit,
+              permutations = 999, na.action=na.exclude, data = metadata, by="margin", strata = metadata$id)
+
+# plot PERMANOVA as pie chart of variance explained
+
+v1_df <- clean_names(as_tibble(v1))
+v1_df$variable<-rownames(v1_df)
+variable_name <- c("sample type" , "sample time point" , "residual", "Total")
+
+v1_df <- v1_df%>%
+  mutate(variable=variable_name)%>%
+  mutate(p = case_when(variable=="residual" ~ 0.049, variable=="Total" ~ 0.051, TRUE~pr_f))
+
+# plot R2 only of variables that have a p < 0.05
+
+fill_values <- c("#6FB899FF", "#31A1B3FF","#BAB0ACFF")
+label_name <- c("sample type", "sample time point", "residual")
+
+p1 <- v1_df %>%
+  mutate(percent = r2 * 100) %>%
+  mutate(text_y = cumsum(percent) - percent/2) %>%
+  filter(p <= 0.05) %>%
+  ggplot(aes(x = "", y = percent, fill = fct_inorder(variable))) +
+  geom_col(width = 1, color = 1, alpha = 0.7) +
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = fill_values, breaks = label_name, labels = label_name) +
+  theme_void() +
+  theme(legend.position = "right", text = element_text(size = 18)) +
+  geom_text(aes(label = paste0(round(percent, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            size = 6) +  # Adjust the size here
+  guides(fill = guide_legend(title = ""))
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/paired_variance_explained_strata.pdf", width = 5, height = 3)
 
 p1
 
@@ -418,6 +477,19 @@ p6 <- tmp6 %>%
   theme(legend.position = "bottom", text = element_text(size = 18)) +
   labs(color = "Delta in tt days btwn sample time points")
 
+bc_plot <- tmp6 %>%
+  filter(visit_id_pair_y == 1) %>%
+  ggplot(aes(Throat_Throat, Sputum_Sputum)) +
+  geom_point(aes(color = tt_dif_days), size = 3, alpha = 0.7) +
+  scale_colour_continuous(type = "viridis") +
+  geom_smooth(method = "lm", color = "black") +
+  #facet_wrap(visit_id_pair_y ~ ., labeller = as_labeller(labels), ncol = 1) + #, scales = "free_y", space = "free_y"
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 18)) +
+  labs(color = "Delta in tt days btwn sample time points",y = "BC dissimilarity between sputum samples", x="BC dissimilarity between throat samples")
+bc_plot
+
+saveRDS(bc_plot, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Correlation_BCdist_intraID_spuThr.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Correlation_BCdist_groups.pdf", width = 9, height = 6)
 
 tmp6 %>% 

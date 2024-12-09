@@ -77,3 +77,4 @@ grid_arranged <- grid.arrange(
 print(grid_arranged)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 8)
 ```
+

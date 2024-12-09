@@ -787,6 +787,9 @@ all_stats_iqr <- rbind(results_phylum$significant_taxa,results_class$significant
 
 all_stats_iqr$Taxa <- rownames(all_stats_iqr)
 all_stats_iqr$Taxa  <- gsub("\\.\\d+", "", all_stats_iqr$Taxa)
+
+write_csv(all_stats_iqr, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/SuppMaterial/iqr_zscore_throat.csv")
+
 ```
 
 ```{r}
@@ -981,6 +984,7 @@ results <- lm_corrected_pvalues_boxplot(ps_iqr_z_df_phylum, taxonomic_rank = "Ph
 bp12 <- results$boxplots$Actinobacteriota
 lm12 <- results$lm_stats$Actinobacteriota
 
+
 # Optionally, combine all boxplots and lm_stats for further analysis or plotting
 boxplots_list <- list(bp1, bp2, bp3, bp4, bp5, bp6, bp9, bp10, bp11, bp12)
 lm_stats_list <- list(lm1, lm2, lm3, lm4, lm5, lm6, lm9, lm10, lm11, lm12)
@@ -995,6 +999,9 @@ boxplots_list
 ```{r fig.height=4, fig.width=8}
 ggarrange(bp12, bp1, ncol = 2, nrow = 1)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_throat.png", height = 4, width = 8)
+
+saveRDS(bp12, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_throat_Actinobacteriota.rds")
+saveRDS(bp1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_throat_Rothia.rds")
 ```
 
 ```{r}

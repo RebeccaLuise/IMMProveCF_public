@@ -1847,12 +1847,15 @@ write_csv(effect_table_sig_all_control_write, "/Users/rebecca/Documents/Forschun
 
 #writexl::write_xlsx(effect_table_sig_all_control_write, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/SuppMaterial/SuppTable_18.xlsx")
 
-effect_table_sig_all_control %>%
+p1 <- effect_table_sig_all_control %>%
   mutate(taxa=gsub("ASV\\d{3}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{2}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{1}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{4}_", "", taxa)) %>% 
   arrange(ASV) %>%
   ggplot(aes(x = comparison_p, y = taxa)) + 
   geom_point(
-    aes(fill = effectSize, shape = as.factor(sign(effectSize)), size = abs(effectSize), color = fdr)
+    aes(fill = -effectSize, shape = as.factor(sign(-effectSize)), size = abs(effectSize), color = fdr)
   ) +
   scale_size_continuous(name = "Absolute effect size (Cliff's delta)", guide = guide_legend(ncol = 5)) + 
   scale_shape_manual(name = "", labels = c("decreased","increased"), values = c(25,24),guide = guide_legend(ncol = 2)) + 
@@ -1875,9 +1878,11 @@ effect_table_sig_all_control %>%
     legend.key = element_rect(size = 8),
     legend.key.size = unit(1.5, 'lines')
   ) +
-  scale_x_discrete(labels = c("1", "3", "6-12", "15-18", "21-24")) +
+  scale_x_discrete(labels = c("0", "3", "6-12", "15-18", "21-24")) +
   labs(x = "months from treatment start", y = "")
-
+p1
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_throat_Controls.png", width = 11, height = 5)
+
+saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_throat_Controls.rds")
 ```
 

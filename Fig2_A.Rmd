@@ -55,6 +55,18 @@ set.seed(100)
 BC_dist<- phyloseq::distance(ps_sputum_relab,
                              method="bray", weighted=F)
 
+pcoa_result <- cmdscale(BC_dist, k = 2, eig = TRUE)
+
+# Extract eigenvalues (variance explained by each axis)
+eigenvalues <- pcoa_result$eig
+
+# Calculate variance explained
+variance_explained <- eigenvalues / sum(eigenvalues) * 100
+
+# Display variance explained by Axis 1 and Axis 2
+cat("Variance explained by Axis 1:", round(variance_explained[1], 2), "%\n")
+cat("Variance explained by Axis 2:", round(variance_explained[2], 2), "%\n")
+
 #bray <- vegan::vegdist(t(otu_table(ps_sputum_relab), method = "bray", na.rm = T)) Theda calculated distances with this but somehow it will not run for me
 
 bray <- as.matrix(BC_dist)
@@ -66,7 +78,7 @@ bray <- as.matrix(BC_dist)
   beta <- base::transform(merge(sample_data(ps_sputum_relab), beta, by = 0, all = TRUE), row.names = Row.names, Row.names = NULL)
   
 # run stratified permanova by id
-pmv_stratified<- adonis2(BC_dist~visit_sum, data=beta, permutations=999,strata=beta$id, by="margin")
+pmv_stratified<- vegan::adonis2(BC_dist~visit_sum, data=beta, permutations=999,strata=beta$id, by="margin")
 
 # create starplot
 beta <- beta%>%
@@ -242,13 +254,18 @@ plot_all+
   guides(color = guide_legend(title = "trajectory")) +
   # scale_color_manual(values = c("#F1BB7B", "#FD6467", "black"))+
   
-  theme (axis.title.x = element_text (size = 16), 
-         axis.text.x = element_text (size = 16), 
-         axis.text.y = element_text (size = 16), 
-         axis.title.y = element_text (size = 16),
-         legend.position = "none",
-         title = element_text(size=18))+
-  ggtitle("Sputum") -> plot.plot_sputum
+  theme (axis.title.x = element_text (size = 12), 
+         axis.text.x = element_text (size = 12), 
+         axis.text.y = element_text (size = 12), 
+         axis.title.y = element_text (size = 12),
+         legend.position = "bottom",
+         title = element_text(size=12))+
+  labs(
+    x = paste0("PCo 1 (", round(variance_explained[1], 1), "%)"),
+    y = paste0("PCo 2 (", round(variance_explained[2], 1), "%)")
+  )+
+  xlim(-0.3,0.3 )+ylim(-0.05, 0.65)-> plot.plot_sputum
+  
 
 print(plot.plot_sputum)
 

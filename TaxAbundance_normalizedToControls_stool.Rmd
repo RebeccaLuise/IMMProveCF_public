@@ -793,6 +793,18 @@ all_stats_iqr <- rbind(results_phylum$significant_taxa,results_class$significant
 
 all_stats_iqr$Taxa <- rownames(all_stats_iqr)
 all_stats_iqr$Taxa  <- gsub("\\.\\d+", "", all_stats_iqr$Taxa)
+summary(as_factor(all_stats_iqr$Taxa))
+
+all_stats_iqr %>% 
+   distinct(Taxa)
+
+all_stats_iqr %>% 
+filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa) %>% 
+  distinct(Taxa) # those are the taxa that were different at baseline and align with levels seen in healthy controls
+
+all_stats_iqr_sig_filtered <- all_stats_iqr %>% 
+  filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa)
+write_csv2(all_stats_iqr_sig_filtered, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/SuppMaterial/iqr_zscore_stool.csv")
 ```
 
 ```{r}
@@ -1002,6 +1014,12 @@ ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-s
 
 ggarrange(bp9, bp1, NULL, bp10, bp8, bp7, bp5, bp3, bp2, ncol = 3, nrow = 3)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/IQR-Z-scores_sig_stool.png", height = 12, width = 12)
+
+saveRDS(bp9, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Proteobacteria.rds")
+saveRDS(bp1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Escherichia.rds")
+saveRDS(bp10, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Firnicutes.rds")
+saveRDS(bp5, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/zScore_st_Ruminococcacae.rds")
+
 ```
 
 # run linear models on ordered visit_sum factor for the ones that were identified to be different.
