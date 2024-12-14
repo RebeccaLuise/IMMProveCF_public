@@ -23,7 +23,7 @@ dom_spu <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/fig
 tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum.rds")
 tax_sputum_woLegend <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum_woLegend.rds")
 metad_sputum <-  readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metad.rds")
-staph <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/staph_sweat_chloride.rds")
+staph <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.rds")
 hm_div_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/hm_div_sputum.rds")
 star <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_sputum.rds")
 permanova_bubble <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_sputum.rds")
@@ -56,46 +56,82 @@ img2 <- readPNG("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IM
 ic25 <- rasterGrob(img2)
 ic25 <- grid.arrange(ic25)
 ic25 <- as_ggplot(ic25)
+ic25 <- ic25+ theme(axis.text= element_text(size = 14), legend.title.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14))
+
+#ic <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IC25_figure/IC25_Annes_Version.rds")
 ```
 
 # harmonize font size
 ```{r}
+dom_palette <- c(
+  Streptococcus = "#69b3a2", 
+  Staphylococcus = "#E55E00", 
+  Fusobacterium = "#6FB899FF", 
+  Prevotella_7 = "#31A1B3FF", 
+  Rothia = "#027B8EFF", 
+  Pseudomonas = "#EE6AA7", 
+  Eikenella = "#94D0C0FF", 
+  Haemophilus = "#CCB22BFF", 
+  Achromobacter = "#9F8F14FF", 
+  Gemella = "#97CFD0", 
+  Moraxella = "#6FB899", 
+  `missing sample` = "#CFCFCF"
+)
 
-dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF")
+dom_palette_labels <- c(
+  Streptococcus = "Streptococcus",
+  Staphylococcus = "Staphylococcus",
+  Fusobacterium = "Fusobacterium",
+  Prevotella_7 = "Prevotella 7",
+  Rothia = "Rothia",
+  Pseudomonas = "Pseudomonas",
+  Eikenella = "Eikenella",
+  Haemophilus = "Haemophilus",
+  Achromobacter = "Achromobacter",
+  Gemella = "Gemella",
+  Moraxella = "Moraxella",
+  `missing sample` = "no sample"
+)
 
-dom_spu <- dom_spu + theme(text = element_text(size = 12), legend.text = element_text(size = 12)) +
-  scale_fill_manual(values= dom_palette,guide =
-                         guide_legend(label.theme = element_text(angle = 0, face = "italic", size = 12)))
+dom_spu <- dom_spu +
+  theme(text = element_text(size = 14), 
+        legend.text = element_text(size = 14), legend.title.position = "top") +
+  guides(fill = guide_legend(nrow = 4, position = "top", 
+                             label.theme = element_text(angle = 0, face = "italic", size = 14))) +
+  scale_fill_manual(values = dom_palette, labels= dom_palette_labels)
 
-tax_sputum <- tax_sputum
 
-star <- star + theme(text = element_text(size = 12), legend.text = element_text(size = 12))
+tax_sputum <- tax_sputum+theme(legend.text = element_text(size = 14))
 
-sputum_lolli <- sputum_lolli+ theme(text = element_text(size = 12), legend.text = element_text(size = 12), legend.title.position = "top", legend.position = "bottom")
+star <- star + theme(axis.text= element_text(size = 14), legend.title.position = "top", legend.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14))
 
-metad_sputum <- metad_sputum + theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=12, face="italic"), legend.title = element_text(size=12), legend.position = "bottom")
+sputum_lolli <- sputum_lolli+ theme(axis.text= element_text(size = 14), axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14), legend.title.position = "left",  legend.position = "top")+ 
+ guides(color=guide_legend(nrow = 2, position = "top")) 
+
+metad_sputum <- metad_sputum + theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=14, face="italic"), legend.title = element_text(size=14), legend.position = "bottom")
   
-hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 12), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
+hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 14), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
   guides(title.position = "left")
 
-staph <- staph +theme(text = element_text(size = 12))
+staph <- staph +theme(text = element_text(size = 14),legend.text = element_text(size = 14), axis.text = element_text(size = 14), axis.title = element_text(size=14), legend.title =  element_text(size = 14), legend.position = "right")+ guides(color=guide_legend(nrow = 5, title = "Month from \ntreatment start")) 
 
-sputum_observed <- sputum_observed+theme(text = element_text(size = 12))
-sputum_shannon <- sputum_shannon+theme(text = element_text(size = 12))
+sputum_observed <- sputum_observed+theme(text = element_text(size = 14))
+sputum_shannon <- sputum_shannon+theme(text = element_text(size = 14))
+sputum_barplot <- sputum_barplot+theme(text = element_text(size = 14))
 
-sputum_barplot <- sputum_barplot+theme(text = element_text(size = 12))
+permanova_bubble <- permanova_bubble + theme(legend.position = "top", legend.title.position = "top", text = element_text(size = 14)) + guides(fill = guide_legend(ncol = 1), size=guide_legend(nrow = 2)) 
 
 ```
 
-```{r, fig.width=16, fig.height=12}
+```{r, fig.width=16, fig.height=14}
 library(ggplot2)
 library(scales)
 
 grid_arranged <- grid.arrange(
   star+ggtitle("") + labs(tag = "a"), #1
-  permanova_bubble + theme(legend.position = "bottom", legend.title.position = "left") + guides(fill = guide_legend(nrow = 3), size=guide_legend(nrow = 2))  +labs(tag = "b"), #2
-  dom_spu+theme(legend.position = "bottom", legend.title.position = "top") + guides(fill = guide_legend(nrow = 4)) + labs(tag = "c"), #3
-  sputum_lolli + guides(fill = guide_legend(nrow = 2, ncol = 1))+ labs(tag = "d"), #4
+  permanova_bubble +labs(tag = "b"), #2
+  dom_spu+ labs(tag = "c"), #3
+  sputum_lolli + labs(tag = "d"), #4
   staph+ labs(tag = "e"), #5
   g + labs(tag = "f"), #6
   ic25 + labs(tag = "g"), #7
