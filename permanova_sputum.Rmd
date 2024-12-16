@@ -358,15 +358,15 @@ p1 <- permanova_result_combined %>%
   filter(Df==1) %>% 
 ggplot(aes(x = comparison, y = timepoint)) +
   geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
   scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
   theme_minimal() +
   scale_x_discrete(labels=custom_labels)+
   scale_y_discrete(labels=custom_labels)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14), axis.text.y = element_text(size = 14), legend.title.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14)) +
   labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("months from ETI treatment start")+
-  xlab("months from ETI treatment start")#+
+  ylab("Months from treatment start")+
+  xlab("Months from treatment start")#+
   #ggtitle("sputum: PERMANOVA between sample timepoints") 
 p1
 saveRDS(p1, "~/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_sputum.rds")
@@ -699,7 +699,7 @@ df_ab <- df_ab %>%
     variable == "treatmentdays_365prior_visit" ~ "N Antibiotic tt Days",
     variable == "crp_mg_l" ~ "CRP mg/l",
     variable == "ig_g_g_l" ~ "IgG g/l",
-    variable == "gpt_alat_u_l" ~ "GPT/ALAT U/l",
+    variable == "gpt_alat_u_l" ~ "GPT/ALAT (U/l)",
     variable == "pp_fvc_percent" ~ "Lung function (ppFVC)",
     variable == "delta_ETI_merged" ~ "N ETI tt Days",
     variable == "id.y" ~ "ID",
@@ -717,7 +717,7 @@ df_ab <- df_ab %>%
     variable == "chlorid_mmol_cl_l" ~ "Sweat chloride (mmol/l)",
     variable == "interleukin6_pg_ml" ~ "Interleukin-6 (pg/ml)",
     variable == "calprotectin_amg_g_stuhl" ~ "Calprotectin (μg/g Stool)",
-    variable == "got_asat_u_l" ~ "GOT/ASAT U/l",
+    variable == "got_asat_u_l" ~ "GOT/ASAT (U/l)",
     variable == "cftr_prior_v1" ~ "prior CFTR-modulator tt",
     variable == "mutation_status" ~ "Mutation (homo- vs heterozygous",
     variable == "azithromycin_oral" ~ "Azithromycin (Oral)",
@@ -813,11 +813,13 @@ p4 <- df_ab %>%
   ggplot(aes(x = r2 * 100 , y = variable_new, color = test, group = test)) +
   geom_segment(aes(yend = variable_new, xend = 0), size = 1, position = position_dodge(width = 0.8)) +
   geom_point(size = 4, position = position_dodge(width = 0.8)) +
-  scale_color_manual(values = c( "#765085","#31A1B3FF")) +
+  scale_color_manual(values = c( "#765085","#31A1B3FF"), labels=c("Multiple PERMANOVA", "Simple PERMANOVA")) +
   theme_classic() +
-  theme(legend.position = "bottom", text = element_text(size = 12)) +
-  labs(color = "Test Type", x = "Explained variance (%)", y = "") +
-  scale_x_continuous(limits = c(0, 12.5))+
+  theme(legend.position = "bottom", text = element_text(size = 14), axis.text = element_text(size = 14)) +
+  labs(color = "Test\nType", x = "Explained variance (%)", y = "") +
+  # Adjust x-axis limits with expand for padding
+  scale_x_continuous(limits = c(0, 12.5), expand = expansion(mult = c(0.035, 0.25))) +
+  
   
   # Add text labels on top of the bars
   geom_text(aes(label = paste("N=", N), group = test),

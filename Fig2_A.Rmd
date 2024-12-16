@@ -254,12 +254,12 @@ plot_all+
   guides(color = guide_legend(title = "trajectory")) +
   # scale_color_manual(values = c("#F1BB7B", "#FD6467", "black"))+
   
-  theme (axis.title.x = element_text (size = 12), 
-         axis.text.x = element_text (size = 12), 
-         axis.text.y = element_text (size = 12), 
-         axis.title.y = element_text (size = 12),
+  theme (axis.title.x = element_text (size = 14), 
+         axis.text.x = element_text (size = 14), 
+         axis.text.y = element_text (size = 14), 
+         axis.title.y = element_text (size = 14),
          legend.position = "bottom",
-         title = element_text(size=12))+
+         title = element_text(size=14))+
   labs(
     x = paste0("PCo 1 (", round(variance_explained[1], 1), "%)"),
     y = paste0("PCo 2 (", round(variance_explained[2], 1), "%)")

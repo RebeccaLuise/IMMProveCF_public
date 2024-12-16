@@ -514,12 +514,12 @@ p1 <- metadata_features_combined_sputum %>%
   ylab("*Staphylococcus* (%) in Sputum") +
   theme_classic() +
   theme(
-    axis.title.y  = ggtext::element_markdown(size = 12),
-    axis.title.x  = ggtext::element_markdown(size = 12),
-    legend.title = element_text(size = 12),
-    text = element_text(size = 12),
+    axis.title.y  = ggtext::element_markdown(size = 14),
+    axis.title.x  = ggtext::element_markdown(size = 14),
+    legend.title = element_text(size = 14),
+    text = element_text(size = 14),
     legend.position = "bottom",
-    axis.text = element_text(size = 12)
+    axis.text = element_text(size = 14)
   ) +
   annotate("text", x = 90, y = 200, label = "fdr=0.015, Ds=0.57", size = 5) +
   geom_vline(xintercept = 30, linetype = 'dotted', col = 'red') +
@@ -527,6 +527,7 @@ p1 <- metadata_features_combined_sputum %>%
   guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
 p1
 
+saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.pdf", width = 7.5, height = 7)
 
 

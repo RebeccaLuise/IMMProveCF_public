@@ -28,9 +28,9 @@ library(datarium)
 
 phylum_palette <- c(Firmicutes= "#69b3a2", Fusobacteriota="#6FB899FF", Bacteroidota="#31A1B3FF", Actinobacteriota= "#027B8EFF", Proteobacteria= "#EE6AA7", Campylobacterota= "#CCB22BFF", Cyanobacteria= "#9F8F12FF", Spirochaetota="#97CFD0", Verrucomicrobiota= "#6388B4FF", Desulfobacterota= "#BB7693FF", Patescibacteria= "#767676FF")
 
-color_palette <- c("#BB7693FF", "#6FB899FF", "#31A1B3FF", "#027B8EFF","#6388B4FF" , "#CCB22BFF", "#9F8F12FF", "#97CFD0","#EE6AA7" ,"#69b3a2" , "#8175AA",  "#9FDED0", "#EEB22BFF", "#767676FF")
+color_palette <- c("#BB7693FF", "#6FB899FF", "#31A1B3FF", "#027B8EFF","#6388B4FF" , "#CCB22BFF", "#9F8F12FF", "#97CFD0","#EE6AA7" ,"#69b3a2" ,  "#9FDED0", "#EEB22BFF", "#767676FF")
 
-dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF", Veillonella="#EEB22BFF", Porphyromonas="#9FDED0", Granulicatella="#6388B4FF", Neisseria="#767676FF")
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#E55E00", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", Veillonella="#EEB22BFF", Porphyromonas="#9FDED0", Granulicatella="#6388B4FF", Neisseria="#8175AA")
 
 ```
 
@@ -78,8 +78,11 @@ id_v1 <-c("13", "15" ,"16", "17" , "31", "32", "35", "8" ) # those have only one
 sample_data(ps_sputum_relab)$visit_cal_9 <- factor(
   sample_data(ps_sputum_relab)$visit_cal_9,
   levels = c("1","2","3","4","5","6","7","8","9","Control"),
-  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+  labels = c("0", "3", "6", "9", "12", "15", "18", "21", "24","Controls")
 )
+
+df <- as.data.frame(tax_table(ps_sputum_relab))
+unique(df$Genus)
 
 ps_sputum_rm <- subset_samples(ps_sputum_relab, id.x %in% id_rm)
 
@@ -88,10 +91,10 @@ p1 <- bp_rm+
   geom_bar(aes(color=Genus, fill=Genus, y = Abundance * 100), stat="identity", position="stack")+
   theme_pubclean()+
     theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
-        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "none",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "none",axis.text.x = element_text(size=12))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
   scale_fill_manual(values=dom_palette)+
   scale_color_manual(values=dom_palette)+
-  scale_x_discrete(name="")+
+  scale_x_discrete(name="Months from treatment start")+
   scale_y_continuous(name="Relative abundance (%)", limits = c(0, 100))+
   facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
 p1
@@ -103,15 +106,15 @@ p2 <- bp_v1+
   geom_bar(aes(color=Genus, fill=Genus, y = Abundance * 100), stat="identity", position="stack")+
   theme_pubclean()+
     theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
-        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "right",axis.text.x = element_text(size=12, angle=45, hjust = 1))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "right",axis.text.x = element_text(size=12))+ #,axis.text.x = element_blank(),axis.ticks = element_blank()
   scale_fill_manual(values=dom_palette)+
   scale_color_manual(values=dom_palette)+
-  scale_x_discrete(name="")+
+  scale_x_discrete(name="Months from treatment start")+
   scale_y_continuous(name="", limits = c(0, 100))+
   facet_grid(cols = vars(id.x), scales ="free_x", space ="free_x")
 p2
 
-p3 <- ggarrange(p1,p2, nrow = 1, widths = c(3,1), labels = c("e","f"), legend = "bottom", common.legend = T )
+p3 <- ggarrange(p1,p2, nrow = 1, widths = c(3,1), labels = c("f","g"), legend = "bottom", common.legend = T )
 
 saveRDS(p3, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.rds")
 
