@@ -187,14 +187,16 @@ Dppfev1<- full_metadata_distinct%>%
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id), color="black", alpha=0.5)+
+    geom_line(aes(group=id), color="black", alpha=0.3)+
     theme_classic()+
     theme_classic()+
     ylab("Delta ppFEV1")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 43, step.increase = 0.05)
+    theme(text=element_text(size = 16), legend.position = "none")+
+    stat_pvalue_manual(
+    lm_stats, label = "fdr_star", y.position = 43, step.increase = 0.07,
+    size = 6)
 Dppfev1
 
 #### delta chloride ####
@@ -255,16 +257,19 @@ Dchloride<- full_metadata_distinct%>%
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-        geom_line(aes(group=id), color="black", alpha=0.5)+
+        geom_line(aes(group=id), color="black", alpha=0.3)+
     theme_classic()+
     theme_classic()+
     ylab("Delta sweat chloride (mmol/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= c("0","3","12","18","24"))+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 4, step.increase = 0.05)
+  stat_pvalue_manual(
+    lm_stats, label = "fdr_star", y.position = 4, step.increase = 0.07,
+    size = 6  # Increase the size of the asterisk (default size is 3)
+  )
 Dchloride
 
 
@@ -322,16 +327,19 @@ Digg<- full_metadata_distinct%>%
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-        geom_line(aes(group=id), color="black", alpha=0.5)+
+        geom_line(aes(group=id), color="black", alpha=0.3)+
     theme_classic()+
     theme_classic()+
     ylab("Delta IgG (g/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.4, step.increase = 0.05)
+    stat_pvalue_manual(
+    lm_stats, label = "fdr_star", y.position = 2.4, step.increase = 0.07,
+    size = 6  # Increase the size of the asterisk (default size is 3)
+  )
 Digg
 
 #### delta antibiotic treatment days ####
@@ -388,16 +396,19 @@ Datb<- full_metadata_distinct%>%
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id), color="black", alpha=0.5)+
+    geom_line(aes(group=id), color="black", alpha=0.3)+
     theme_classic()+
     theme_classic()+
-    ylab("Delta antibiotic tt days")+
-    xlab("Months from ETI treatment start")+
+    ylab("Delta antibiotic treatment days")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 23, step.increase = 0.05)
+    stat_pvalue_manual(
+    lm_stats, label = "fdr_star", y.position = 23, step.increase = 0.07,
+    size = 6  # Increase the size of the asterisk (default size is 3)
+  )
 Datb
 
 ggarrange(Dchloride, Dppfev1, Digg, Datb, nrow = 1)
@@ -409,9 +420,11 @@ kable(lm_stats_1)
 ```
 
 # combine plots for Figure 1
-```{r combine plots for Figure 1, fig.width=17, fig.height=10}
+```{r combine plots for Figure 1, fig.width=16, fig.height=10}
 
 phylum_bars <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/samples_phylum_wControls.rds")
+
+legend2 <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/legend_visit_sum.rds")
 
 library(gridExtra)
 # Arrange the ggplot objects in a grid
@@ -421,19 +434,23 @@ grid_arranged <- grid.arrange(
   Dppfev1 + labs(tag = "c"),
   Digg + labs(tag = "d"),
   Datb+ labs(tag = "e"),
-  ncol = 4, nrow = 2,
-  heights = c(1.5, 1),
+  legend2,
+  ncol = 4, nrow = 3,
+  heights = c(1.4, 1, 0.1),
   widths=c(1.15,1.5,1.5,1.5),
   layout_matrix = rbind(c(1,1,1,1),
-                        c(2,3,4,5))
+                        c(2,3,4,5),
+                        c(6,6,6,6))
 )
 
 # Print or save the arranged plot
 grid_arranged
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/figure1.tiff",grid_arranged, dpi = 600, width = 17, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/figure1.tiff",grid_arranged, dpi = 600, width = 16, height = 10)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/figure1.png",grid_arranged, dpi = 600, width = 17, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/figure1.png",grid_arranged, dpi = 600, width = 16, height = 10)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/figure1.pdf",grid_arranged, dpi = 600, width = 16, height = 10)
 
 ```
 
@@ -489,20 +506,23 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
 
 Chloride<- full_metadata_distinct%>%
+   filter(!is.na(chlorid_mmol_cl_l)) %>% 
     ggplot(aes(y=chlorid_mmol_cl_l, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.5))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("Sweat chloride (mmol/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
+    geom_hline(yintercept = 30, color="red", linetype = 2)+
+    geom_hline(yintercept = 60, color="red", linetype = 2)+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 90, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 110, step.increase = 0.07, size = 5)
 Chloride
 
 
@@ -557,20 +577,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
 
 ppfev1<- full_metadata_distinct%>%
+  filter(!is.na(pp_fev_percent)) %>% 
     ggplot(aes(y=pp_fev_percent, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("ppFEV1")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.07, size = 5)
 ppfev1
 
 
@@ -625,20 +646,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
 
 ppfvc<- full_metadata_distinct%>%
+   filter(!is.na(pp_fvc_percent)) %>% 
     ggplot(aes(y=pp_fvc_percent, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("ppFVC")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 145, step.increase = 0.07, size = 5)
 ppfvc
 
 #### IgG ####
@@ -691,20 +713,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 igG <- full_metadata_distinct%>%
+   filter(!is.na(ig_g_g_l)) %>% 
     ggplot(aes(y=ig_g_g_l, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("IgG (g/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     #scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,100,200))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 25, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 25, step.increase = 0.07, size = 5)
 igG
 
 #### Interleukin 6 ####
@@ -758,20 +781,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 Il6 <- full_metadata_distinct%>%
+   filter(!is.na(interleukin6_pg_ml)) %>% 
     ggplot(aes(y=interleukin6_pg_ml, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("Interleukin 6 (pg/ml)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.07, size = 5)
 Il6
 #### Interleukin 8 ####
 
@@ -824,20 +848,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 Il8 <- full_metadata_distinct%>%
+   filter(!is.na(interleukin8_pg_ml)) %>% 
     ggplot(aes(y=interleukin8_pg_ml, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("Interleukin 8 (pg/ml)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.07, size = 5)
 Il8
 #### CRP ####
 
@@ -890,20 +915,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 CRP <- full_metadata_distinct%>%
+  filter(!is.na(crp_mg_l)) %>% 
     ggplot(aes(y=crp_mg_l, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("CRP (mg/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2.1, step.increase = 0.07, size = 5)
 CRP
 
 #### Calprotectin in stool ####
@@ -957,20 +983,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 calp_stool <- full_metadata_distinct%>%
+  filter(!is.na(calprotectin_amg_g_stuhl)) %>% 
     ggplot(aes(y=calprotectin_amg_g_stuhl, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("Calprotectin in stool (mg/g)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 3, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 3, step.increase = 0.07, size = 5)
 calp_stool
 
 #### GOT/ASAT liver enzyme ####
@@ -1023,20 +1050,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 got<- full_metadata_distinct%>%
+   filter(!is.na(got_asat_u_l)) %>% 
     ggplot(aes(y=got_asat_u_l, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("GOT/ASAT (ul/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.07, size = 5)
 got
 
 #### GPT/ALAT liver enzyme ####
@@ -1090,20 +1118,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
     
 gpt<- full_metadata_distinct%>%
+   filter(!is.na(gpt_alat_u_l)) %>% 
     ggplot(aes(y=gpt_alat_u_l, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("GPT/ALAT (ul/l)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.025)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 2, step.increase = 0.025, size=5)
 gpt
 
 ### HbA1c ###
@@ -1157,20 +1186,21 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
 
 hba1c<- full_metadata_distinct%>%
+   filter(!is.na(hb_a1c_percent)) %>% 
     ggplot(aes(y=hb_a1c_percent, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.7))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("HbA1c (%)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_log10()+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.1, step.increase = 0.025)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.1, step.increase = 0.025, size = 5)
 hba1c
 
 ### Leucocytes ###
@@ -1226,27 +1256,28 @@ lm_stats <-  lm_stats%>%
   filter(!is.na(group2))
 
 leucos<- full_metadata_distinct%>%
+  filter(!is.na(leukozyten_nl)) %>% 
     ggplot(aes(y=leukozyten_nl, x=visit_cal_9))+
      geom_boxplot(aes(fill=visit_cal_9), outlier.shape = NA, alpha=0.7)+
     geom_point(color="black", alpha=0.7, width = 0.1)+
     scale_fill_manual(values=visit_palette)+
-    geom_line(aes(group=id, alpha=0.5))+
+    geom_line(aes(group=id, alpha=0.3))+
     theme_classic()+
     theme_classic()+
     ylab("Leucocytes (/nl)")+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(1,10,50,100,300))+
     scale_x_discrete(labels= xlabels)+
-    theme(text=element_text(size = 14), legend.position = "none")+
+    theme(text=element_text(size = 16), legend.position = "none")+
     #guides(fill='none') +
-   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.4, step.increase = 0.05)
+   stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = 1.4, step.increase = 0.07, size = 5)
 leucos
 ```
 
 
 ```{r, fig.width=16, fig.height=12}
-p1 <- ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, Il8, calp_stool, gpt, got, hba1c, leucos, CRP, nrow = 3, ncol = 4, labels = c("a","b","c","d","e","f","g","h","i","j","k","l"))
-
+p1 <- ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, Il8, calp_stool, gpt, got, hba1c, leucos, CRP, nrow = 3, ncol = 4, labels = c("d","e","f","g","h","i","j","k","l","m","n","o"))
+p1
 write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/clinical_evolution.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/supp_figure1.tiff", width = 14, height = 7)
 ```

@@ -69,13 +69,14 @@ bp_ps_relab2 <- plot_bar(ps_relab_2, "id_visit", fill="Phylum")
 p1 <- bp_ps_relab2+
   geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
   theme_pubclean()+
-    theme(text = element_text(size=19),legend.key.height= unit(4, 'mm'),
-        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=15), legend.position = "bottom",axis.text.x = element_blank(),axis.ticks = element_blank())+ #axis.text.x = element_text(size=6, angle=80)
+    theme(text = element_text(size=16),legend.key.height= unit(4, 'mm'),
+        legend.key.width= unit(4, 'mm'),legend.text = element_text(size=14), legend.position = "bottom",axis.text.x = element_blank(),axis.ticks = element_blank())+ #axis.text.x = element_text(size=6, angle=80)
   scale_fill_manual(values=phylum_palette)+
   scale_color_manual(values=phylum_palette)+
   scale_x_discrete(name="Participant")+
   scale_y_continuous(name="Relative abundance (%)")+
-  facet_grid(rows= vars(material), cols = vars(visit_cal_9), scales ="free_x", space ="free_x", labeller = labeller(material = material.labs))
+  facet_grid(rows= vars(material), cols = vars(visit_cal_9), scales ="free_x", space ="free_x", labeller = labeller(material = material.labs))+
+  guides(fill = guide_legend(nrow = 2))
 p1
 #ggtitle("Taxonomic composition of samples on phylum level (Phyla > 2% relative abundance")
 

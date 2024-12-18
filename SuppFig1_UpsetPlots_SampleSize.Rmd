@@ -45,6 +45,23 @@ count_df <- clean_names(count_df) %>%
 p1 <- ComplexUpset::upset(data=count_df, intersect= c("Visit1", "Visit2", "Visit3", "Visit4", "Visit5", "Visit6", "Visit7", "Visit8", "Visit9"), min_size=1, width_ratio=0.2, height_ratio=1, sort_sets=FALSE, stripes=c("darkgrey",  "#C3BC3FFF", "#6388B4FF", "#6388B4FF", "#6388B4FF","#BB7693FF","#BB7693FF","#55AD89FF","#55AD89FF"))
 sputum <- p1 + ggtitle('Sputum samples')
 sputum
+
+#Extract plot data to find intersection coordinates
+p1_data <- ggplot_build(p1)$data[[2]]  # Layer 2 usually contains the intersection points
+
+# Add a white plus sign to the black dots
+sputum <- p1 +
+  geom_point(
+    data = p1_data,  # Extract the data from the ComplexUpset plot
+    aes(x = x, y = y),
+    shape = 3,       # Shape 3 is a plus sign
+    size = 1.5,        # Adjust size of the plus sign
+    color = "lightgrey", # Make the plus sign white
+    stroke = 1       # Adjust stroke width
+  ) +
+  ggtitle('Sputum samples')
+
+sputum
 ```
 
 # Throat
@@ -62,7 +79,23 @@ count_df <- clean_names(count_df) %>%
   
 # plot
 p1 <- ComplexUpset::upset(data=count_df, intersect= c("Visit1", "Visit2", "Visit3", "Visit4", "Visit5", "Visit6", "Visit7", "Visit8", "Visit9"), min_size=1, width_ratio=0.2, height_ratio=1, sort_sets=FALSE, stripes=c("darkgrey",  "#C3BC3FFF", "#6388B4FF", "#6388B4FF", "#6388B4FF","#BB7693FF","#BB7693FF","#55AD89FF","#55AD89FF"))
-throat <- p1 + ggtitle('Throat samples')
+
+
+#Extract plot data to find intersection coordinates
+p1_data <- ggplot_build(p1)$data[[2]]  # Layer 2 usually contains the intersection points
+
+# Add a white plus sign to the black dots
+throat <- p1 +
+  geom_point(
+    data = p1_data,  # Extract the data from the ComplexUpset plot
+    aes(x = x, y = y),
+    shape = 3,       # Shape 3 is a plus sign
+    size = 1.5,        # Adjust size of the plus sign
+    color = "lightgrey", # Make the plus sign white
+    stroke = 1       # Adjust stroke width
+  ) +
+  ggtitle('Throat samples')
+
 throat
 ```
 
@@ -82,7 +115,25 @@ count_df <- clean_names(count_df) %>%
 # plot
 p1 <- ComplexUpset::upset(data=count_df, intersect= c("Visit1", "Visit2", "Visit3", "Visit4", "Visit5", "Visit6", "Visit7", "Visit8", "Visit9"), min_size=1, width_ratio=0.2, height_ratio=1, sort_sets=FALSE, stripes=c("darkgrey",  "#C3BC3FFF", "#6388B4FF", "#6388B4FF", "#6388B4FF","#BB7693FF","#BB7693FF","#55AD89FF","#55AD89FF"))
 stool <- p1 + ggtitle('Stool samples')
+
+ #Extract plot data to find intersection coordinates
+p1_data <- ggplot_build(p1)$data[[2]]  # Layer 2 usually contains the intersection points
+
+# Add a white plus sign to the black dots
+stool <- p1 +
+  geom_point(
+    data = p1_data,  # Extract the data from the ComplexUpset plot
+    aes(x = x, y = y),
+    shape = 3,       # Shape 3 is a plus sign
+    size = 1.5,        # Adjust size of the plus sign
+    color = "lightgrey", # Make the plus sign white
+    stroke = 1       # Adjust stroke width
+  ) +
+  ggtitle("Stool samples")
+
 stool
+
+
 ```
 
 # plot 16S library size 
@@ -96,20 +147,27 @@ metadata<-metadata %>%
   mutate(visit_sum=case_when(visit_sum=="8-10"~"8-9", T~visit_sum))
 metadata$visit_sum
 
+visit_sum_labels <- c("0", "3", "6-12", "15-18", "21-24", "Control")
 d <- metadata %>% 
-  ggplot(aes(material, total_reads, fill=visit_sum))+
-  geom_boxplot(alpha=0.65) +
-  scale_fill_manual(values = visit_sum_palette)+
-  scale_y_log10()+
-  theme_bw()+
-  theme(legend.position = "none", text = element_text(size = 14))+
-  labs(x="", y="Library size", fill="Visits")
-
+  ggplot(aes(material, total_reads, fill = visit_sum)) +
+  geom_boxplot(alpha = 0.65) +
+  scale_fill_manual(values = visit_sum_palette, labels = visit_sum_labels) +  # Corrected part
+  scale_y_log10() +
+  theme_bw() +
+  theme(legend.position = "none", text = element_text(size = 16)) +
+  labs(x = "", y = "Library size", fill = "Months from treatment start")
 d
 
-legend <- get_legend(d)
+legend <- get_legend(d+theme(legend.position = "bottom", legend.title.position = "top"))
 
-summary(lmerTest::lmer(total_reads ~ visit_sum + + (1|material) + (1|id.x), data=metadata))
+legend2 <- get_legend(d + 
+                        theme(legend.position = "bottom", legend.title.position = "left")+ 
+                        guides(fill = guide_legend(nrow = 1)))
+
+saveRDS(legend2, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/legend_visit_sum.rds")
+as_ggplot(legend2)
+
+summary(lmsummary(lmsummary(lmerTest::lmer(total_reads ~ visit_sum + + (1|material) + (1|id.x), data=metadata))
 kruskal.test(total_reads ~ visit_sum, data=metadata)
 
 summary(lmerTest::lmer(total_reads ~ material + (1|id.x), data=metadata))
@@ -123,7 +181,7 @@ e<- metadata %>%
   scale_fill_manual(values = visit_sum_palette)+
   scale_y_log10()+
   theme_bw()+
-  theme(legend.position = "none", text = element_text(size = 14))+
+  theme(legend.position = "none", text = element_text(size = 16))+
   labs(x="", y="16S copy number", fill="Visits")
 e
 
@@ -134,10 +192,17 @@ summary(lmerTest::lmer(quantity_mean ~ material + (1|id.x), data=metadata))
 kruskal.test(quantity_mean ~ material, data=metadata)
 ```
 
-```{r, fig.height=24, fig.width=16}
+```{r, fig.height=20, fig.width=16}
 
 clin_evol <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/clinical_evolution.rds")
-samples <- ggarrange(sputum, throat, stool, e, d, legend, labels = c("m", "n", "o", "p", "q"), heights = c(1.5,1))
-ggarrange(clin_evol, samples, nrow = 2, ncol=1, heights = c(1.25,1))
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/supp_fig1_clinevol_upsetplots.png", height = 24, width = 16)
+
+samples <- ggarrange(sputum, throat, stool, labels = c("a", "b", "c"), nrow = 1)
+
+bio <- ggarrange(e, d, legend,labels = c("p", "q"), nrow = 1)
+
+ggarrange(samples, clin_evol, bio, nrow = 3, ncol=1, heights = c(0.5,1.15,0.35))
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/supp_fig1_clinevol_upsetplots.png", height = 20, width = 16)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/pdf_figures/supp_fig1_clinevol_upsetplots.pdf", height = 20, width = 16)
+
 ```
