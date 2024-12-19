@@ -147,6 +147,8 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.png",grid_arranged, dpi = 300, width = 16, height = 14)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.pdf",grid_arranged, dpi = 300, width = 16, height = 14)
 ```
 
 ```{r, fig.width=16, fig.height=24}
@@ -345,4 +347,6 @@ grid_arranged <- grid.arrange(
                         c(6,6,6))
                        )
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/041224_sputum_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 18)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_figure2.pdf",grid_arranged, dpi = 300, width = 16, height = 18)
 ```

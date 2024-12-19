@@ -847,7 +847,7 @@ library(gridExtra)
 
 # Create the main plot
 p1 <- effect_table_sig_all %>%
-  mutate(taxa_sep = taxa) %>%
+  mutate(fdr= case_when(fdr=="."~ "°"mutate(taxa_sep = taxa) %>%
   mutate(taxa = factor(taxa, levels = unique(taxa))) %>%
   ggplot(aes(x = comparison_p, y = taxa)) + 
   geom_point(aes(fill = factor(sign(effectSize)), shape = factor(sign(effectSize)), size = abs(effectSize), color = fdr, alpha = 0.8)) +
@@ -856,8 +856,8 @@ p1 <- effect_table_sig_all %>%
   scale_fill_manual(name = "Effect size (Cliff's delta)", 
                     values = c("-1" = "#746999", "1" = "#69b3a2"),
                     labels = c("decreased", "increased")) +
-  scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85")) +
-  geom_text(aes(label = fdr), size=8) +
+  scale_color_manual(name = "", labels = c(" fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85")) +
+  geom_text(aes(label = fdr), size=8, ) +
   theme_pubclean() +
   theme(
     axis.text.x = element_text(size = 12),
