@@ -435,20 +435,19 @@ write.csv(permanova_result_combined, "~/Documents/Forschung/IMMProveCF/R_analysi
 ### bubble plot without controls
 ```{r}
 p5 <- permanova_result_combined %>% 
-  filter(comparison!="Control") %>% 
   filter(Df==1) %>% 
+  filter(comparison!="Control") %>% 
 ggplot(aes(x = comparison, y = timepoint)) +
   geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
   scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
   theme_minimal() +
   scale_x_discrete(labels=custom_labels)+
   scale_y_discrete(labels=custom_labels)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14), axis.text.y = element_text(size = 14), legend.title.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14)) +
   labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("months from ETI treatment start")+
-  xlab("months from ETI treatment start")#+
-  #ggtitle("throat: PERMANOVA between sample timepoints") 
+  ylab("Months from treatment start")+
+  xlab("Months from treatment start")#+
 p5
 ggsave( "~/Documents/Forschung/IMMProveCF/R_analysis/figures/PERMANOVA_timepoints_throat_woControls.png", p5, height = 3.5, width = 6)
 saveRDS(p5, "~/Documents/Forschung/IMMProveCF/R_analysis/figures/PERMANOVA_timepoints_throat_woControls.rds")
@@ -716,8 +715,11 @@ pat_N <- as_data_frame(tabyl(metadata.p_woNA,id.y)) %>%
   perm_result_df$variable <- rownames(perm_result_df)
   perm_result_df<- perm_result_df %>% 
     select(variable, everything())
+ 
+   # Calculate number of observations (N)
+  N <- nrow(metadata.p_woNA)  # Number of rows in cleaned metadata
   
-perm_result_df
+perm_result_df$N=N
 
 # plot it
 perm_result_df <- perm_result_df %>% 
@@ -806,6 +808,48 @@ perm_result_df_woETI %>%
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/throat_combined_permanova_stratified_94Samples:withoutETI.png")
 ```
+
+### Lollipop plot
+```{r}
+
+perm_result_df$test <- "Multiple PERMANOVA"
+
+perm_result_df <- perm_result_df %>% 
+  #select(-c(sum_of_sqs, df, f)) %>% 
+  mutate(variable=case_when(variable=="total_reads"~"Total Reads", T~variable))
+
+results_filtered$test <- "Simple PERMANOVA"
+results_filtered <- results_filtered %>% 
+  select(-c(fdr, y))
+
+df_ab <- rbind(perm_result_df, results_filtered)
+
+
+p4 <- df_ab %>% 
+  filter(pr_f <= 0.1) %>% 
+  mutate(variable_new = fct_reorder(variable, -r2)) %>%
+  ggplot(aes(x = r2 * 100 , y = variable, color = test, group = test)) +
+  geom_segment(aes(yend = variable, xend = 0), size = 1, position = position_dodge(width = 0.8)) +
+  geom_point(size = 4, position = position_dodge(width = 0.8)) +
+  scale_color_manual(values = c( "#765085","#31A1B3FF"), labels=c("Multiple PERMANOVA", "Simple PERMANOVA")) +
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 14), axis.text = element_text(size = 14)) +
+  labs(color = "Test\nType", x = "Explained variance (%)", y = "") +
+  # Adjust x-axis limits with expand for padding
+  scale_x_continuous(limits = c(0, 6), expand = expansion(mult = c(0.035, 0.25))) +
+  
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=", N), group = test),
+            position = position_dodge(width = 0.8),  # Match the dodge width for labels
+            hjust = -0.3,  # Positioning above the bar
+            size = 4,      # Text size
+            color = "black")
+p4
+saveRDS(p4, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/throat_permanova_lollipop_plot.rds")
+
+```
+
 
 ## as including sweat chloride in the combined permanova reduces available samples to 94, repeat combined permanova without sweat chloride
 ```{r}
@@ -1032,5 +1076,5 @@ print(grid_arranged)
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_dominance_librarysize.png",grid_arranged, dpi = 300, width = 10, height = 6)
 ```
-```
+
 

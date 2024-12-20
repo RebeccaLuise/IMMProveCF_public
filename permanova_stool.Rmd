@@ -439,17 +439,18 @@ p5 <- permanova_result_combined %>%
   filter(Df==1) %>% 
 ggplot(aes(x = comparison, y = timepoint)) +
   geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#CCB22BFF", "ns" = "grey")) +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#6CB1C3", "≤ 0.05" = "#B9A8D0", "ns" = "grey"))+
   scale_size_continuous(range = c(2, 10)) +  # Adjust the range for better visualization
   theme_minimal() +
   scale_x_discrete(labels=custom_labels)+
   scale_y_discrete(labels=custom_labels)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size=14), axis.text.y = element_text(size=14), text=element_text(size=14),legend.title.position = "top") +
   labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("months from ETI treatment start")+
-  xlab("months from ETI treatment start")#+
+  ylab("Months from treatment start")+
+  xlab("Months from treatment start")#+
   #ggtitle("Stool: PERMANOVA between sample timepoints") 
 p5
+
 ggsave( "~/Documents/Forschung/IMMProveCF/R_analysis/figures/PERMANOVA_timepoints_stool_woControls.png", p5, height = 3.5, width = 6)
 saveRDS(p5, "~/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_stool_woControls.rds")
 
@@ -972,5 +973,32 @@ df_ab %>%
   geom_point(aes(x = `2. PERMANOVA combined` * 100), color = "#765085", size = 4) +
   theme_bw() +
   labs(x = "Explained variance (%)", y = "Variable")
+
+```
+
+### Lollipop plot
+```{r}
+p4 <- df_ab %>% 
+  filter(pr_f <= 0.1) %>% 
+  mutate(variable_new = fct_reorder(variable_new, -r2)) %>%
+  ggplot(aes(x = r2 * 100 , y = variable_new, color = test, group = test)) +
+  geom_segment(aes(yend = variable_new, xend = 0), size = 1, position = position_dodge(width = 0.8)) +
+  geom_point(size = 4, position = position_dodge(width = 0.8)) +
+  scale_color_manual(values = c( "#765085","#31A1B3FF"), labels=c("Multiple PERMANOVA", "Simple PERMANOVA")) +
+  theme_classic() +
+  theme(legend.position = "bottom", text = element_text(size = 14), axis.text = element_text(size = 14)) +
+  labs(color = "Test\nType", x = "Explained variance (%)", y = "") +
+  # Adjust x-axis limits with expand for padding
+  scale_x_continuous(limits = c(0, 2.25), expand = expansion(mult = c(0.035, 0.25))) +
+  
+  
+  # Add text labels on top of the bars
+  geom_text(aes(label = paste("N=", N), group = test),
+            position = position_dodge(width = 0.8),  # Match the dodge width for labels
+            hjust = -0.3,  # Positioning above the bar
+            size = 4,      # Text size
+            color = "black")
+p4
+saveRDS(p4, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_permanova_lollipop_plot.rds")
 
 ```

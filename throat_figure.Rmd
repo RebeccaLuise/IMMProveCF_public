@@ -26,20 +26,24 @@ perm <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IM
 throat_div_hm <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/throat_div_hm.rds")
 metad <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/throat_metaD_25percentprevalence.rds")
 BCdist <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/Correlation_BCdist_intraID_spuThr.rds")
+
+lolli <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/throat_permanova_lollipop_plot.rds")
 ```
 
 # harmonize font size
 ```{r}
-star <- star+theme(text = element_text(size = 12))
-bubble <- bubble+theme(text = element_text(size = 12), legend.position = "bottom", legend.title.position = "top") + guides(fill = guide_legend(nrow = 2), size=guide_legend(nrow = 2))
-BCdist <- BCdist+theme(text = element_text(size = 12), legend.title.position = "top")
+star <- star+theme(text = element_text(size = 14))+xlim(-0.34, 0.4)
+bubble <- bubble+theme(text = element_text(size = 14), legend.position = "top", legend.title.position = "top") + guides(fill = guide_legend(nrow = 2), size=guide_legend(nrow = 2))
+BCdist <- BCdist+theme(text = element_text(size = 14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14),  legend.title.position = "top", legend.position = "top")
 
-metad <- metad+theme(text = element_text(size = 12), legend.position = "bottom")+ggtitle("")
-throat_div_hm <- throat_div_hm+theme(text = element_text(size = 12), legend.position = "bottom", legend.title.position = "top")
-throat_observed <- throat_observed+theme(text = element_text(size = 12))
-throat_shannon<- throat_shannon+theme(text = element_text(size = 12))
+metad <- metad+theme(text = element_text(size = 14), axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14, face = "italic"), legend.position = "bottom")+ggtitle("")
+throat_div_hm <- throat_div_hm+theme(text = element_text(size = 14),axis.text.x = element_text(size = 14), axis.text.y = element_text(size = 14), legend.position = "bottom", legend.title.position = "top")
+throat_observed <- throat_observed+theme(text = element_text(size = 14))
+throat_shannon<- throat_shannon+theme(text = element_text(size = 14))
 
-perm <- perm+theme(text = element_text(size = 12))
+perm <- perm+theme(text = element_text(size = 14))
+
+lolli <- lolli+theme(legend.position = "top")+ guides(color = guide_legend(nrow = 2))
 ```
 
 ```{r, fig.width=14, fig.height=5}
@@ -49,32 +53,35 @@ grid_arranged <- grid.arrange(
   BCdist + labs(tag = "c"), #3
   ncol = 3, nrow = 1,
   #heights = c(1.2, 1.2, 1, 1, 1),
-  widths=c(1.2,0.8,1),
+  widths=c(1.1,1,0.85),
   layout_matrix = rbind(c(1,2,3))
                        )
 
 # Print or save the arranged plot
 print(grid_arranged)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure.png",grid_arranged, dpi = 300, width = 14, height = 5)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure.png",grid_arranged, dpi = 300, width = 14.5, height = 5)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/figure4.pdf",grid_arranged, dpi = 300, width = 14.5, height = 5)
 ```
 
 # Supplementary figure
-```{r, fig.width=16, fig.height=8}
+```{r, fig.width=16, fig.height=10}
 grid_arranged <- grid.arrange(
-  perm + labs(tag = "a"),
-  throat_div_hm + labs(tag = "b"), #3
-  throat_shannon + labs(tag = "c"), #1
-  throat_observed+ labs(tag = "d"), #2
+  throat_shannon+ labs(tag = "a"),
+   throat_observed + labs(tag = "b"), #3
+   lolli + labs(tag = "c"), #1
+   throat_div_hm+ labs(tag = "d"), #2
   metad + labs(tag = "e"),
   ncol = 3, nrow = 2,
   #heights = c(1.25, 1.25, 2),
-  widths=c(1,1,1.5),
-  layout_matrix = rbind(c(1,2,5),
-                        c(3,4,5)
+  widths=c(0.75,1,1.55),
+  layout_matrix = rbind(c(1,3,5),
+                        c(2,4,5)
                        ))
 
 # Print or save the arranged plot
 print(grid_arranged)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 8)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_fig5.pdf",grid_arranged, dpi = 300, width = 16, height = 10)
 ```
+
 

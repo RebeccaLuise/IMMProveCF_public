@@ -697,8 +697,6 @@ ggarrange(pseudomonas, pseu_igg, igg_leuco, leu, igg, pseu_ab, labels = c("A","B
 
 ## perform little subgroup analysis within pseudomonas positive individuals only for inflammation parameters
 ```{r}
-
-
 pseudo_pat_v1 <-  metadata_features_combined_sputum %>%
   filter(Pseudomonas>0&visit=="1") %>% 
   select(x_sample_id)
@@ -779,8 +777,10 @@ igg <- pseu_only_data %>%
 
 ggarrange(igg_leuco, pseudomonas, pseu_igg,pseu_ab, leu, igg, labels = c("a","b","c","d","e","f"), nrow = 2, ncol = 3, legend = "bottom", common.legend = T)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation.png", width = 12, height = 8)
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation.png", width = 12, height = 8)
+
 ```
+
 ## compare Pseu pos sputum vs non-pos sputum samples
 ```{r}
 
@@ -883,12 +883,15 @@ leu_pn
 
 legend1 <- as_ggplot(get_legend(igg_leuco))
 
-ggarrange(igg_leuco, pseudomonas, pseu_igg,pseu_ab, leu_pn, igg_pn, labels = c("a","b","c","d","e","f"), nrow = 2, ncol = 3, legend = "none", common.legend = T)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation_new.png", width = 10, height = 7)
+p1 <- ggarrange(igg_leuco, pseudomonas, pseu_igg,pseu_ab, leu_pn, igg_pn, labels = c("a","b","c","d","e","f"), nrow = 2, ncol = 3, legend = "none", common.legend = T)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation_new.png",p1, width = 10, height = 7)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_figure3_pseudo_inflammation.pdf",p1, width = 12, height = 8)
 
 Legend_c <- ggarrange(legend1, legend2)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/pseudo_inflammation_legend.png", Legend_c, width = 12, height = 2)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/pseudo_inflammation_legend.pdf", Legend_c, width = 12, height = 2)
 
 summary(metadata_features_combined_sputum$pseudo_pos_sputum_16S)
 ```
@@ -1282,12 +1285,12 @@ p1 <- metadata_features_combined_stool %>%
   ylab("*Escherichia_Shigella* (%)") +
   theme_classic() +
   theme(
-    axis.title.y  = ggtext::element_markdown(size = 12),
-    axis.title.x  = ggtext::element_markdown(size = 12),
-    legend.title = element_text(size = 12),
-    text = element_text(size = 12),
+    axis.title.y  = ggtext::element_markdown(size = 14),
+    axis.title.x  = ggtext::element_markdown(size = 14),
+    legend.title = element_text(size = 14),
+    text = element_text(size = 14),
     legend.position = "bottom",
-    axis.text = element_text(size = 12)
+    axis.text = element_text(size = 14)
   ) +
   #annotate("text", x = 130, y = 55, label = "p=0.012, Ds=0.57", size = 5) +
   guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
