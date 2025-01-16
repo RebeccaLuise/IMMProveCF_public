@@ -1916,8 +1916,27 @@ barplot <- effect_table_sig_all_control %>%
   xlab("Effect Size") 
 barplot
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_barplot_stool_Controls_V1.png", barplot, width = 4.5, height = 5.5)
-
 saveRDS(barplot, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_barplot_stool_Controls_V1.rds")
+
+barplot <- effect_table_sig_all_control %>%
+  mutate(taxa = gsub("ASV\\d{3}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{2}_", "", taxa)) %>% 
+  mutate(taxa = gsub("ASV\\d{1}_", "", taxa)) %>%
+  filter(corr_p <= 0.05) %>% 
+  filter(comparison_p == "Control_V1") %>%
+  arrange(effectSize) %>% # Sort by effectSize
+  mutate(taxa = factor(taxa, levels = taxa)) %>% # Use the sorted order for taxa
+  ggplot(aes(y = taxa, x = effectSize * -1)) + 
+  geom_bar(aes(fill = effectSize < 0), stat = "identity") +
+  scale_fill_manual(values = c("TRUE" = "#69b3a2", "FALSE" = "#746999"), 
+                    labels = c("Negative Effect", "Positive Effect")) +
+  theme_bw() +
+  theme(axis.text.y = element_text(face = "italic"), legend.position = "none") +
+  ylab("") +
+  xlab("Effect Size") 
+barplot
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_sorted_barplot_stool_Controls_V1.png", barplot, width = 4.5, height = 5.5)
+saveRDS(barplot, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/effectSize_sorted_barplot_stool_Controls_V1.rds")
 ```
 
 # plot Escherichia vs time

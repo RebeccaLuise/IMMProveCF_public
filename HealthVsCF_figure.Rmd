@@ -88,7 +88,7 @@ bp5 <- bp5+theme(text = element_text(size = 14),axis.text = element_text(size = 
 barplot <- barplot+theme(text = element_text(size = 14), axis.text = element_text(size = 14))
 ```
 
-```{r, fig.width=16, fig.height=11}
+```{r, fig.width=16.4, fig.height=11}
 grid_arranged <- grid.arrange(
   perm+labs(tag = "a"), #1
   barplot + labs(tag = "b"), #2
@@ -98,15 +98,15 @@ grid_arranged <- grid.arrange(
   bp5 + labs(tag = "f"), #3
   ncol = 3, nrow = 3,
   heights = c(0.4, 1, 1),
-  widths=c(2,0.8,0.8),
+  widths=c(2,0.8,0.85),
   layout_matrix = rbind(c(1,1,1),
                         c(2,3,4),
                         c(2,5,6))
                        )
 # Print or save the arranged plot
 print(grid_arranged)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/control_vsCf_figure.png",grid_arranged, dpi = 300, width = 16, height = 12)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/figure5.pdf",grid_arranged, dpi = 300, width = 16, height = 12)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/control_vsCf_figure.png",grid_arranged, dpi = 300, width = 16.4, height = 12)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/figure5.pdf",grid_arranged, dpi = 300, width = 16.4, height = 12)
 ```
 
 # Supplementary Figure

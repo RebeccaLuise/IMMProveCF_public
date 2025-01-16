@@ -798,13 +798,7 @@ summary(as_factor(all_stats_iqr$Taxa))
 all_stats_iqr %>% 
    distinct(Taxa)
 
-all_stats_iqr %>% 
-filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa) %>% 
-  distinct(Taxa) # those are the taxa that were different at baseline and align with levels seen in healthy controls
 
-all_stats_iqr_sig_filtered <- all_stats_iqr %>% 
-  filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa)
-write_csv2(all_stats_iqr_sig_filtered, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/SuppMaterial/iqr_zscore_stool.csv")
 ```
 
 ```{r}
@@ -817,6 +811,14 @@ all_stats_iqr_filtered_taxa <- all_stats_iqr %>%
   left_join(stool_sig_baseline_control, by="Taxa")
 
 view(all_stats_iqr_filtered_taxa)
+all_stats_iqr %>% 
+filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa) %>% 
+  distinct(Taxa) # those are the taxa that were different at baseline and align with levels seen in healthy controls
+
+all_stats_iqr_sig_filtered <- all_stats_iqr %>% 
+  filter(Taxa %in% all_stats_iqr_filtered_taxa$Taxa)
+write_csv2(all_stats_iqr_sig_filtered, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/SuppMaterial/iqr_zscore_stool.csv")
+
 
 tax <- as.data.frame(tax_table(ps_stool_relab))
 
@@ -943,7 +945,7 @@ boxplot <- taxa_data %>%
   #scale_y_log10()+
   guides(fill = 'none') +
   geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = y_pos, step.increase = 0.05)
+  stat_pvalue_manual(lm_stats, label = "fdr_star", y.position = y_pos, step.increase = 0.05, size = 6 )
 
     # Store plot and stats
     plot_list[[taxa]] <- boxplot
