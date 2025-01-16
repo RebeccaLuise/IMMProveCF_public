@@ -81,7 +81,7 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/throat_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 10)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_fig5.pdf",grid_arranged, dpi = 300, width = 16, height = 10)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_fig5NEW.pdf",grid_arranged, dpi = 300, width = 16, height = 10)
 ```
 
 

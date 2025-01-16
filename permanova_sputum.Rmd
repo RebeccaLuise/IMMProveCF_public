@@ -102,7 +102,7 @@ perform_permanova_by_timepoint <- function(metadata, BC_dist, timepoints_visit_s
     BC_v <- as.matrix(df_v)
     
     # Perform PERMANOVA
-    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin",, strata = metadata_v$id.x)
+    permanova_result <- vegan::adonis2(formula = BC_v ~ visit_sum, data = metadata_v, permutations = 999, by = "margin", strata = metadata_v$id.x)
     
     # Extract results
     result_df <- as.data.frame(permanova_result)
@@ -386,8 +386,8 @@ metadata_to_test <- metadata %>%
   filter(project=="IMP") %>% 
   select(sex, id.y, visit_sum, mutation_status, age_y, BMI, azithromycin_oral, levofloxacin_inhal, colistin_inhal, dpi_colistin, tobramycin_inhal, azetronam_inhal, hypertonic_na_cl, isotonic_na_cl, anticholinergic, laba_inhal, saba_inhal, dn_ase, mannitol, cortison_inhal, cortison_nasal, cortison_oral, antihistaminikum, nasenspray, na_cl_oral,  ursodesoxychols_a_ure, ppi, orale_zusatznahrung, tranexams_a_ure, nsaid, laxantien, acetylcystein, insulin, antidiabetic_oral, furosemid, ssri, ab_15dprior_visit, treatmentdays_365prior_visit, chlorid_mmol_cl_l, hb_a1c_percent, crp_mg_l, interleukin6_pg_ml, interleukin8_pg_ml, ig_g_g_l, calprotectin_amg_g_stuhl, leukozyten_nl, gpt_alat_u_l, got_asat_u_l, pp_fev_percent, pp_fvc_percent, cftr_prior_v1, total_reads, delta_ETI_merged, bristol, basic_nutrition, staph_pos_throat, staph_pos_sputum, pseudo_pos_sputum, pseudo_pos_throat) 
 
-xlabels= c("visit_sum"="Sampling time point (months)", "tobramycin_inhal" = "Tobramycin Inhalation", "isotonic_na_cl"="Isotonic NaCl Inhalation", "saba_inhal"="(SABA) Inhaler", "cortison_inhal" = "Cortisone Inhalation", "antihistaminikum"="Oral Antihistamine", "orale_zusatznahrung"="Oral Nutritional Supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic Medication (Oral)", "ab_15dprior_visit"="Antibiotic 15 Days before Visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte Count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total Reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin Inhalation", "azetronam_inhal"="Aztreonam Inhalation", "anticholinergic"="Anticholinergic Inhalation", "dn_ase"="DNAse Inhalation", "cortison_nasal"="Cortisone Nasal Spray", "nasenspray"= "Nasal Spray", "ursodesoxychols_a_ure"="Ursodeoxycholic Acid", "tranexams_a_ure"="Tranexamic Acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N Antibiotic tt Days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI tt Days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin Inhalation",
-"hypertonic_na_cl"="Hypertonic Saline Inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol Inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin Inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
+xlabels= c("visit_sum"="Sampling time point (months)", "tobramycin_inhal" = "Tobramycin inhalation", "isotonic_na_cl"="Isotonic NaCl inhalation", "saba_inhal"="(SABA) Inhaler", "cortison_inhal" = "Cortisone inhalation", "antihistaminikum"="Oral Antihistamine", "orale_zusatznahrung"="Oral Nutritional Supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic Medication (Oral)", "ab_15dprior_visit"="Antibiotic 15 Days before Visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte Count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total Reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin inhalation", "azetronam_inhal"="Aztreonam inhalation", "anticholinergic"="Anticholinergic inhalation", "dn_ase"="DNAse inhalation", "cortison_nasal"="Cortisone Nasal Spray", "nasenspray"= "Nasal Spray", "ursodesoxychols_a_ure"="Ursodeoxycholic Acid", "tranexams_a_ure"="Tranexamic Acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N Antibiotic tt Days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI tt Days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin inhalation",
+"hypertonic_na_cl"="Hypertonic Saline inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhaler", "mannitol"="Mannitol inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous", "azithromycin_oral"="Azithromycin (Oral)", "dpi_colistin" =  "DPI Colistin inhalation", "bristol"="Bristol Score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
 
 variables_test <- colnames(metadata_to_test)
 
@@ -670,44 +670,44 @@ df_ab <- rbind(a,b) %>% arrange(desc(r2))
 df_ab <- df_ab %>%
   mutate(variable_new = case_when(
     variable == "visit_sum" ~ "Sampling time point",
-    variable == "tobramycin_inhal" ~ "Tobramycin Inhalation",
-    variable == "isotonic_na_cl" ~ "Isotonic NaCl Inhalation",
-    variable == "saba_inhal" ~ "(SABA) Inhaler",
-    variable == "cortison_inhal" ~ "Cortisone Inhalation",
-    variable == "antihistaminikum" ~ "Oral Antihistamine",
-    variable == "orale_zusatznahrung" ~ "Oral Nutritional Supplement",
+    variable == "tobramycin_inhal" ~ "Tobramycin inhalation",
+    variable == "isotonic_na_cl" ~ "Isotonic NaCl inhalation",
+    variable == "saba_inhal" ~ "SABA inhalation",
+    variable == "cortison_inhal" ~ "Cortisone inhalation",
+    variable == "antihistaminikum" ~ "Oral antihistamine",
+    variable == "orale_zusatznahrung" ~ "Oral nutritional supplement",
     variable == "laxantien" ~ "Laxatives",
-    variable == "antidiabetic_oral" ~ "Antidiabetic Medication (Oral)",
-    variable == "ab_15dprior_visit" ~ "Antibiotic 15 Days before Visit",
+    variable == "antidiabetic_oral" ~ "Antidiabetic medication (oral)",
+    variable == "ab_15dprior_visit" ~ "Antibiotic 15 days before visit",
     variable == "hb_a1c_percent" ~ "Hb A1c %",
     variable == "interleukin8_pg_ml" ~ "Interleukin-8 (pg/ml)",
-    variable == "leukozyten_nl" ~ "Leukocyte Count /nl",
+    variable == "leukozyten_nl" ~ "Leukocyte count /nl",
     variable == "pp_fev_percent" ~ "Lung function (ppFEV1)",
-    variable == "total_reads" ~ "Total Reads",
+    variable == "total_reads" ~ "Total reads",
     variable == "sex" ~ "Sex",
     variable == "age_y" ~ "Age",
-    variable == "levofloxacin_inhal" ~ "Levofloxacin Inhalation",
-    variable == "azetronam_inhal" ~ "Aztreonam Inhalation",
-    variable == "anticholinergic" ~ "Anticholinergic Inhalation",
-    variable == "dn_ase" ~ "DNAse Inhalation",
-    variable == "cortison_nasal" ~ "Cortisone Nasal Spray",
-    variable == "nasenspray" ~ "Nasal Spray",
-    variable == "ursodesoxychols_a_ure" ~ "Ursodeoxycholic Acid",
-    variable == "tranexams_a_ure" ~ "Tranexamic Acid",
+    variable == "levofloxacin_inhal" ~ "Levofloxacin inhalation",
+    variable == "azetronam_inhal" ~ "Aztreonam inhalation",
+    variable == "anticholinergic" ~ "Anticholinergic inhalation",
+    variable == "dn_ase" ~ "DNAse inhalation",
+    variable == "cortison_nasal" ~ "Cortisone nasal spray",
+    variable == "nasenspray" ~ "Nasal spray",
+    variable == "ursodesoxychols_a_ure" ~ "Ursodeoxycholic acid",
+    variable == "tranexams_a_ure" ~ "Tranexamic acid",
     variable == "acetylcystein" ~ "Acetylcysteine",
     variable == "furosemid" ~ "Furosemide",
-    variable == "treatmentdays_365prior_visit" ~ "N Antibiotic tt Days",
+    variable == "treatmentdays_365prior_visit" ~ "N Antibiotic treatment days",
     variable == "crp_mg_l" ~ "CRP mg/l",
     variable == "ig_g_g_l" ~ "IgG g/l",
     variable == "gpt_alat_u_l" ~ "GPT/ALAT (U/l)",
     variable == "pp_fvc_percent" ~ "Lung function (ppFVC)",
-    variable == "delta_ETI_merged" ~ "N ETI tt Days",
+    variable == "delta_ETI_merged" ~ "N ETI treatment days",
     variable == "id.y" ~ "ID",
     variable == "BMI" ~ "BMI",
-    variable == "colistin_inhal" ~ "Colistin Inhalation",
-    variable == "hypertonic_na_cl" ~ "Hypertonic Saline Inhalation",
-    variable == "laba_inhal" ~ "Long-Acting Beta-Agonist (LABA) Inhaler",
-    variable == "mannitol" ~ "Mannitol Inhalation",
+    variable == "colistin_inhal" ~ "Colistin inhalation",
+    variable == "hypertonic_na_cl" ~ "Hypertonic Saline inhalation",
+    variable == "laba_inhal" ~ "LABA inhalation",
+    variable == "mannitol" ~ "Mannitol inhalation",
     variable == "cortison_oral" ~ "Cortisone",
     variable == "na_cl_oral" ~ "Sodium suppl.",
     variable == "ppi" ~ "PPI",
@@ -719,10 +719,10 @@ df_ab <- df_ab %>%
     variable == "calprotectin_amg_g_stuhl" ~ "Calprotectin (μg/g Stool)",
     variable == "got_asat_u_l" ~ "GOT/ASAT (U/l)",
     variable == "cftr_prior_v1" ~ "prior CFTR-modulator tt",
-    variable == "mutation_status" ~ "Mutation (homo- vs heterozygous",
-    variable == "azithromycin_oral" ~ "Azithromycin (Oral)",
-    variable == "dpi_colistin" ~ "DPI Colistin Inhalation",
-    variable == "bristol" ~ "Bristol Score",
+    variable == "mutation_status" ~ "Mutation (homo- vs heterozygous)",
+    variable == "azithromycin_oral" ~ "Azithromycin (oral)",
+    variable == "dpi_colistin" ~ "DPI colistin inhalation",
+    variable == "bristol" ~ "Bristol score",
     variable == "basic_nutrition" ~ "Basic nutrition",
     variable == "staph_pos_throat" ~ "Staphylococcus positive throat",
     variable == "staph_pos_sputum" ~ "Staphylococcus positive sputum",
@@ -798,8 +798,8 @@ df_ab %>%
   filter(pr_f <= 0.1) %>%
   pivot_wider(names_from = test, values_from = r2, values_fill = 0) %>%
   ggplot(aes(y = variable_new)) +
-  geom_segment(aes(x = `1. PERMANOVA per variable` * 100, xend = `2. PERMANOVA combined` * 100, yend = variable_new), color = "grey") +
-  geom_point(aes(x = `1. PERMANOVA per variable` * 100), color = "#31A1B3FF", size = 4) +
+  geom_segment(aes(x = `Simple PERMANOVA` * 100, xend = `2. PERMANOVA combined` * 100, yend = variable_new), color = "grey") +
+  geom_point(aes(x = `Simple PERMANOVA` * 100), color = "#31A1B3FF", size = 4) +
   geom_point(aes(x = `2. PERMANOVA combined` * 100), color = "#765085", size = 4) +
   theme_bw() +
   labs(x = "Explained variance (%)", y = "Variable")

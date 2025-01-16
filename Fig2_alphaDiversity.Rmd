@@ -110,11 +110,11 @@ lm_stats <-  lm_stats%>%
     scale_fill_manual(values=visit_sum_palette)+
     theme_classic()+
     ylab(ylabel)+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
     theme(text=element_text(size = 16), legend.position = "none")+
     guides(fill='none') +
-    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05, size=6)
   
   return(list(boxplot = boxplot, lm_stats = lm_stats_print))
 }
@@ -311,11 +311,11 @@ lm_stats <-  lm_stats%>%
     scale_fill_manual(values=visit_sum_palette)+
     theme_classic()+
     ylab(ylabel)+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
     theme(text=element_text(size = 16), legend.position = "none")+
     guides(fill='none') +
-    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.06, size=6)
   
     return(list(boxplot = boxplot, lm_stats = lm_stats_print))
 }
@@ -504,11 +504,11 @@ lm_stats <-  lm_stats%>%
     scale_fill_manual(values=visit_sum_palette)+
     theme_classic()+
     ylab(ylabel)+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
     theme(text=element_text(size = 16), legend.position = "none")+
     guides(fill='none') +
-    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05)
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05, size = 6)
   
     return(list(boxplot = boxplot, lm_stats = lm_stats_print, lm_stats_sig=lm_stats))
 }
@@ -528,15 +528,17 @@ observed$lm_stats_sig
 
 observed_thr_rar_wC <- observed_thr_rar +
   geom_signif(
-    y_position = c(-14, -6, 2, 10), 
+    y_position = c(-18, -8, 2, 12), 
     xmin = c(2, 3, 4, 5), 
     xmax = c(6, 6, 6, 6),
     annotation = c("ns", ".", "ns", "*"), 
     tip_length = -0.03, 
-    vjust = 2.05,
-    size = 0.35
+    vjust = 1.5,
+    size = 0.4,
+    textsize = 6 # Adjust this to increase the size of the asterisks
   )
 observed_thr_rar_wC
+saveRDS(observed_thr_rar_wC, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_observed.rds")
 
 shannon$lm_stats_sig
 shannon_thr_rar_wC <- shannon_thr_rar +
@@ -546,11 +548,12 @@ shannon_thr_rar_wC <- shannon_thr_rar +
     xmax = c(6, 6, 6, 6),
     annotation = c("ns", "ns", "ns", "ns"), 
     tip_length = -0.03, 
-    vjust = 2.05,
-    size = 0.35
+    vjust = 1.55,
+    size = 0.4,
+    textsize = 6 # Adjust this to increase the size of the asterisks
   )
 shannon_thr_rar_wC 
-
+saveRDS(shannon_thr_rar_wC , "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_shannon.rds")
 
 evenness <- lm_corrected_pvalues_boxplot_reorder(diversity_df_throat_metadata_rar$evenness_pielou, "Evenness (Pielou)")
 evenness_lm_stats_reorder <- evenness$lm_stats # Access lm_stats
@@ -565,6 +568,7 @@ lm_stats_table_throat_rar_control
 lm_throat_rar_control <- lm_stats_table_throat_rar_control %>% 
   mutate(Sample="Throat rarefied") %>% 
   select(Sample, everything())
+
 ```
 
 
@@ -630,11 +634,11 @@ lm_stats <-  lm_stats%>%
     scale_fill_manual(values=visit_sum_palette)+
     theme_classic()+
     ylab(ylabel)+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
     theme(text=element_text(size = 16), legend.position = "none")+
     guides(fill='none') +
-    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.05)
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (max(x)-0.07*max(x)), step.increase = 0.06, size=6)
   
     return(list(boxplot = boxplot, lm_stats = lm_stats_print))
 }
@@ -826,11 +830,11 @@ lm_stats <-  lm_stats%>%
     scale_fill_manual(values=visit_sum_palette)+
     theme_classic()+
     ylab(ylabel)+
-    xlab("Months from ETI treatment start")+
+    xlab("Months from treatment start")+
     scale_x_discrete(labels= xlabels)+
     theme(text=element_text(size = 16), legend.position = "none")+
     guides(fill='none') +
-    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05)
+    stat_pvalue_manual(lm_stats, label = "fdr_star",y.position = (min(x)-0.07*min(x)), step.increase = 0.05, size = 6)
   
     return(list(boxplot = boxplot, lm_stats = lm_stats_print, lm_stats_sig=lm_stats))
 }
@@ -862,23 +866,27 @@ observed_st_rar_wC <- observed_stool_rar +
     xmax = c(6, 6, 6, 6),
     annotation = c("***", "***", "***", "***"), 
     tip_length = -0.03, 
-    vjust = 2.5,
-    size = 0.35
+    vjust = 1.75,
+    size = 0.35,
+    textsize = 6 # Adjust this to increase the size of the asterisks
   )
 observed_st_rar_wC
+saveRDS(observed_st_rar_wC ,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_observed.rds")
 
 shannon$lm_stats_sig
 shannon_st_rar_wC <- shannon_stool_rar +
   geom_signif(
-    y_position = c(2.15, 2.3, 2.45, 2.6), 
+    y_position = c(1.85, 2 , 2.15, 2.3), 
     xmin = c(2, 3, 4, 5), 
     xmax = c(6, 6, 6, 6),
     annotation = c("***", "***", "***", "***"),
     tip_length = -0.03, 
-    vjust = 2.5,
-    size = 0.35
+    vjust = 1.85,
+    size = 0.35,
+    textsize = 6 # Adjust this to increase the size of the asterisks
   )
 shannon_st_rar_wC 
+saveRDS(shannon_st_rar_wC ,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_shannon.rds")
 
 lm_stats_table_stool_rar_control <- rbind(shannon_lm_stats_reorder, observed_lm_stats_reorder,evenness_lm_stats_reorder,dominance_lm_stats_reorder)
 lm_stats_table_stool_rar_control
@@ -923,10 +931,6 @@ ggarrange(p1,p2,p3,p4,p5,p6, nrow = 3, ncol = 2)
 
 saveRDS(p1,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_shannon.rds")
 saveRDS(p2,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_observed.rds")
-saveRDS(p3,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_shannon.rds")
-saveRDS(p4,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/throat_observed.rds")
-saveRDS(p5,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_shannon.rds")
-saveRDS(p6,"/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_observed.rds")
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alpha_combined.png", width = 8, height = 12)
 

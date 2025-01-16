@@ -70,7 +70,7 @@ hm_div_stool <- hm_div_stool +
   )
 
 
-tax_stool_legend <- tax_stool_legend+ theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=14, face="italic"), legend.title = element_text(size=14), legend.position = "bottom")
+tax_stool_legend <- tax_stool_legend+ theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=16, face="italic"), legend.title = element_text(size=14), legend.position = "bottom")
 
 cor <- cor + theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=14, face="italic"), legend.title = element_text(size=14), legend.position = "right")+guides(color=guide_legend(nrow = 5, title = "Month from \ntreatment start")) 
 
