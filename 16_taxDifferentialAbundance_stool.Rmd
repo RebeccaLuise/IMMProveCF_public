@@ -1,5 +1,5 @@
 ---
-title: "Calculate Effect size for visits"
+title: "Taxonomic differential abundance testing for stool samples compared to CF baseline (Visit 1)"
 author: "Rebecca L. Knoll"
 date: "`r Sys.Date()`"
 output: html_document
