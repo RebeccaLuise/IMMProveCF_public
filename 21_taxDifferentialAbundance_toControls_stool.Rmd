@@ -1,5 +1,5 @@
 ---
-title: "Calculate Effect size for visits, comparison healthy controls vs all CF timepoints - stool"
+title: "Taxonomic differential testing - comparison healthy controls vs all CF timepoints - stool"
 author: "Rebecca L. Knoll"
 date: "last edit `r format(Sys.time(), '%d %B %Y')`"
 output: 

@@ -1,5 +1,5 @@
 ---
-title: "Calculate Effect size for visits, comparison healthy controls vs all CF timepoints - throat"
+title: " Taxonomic differential testing -Calculate Effect size for each visits compared to healthy controls - throat"
 author: "Rebecca L. Knoll"
 date: "last edit `r format(Sys.time(), '%d %B %Y')`"
 output: 

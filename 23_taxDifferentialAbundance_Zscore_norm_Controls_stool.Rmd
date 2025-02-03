@@ -1,6 +1,5 @@
 ---
-title: "Z-score normalized abundances to Controls"
-title: "Calculate Effect size for visits, comparison healthy controls vs all CF timepoints - stool"
+title: "Z-score normalized abundances to Controls for stool samples and comparison using LME's for baseline agaist subsequent timepoints"
 author: "Rebecca L. Knoll"
 date: "last edit `r format(Sys.time(), '%d %B %Y')`"
 output: 
