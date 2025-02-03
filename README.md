@@ -1,10 +1,11 @@
 # IMMProveCF_public
-All scripts and data that have been used for the analysis reported within the manuscript "CFTR modulator therapy reshapes the microbiome across ecological niches toward health in cystic fibrosis"
+All scripts and data that have been used for the analysis reported within the manuscript "Microbiome dynamics are mediated by changes in host physiology in people with cystic fibrosis undergoing CFTR-modulator therapy"
 
 .R files have functions written for the analysis
 
-.Rmd files are ordered by figures how they appear in the manuscript, they also inlcude all statistical analysis associated with the figure, respectively.
+.Rmd files are ordered by the presentation of the analysis within the manuscript, they include all statistical tests and codes to reproduce the figures presented in the manuscript.
 
 .rds files have the annotated 16S data and the adjacent clinical metadata combined as a phyloseq object.
 
-Raw sequencing data will be deposited in a different respository, link here to be updated. 
+Raw sequencing data have been deposited in: http://www.ncbi.nlm.nih.gov/bioproject/1080555 (PRJNA1080555).
+
