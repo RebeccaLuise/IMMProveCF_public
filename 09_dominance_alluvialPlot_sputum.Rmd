@@ -1,5 +1,5 @@
 ---
-title: "GG alluvial plot for genus dominance in sputum, and combine plots for Figure 4"
+title: "GG alluvial plot for genus dominance in sputum"
 author: "Rebecca L. Knoll"
 date: " last edit `r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -153,53 +153,4 @@ dom_spu
 
 saveRDS(dom_spu, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.pdf", dom_spu, width = 12, height = 7)
-```
-# combine taxonomic plots
-```{r fig.height=8, fig.width=15.5}
-tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_sputum.rds")
-
-
-tax_sputum <- tax_sputum+
-  theme_pubclean()+
-  labs(x = "months from treatment start \n compared to baseline samples", y = "")+
-   theme(text = element_text(size = 12),legend.position="bottom", legend.box="vertical", legend.box.just = "left", legend.margin=margin(),axis.text.y = element_text(face = "italic", size = 12),legend.title = element_text(size = 11), legend.text = element_text(size=11),axis.text.x = element_text(size = 12))+
-  #theme(text = element_text(size = 18), axis.text.y = element_text(face = "italic", size = 18),legend.position="bottom",legend.box="vertical", legend.margin=margin(),legend.justification = "left")+
-  #scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85"), guide="none") +
-  scale_shape_manual(name = "", labels = c("decreased", "increased"), values = c(25, 24))+
-  ggtitle("Sputum")+
- guides(colour = guide_legend(order = 3), 
-              shape = guide_legend(order = 4),scale_fill_gradient2=guide_legend(order = 2), scale_size_continuous=guide_legend(order = 1))#+
- # geom_text(aes(label=fdr), color = "black", size = 8)
-  
-tax_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/relAb_cuneiform_plot_stool_patients.rds")
-
-tax_stool <- tax_stool+
-  theme_pubclean()+
-  theme(text = element_text(size = 12), axis.text.y = element_text(face = "italic", size = 12),axis.text.x = element_text(size = 12), axis.title.x = element_text(size = 12),legend.position="bottom",legend.box="vertical", legend.text = element_text(size=11), legend.title = element_text(size = 11), legend.margin=margin(),legend.box.just = "left")+
-  scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85"), guide="none") +
-  scale_shape_manual(name = "", labels = c("decreased", "increased"), values = c(25, 24), guide="none")+
-  ggtitle("Stool")#+
-  #geom_text(aes(label=fdr), color = "black", size = 8)
-
-dom_spu <- dom_spu+
-   theme(legend.position="right", text = element_text(size=12), legend.justification = "right",legend.text = element_text(size=12))+
-  guides(fill=guide_legend(title.position="top", 
-                                     title.hjust =0.5, ncol = 2))+
-  ggtitle("Sputum")
-
-grid_arranged <- grid.arrange(
-  dom_spu + labs(tag = "B") + theme(legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, units = "pt"), legend.box.margin = margin(0, 0, 0, 0)),
-  tax_sputum + labs(tag = "A"),
-  tax_stool + labs(tag = "C"),
-  ncol = 2, nrow = 2,
-  heights = c(1, 1.8),
-  widths=c(1,1.1),
-  layout_matrix = rbind(c(2,1),
-                       (c(2,3))
-                       ))
-
-# Print or save the arranged plot
-print(grid_arranged)
-
-#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/Fig4.tiff",grid_arranged, dpi = 600, width = 15.5, height = 8)
 ```

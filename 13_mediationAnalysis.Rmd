@@ -298,6 +298,7 @@ perform_mediation_analysis <- function(data, mediator, outcome, predictor, id_va
 ```
 
 # Staphylococcus abundance in Sputum, mediated by sweat chloride, corrected for id as repeated measure
+This is the final statistical analysis presented in the manuscript
 ```{r}
 # Define the dataset and variables
 data <- staph_df
