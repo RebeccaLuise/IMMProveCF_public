@@ -4,9 +4,9 @@ This repository contains all code and data used for the analysis reported in the
 
 Repository Structure:
 
-.R files – Contain functions used throughout the analysis.
-.Rmd files – Ordered according to the analysis presented in the manuscript. These include code for statistical tests and figure generation to fully reproduce the findings.
-.rds files – Contain annotated but raw count 16S sequencing data combined with clinical metadata as a phyloseq object.
+    .R files – Contain functions used throughout the analysis.
+    .Rmd files – Ordered according to the analysis presented in the manuscript. These include code for statistical tests and figure generation to fully reproduce the findings.
+    .rds files – Contain annotated but raw count 16S sequencing data combined with clinical metadata as a phyloseq object.
 
 Raw Data Availability:
     Raw sequencing data have been deposited at NCBI BioProject PRJNA1080555.
