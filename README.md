@@ -1,11 +1,23 @@
 # IMMProveCF_public
-All code and data that have been used for the analysis reported within the manuscript "Microbiome dynamics are mediated by changes in host physiology in people with cystic fibrosis undergoing CFTR-modulator therapy"
+This repository contains all code and data used for the analysis reported in the manuscript:
+"Microbiome dynamics are mediated by changes in host physiology in people with cystic fibrosis undergoing CFTR-modulator therapy."
+Repository Structure
 
-.R files have functions written for the analysis
+    .R files – Contain functions used throughout the analysis.
+    .Rmd files – Ordered according to the analysis presented in the manuscript. These include code for statistical tests and figure generation to fully reproduce the findings.
+    .rds files – Contain annotated but raw count 16S sequencing data combined with clinical metadata as a phyloseq object.
 
-.Rmd files are ordered by the presentation of the analysis within the manuscript, they include all code for statistical tests and figures to reproduce the findings presented in the manuscript.
+Raw Data Availability
+    Raw sequencing data have been deposited at NCBI BioProject PRJNA1080555.
 
-.rds files have the annotated 16S data and the adjacent clinical metadata combined as a phyloseq object.
+Reproducibility Guide
+1. Preparing the Data
 
-Raw sequencing data have been deposited in: http://www.ncbi.nlm.nih.gov/bioproject/1080555 (PRJNA1080555).
+    Files numbered 00-* and 01-* are required to generate phyloseq objects from raw sequencing data and clinical metadata.
+    To replicate the analysis without regenerating these objects, download the .rds files and update the file paths accordingly in the scripts.
 
+2. Running the Analysis
+
+    Each .Rmd script begins by loading the necessary phyloseq objects.
+    Ensure all required R packages are installed and loaded before execution.
+    The scripts can then be run sequentially to reproduce the full analysis, including all statistical tests and visualizations.
