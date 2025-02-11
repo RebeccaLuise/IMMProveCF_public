@@ -16,8 +16,13 @@ Raw Data Availability:
 
 ## Reproducibility Guide:
 
-All statistical analyses were performed in the R environment (v4.1).
+Hardware used: System Information
+    Device: MacBook Pro (2021)
+    Processor: Apple M1 Max
+    RAM: 64GB
+    Operating System: macOS Sonoma v14.6.1
 
+All statistical analyses were performed in the R environment (v4.1).
 
 ### Preparing the Data
 
@@ -27,17 +32,28 @@ Files numbered `00-*` and `01-*` are required to generate phyloseq objects from 
 
 Each `.Rmd` script begins by loading the necessary phyloseq objects. Ensure all required R packages are installed and loaded before execution.
 
-### Setting Up the Environment
+#### Setting Up the Environment
 To ensure full reproducibility, this repository includes an `renv.lock` file. Follow these steps to restore the exact package versions used in the analysis:
 
-1. Install `renv` if not already installed:
+1. Clone this git repo into the working directory using the terminal
+   ```bash
+    git clone https://github.com/RebeccaLuise/IMMProveCF_public.git YOUR_DIRECTORY_HERE
+    ```
+
+2. Install `renv` if not already installed:
    ```r
    install.packages("renv")
    ```
-2. Restore the project environment:
+3. Restore the project environment:
    ```r
    renv::restore()
    ```
+   Installation & Execution Time Estimates
+
+   On the specified hardware, approximate times for setting up and running the analysis are:
+
+       Package Installation (renv::restore()): ~ 17 secondes
+       Running All Scripts (rmarkdown::render()): ~ 360 minutes
 
 ### Running the Scripts
 Once dependencies are installed, the `.Rmd` files can be run sequentially to reproduce the full analysis, including all statistical tests and visualizations. Open the `.Rproj` file in RStudio for an organized workflow.
