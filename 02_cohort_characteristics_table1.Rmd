@@ -112,3 +112,297 @@ summary(lmerTest::lmer(staph_pos_throat ~ visit_sum + age_y + sex+(1|id), data =
 summary(lmerTest::lmer(pseudo_pos_throat ~ visit_sum + age_y + sex + (1|id), data = data))
 summary(lmerTest::lmer(pseudo_pos_sputum ~ visit_sum + age_y + sex + (1|id), data = data))
 ```
+
+# Sputum providing patients cohort characteristics
+
+```{r}
+ps_sputum <- subset_samples(ps, material=="Sputum")
+
+data_sputum <- as(sample_data(ps_sputum), "data.frame")
+
+data_sputum  <- data_sputum %>% 
+  mutate(sex = case_when(sex==1 ~ "male", sex==2 ~ "female")) %>% 
+  mutate(sex=as_factor(sex))
+
+data_sputum$visit_cal_9 <- factor(
+  data_sputum$visit_cal_9,
+  levels = c("1","2","3","4","5","6","7","8","9","Control"),
+  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+)
+
+data_sputum <- data_sputum %>% 
+  distinct(id_visit, .keep_all = T)
+
+data_sputum %>% 
+  count(visit_cal_cor)
+
+# create age subgroups
+data_sputum$age_y <- as.numeric(data_sputum$age_y)
+data_sputum  <- data_sputum %>% 
+  mutate(age_groups= case_when(age_y>=20~">=20", age_y>=12 & age_y<=19~"12-19",age_y<=11~"<=11")) 
+
+# create new delta variables
+data_sputum <- data_sputum%>%
+  mutate(baseline_ppfvc = case_when(visit_cal_9 =="Baseline"~ pp_fvc_percent))%>%
+  group_by(id)%>%
+  fill(baseline_ppfvc)%>%
+  mutate(delta_ppfvc = pp_fvc_percent-baseline_ppfvc)%>%
+  ungroup()
+
+data_sputum <- data_sputum%>%
+  mutate(baseline_chloride = case_when(visit_cal_9 =="Baseline"~ chlorid_mmol_cl_l))%>%
+  group_by(id)%>%
+  fill(baseline_chloride)%>%
+  mutate(delta_chloride = chlorid_mmol_cl_l-baseline_chloride)%>%
+  ungroup()
+```
+```{r}
+data_sputum <- data_sputum %>%
+  group_by(id.x) %>%  # Group by patient
+  mutate(has_followUp = n() > 1) %>%  # Check if the patient has more than one visit
+  ungroup()  # Ungroup for clean output
+
+summary(data_sputum$has_followUp)
+
+data_sputum_sel <- data_sputum %>% select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride, staph_pos_sputum, staph_pos_throat, pseudo_pos_sputum, pseudo_pos_throat)
+
+data_sputum_sel%>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="no")%>%
+  as_gt() #%>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel%>% tbl_summary(by=visit_cal_9, type = c( age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous",  delta_ppfev1= "continuous", chlorid_mmol_cl_l= "continuous")) #%>% as_gt() %>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel %>%
+  group_by(visit_cal_9) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE)
+  ) %>% pivot_wider(
+    names_from = visit_cal_9,
+    values_from = c(min_age, max_age, mean_age, sd_age)
+  )
+```
+# check only follow-up patients
+```{r}
+
+data_sputum_sel_fu <- data_sputum %>% 
+  filter(has_followUp) %>% 
+  select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride,staph_pos_sputum, staph_pos_throat, pseudo_pos_sputum, pseudo_pos_throat)
+
+data_sputum_sel_fu%>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="no")%>%
+  as_gt() #%>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel_fu%>% 
+  filter(visit_cal_9=="Baseline") %>% 
+  tbl_summary(type = c( age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous",  delta_ppfev1= "continuous", chlorid_mmol_cl_l= "continuous")) #%>% as_gt() %>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel_fu %>%
+  group_by(visit_cal_9) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE)
+  ) %>% pivot_wider(
+    names_from = visit_cal_9,
+    values_from = c(min_age, max_age, mean_age, sd_age)
+  )
+```
+```{r}
+data_sputum_sel_nfu <- data_sputum %>% 
+  filter(!has_followUp) %>% 
+  select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride,staph_pos_sputum, staph_pos_throat, pseudo_pos_sputum, pseudo_pos_throat)
+
+data_sputum_sel_nfu%>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="no")%>%
+  as_gt() #%>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel_nfu%>% 
+  filter(visit_cal_9=="Baseline") %>% 
+  tbl_summary(type = c( age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous",  delta_ppfev1= "continuous", chlorid_mmol_cl_l= "continuous")) #%>% as_gt() %>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_sputum_sel_nfu %>%
+  group_by(visit_cal_9) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE)
+  ) %>% pivot_wider(
+    names_from = visit_cal_9,
+    values_from = c(min_age, max_age, mean_age, sd_age)
+  )
+```
+# patients without any Sputum samples provided
+```{r}
+ps_nospu <- subset_samples(ps, !id.x%in% data_sputum$id.x)
+
+data_nospu <- as(sample_data(ps_nospu), "data.frame")
+
+data_nospu  <- data_nospu %>% 
+  mutate(sex = case_when(sex==1 ~ "male", sex==2 ~ "female")) %>% 
+  mutate(sex=as_factor(sex))
+
+data_nospu$visit_cal_9 <- factor(
+  data_nospu$visit_cal_9,
+  levels = c("1","2","3","4","5","6","7","8","9","Control"),
+  labels = c("Baseline", "3 months", "6 months", "9 months", "12 months", "15 months", "18 months", "21 months", "24 months","Controls")
+)
+
+data_nospu <- data_nospu %>% 
+  distinct(id_visit, .keep_all = T)
+
+data_nospu %>% 
+  count(visit_cal_cor)
+
+# create age subgroups
+data_nospu$age_y <- as.numeric(data_nospu$age_y)
+data_nospu  <- data_nospu %>% 
+  mutate(age_groups= case_when(age_y>=20~">=20", age_y>=12 & age_y<=19~"12-19",age_y<=11~"<=11")) 
+
+# create new delta variables
+data_nospu <- data_nospu%>%
+  mutate(baseline_ppfvc = case_when(visit_cal_9 =="Baseline"~ pp_fvc_percent))%>%
+  group_by(id)%>%
+  fill(baseline_ppfvc)%>%
+  mutate(delta_ppfvc = pp_fvc_percent-baseline_ppfvc)%>%
+  ungroup()
+
+data_nospu <- data_nospu%>%
+  mutate(baseline_chloride = case_when(visit_cal_9 =="Baseline"~ chlorid_mmol_cl_l))%>%
+  group_by(id)%>%
+  fill(baseline_chloride)%>%
+  mutate(delta_chloride = chlorid_mmol_cl_l-baseline_chloride)%>%
+  ungroup()
+
+data_nospu_sel <- data_nospu %>% select(visit_cal_9, sex, age_y, age_groups, mutation_status, pp_fev_percent, delta_ppfev1, pp_fvc_percent, delta_ppfvc, chlorid_mmol_cl_l, delta_chloride, staph_pos_sputum, staph_pos_throat, pseudo_pos_sputum, pseudo_pos_throat)
+
+data_nospu_sel%>% tbl_summary(by=visit_cal_9, type = c(age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous", delta_ppfvc= "continuous",  delta_ppfev1= "continuous", delta_chloride= "continuous", chlorid_mmol_cl_l= "continuous"), missing="no")%>%
+  as_gt() #%>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_nospu_sel%>% 
+  filter(visit_cal_9=="Baseline") %>% 
+  tbl_summary(type = c( age_y = "continuous", age_groups = "categorical", mutation_status= "categorical", pp_fev_percent= "continuous", pp_fvc_percent= "continuous",  delta_ppfev1= "continuous", chlorid_mmol_cl_l= "continuous")) #%>% as_gt() %>%
+  #gt::gtsave(filename = "characteristics_allVisits.docx")
+
+data_nospu_sel %>%
+  group_by(visit_cal_9) %>%
+  summarise(
+    min_age = min(age_y, na.rm = TRUE),
+    max_age = max(age_y, na.rm = TRUE),
+    mean_age = mean(age_y, na.rm = TRUE),
+    sd_age = sd(age_y, na.rm = TRUE)
+  ) %>% pivot_wider(
+    names_from = visit_cal_9,
+    values_from = c(min_age, max_age, mean_age, sd_age)
+  )
+
+```
+
+# Stats between 3 groups (Sputum+FU, Sputum+NFU, NoSputum)
+```{r}
+
+df <- data %>% 
+  filter(visit_cal_9=="Baseline") %>% 
+  left_join(data_sputum %>% select(id.x, has_followUp), by="id.x") %>% 
+  distinct(id_visit, .keep_all = T) %>% 
+  mutate(hasSputum_group = case_when(has_followUp==T~"Sputum FU", has_followUp==F~"Sputum NFU", is.na(has_followUp)~"No Sputum"))
+
+df$hasSputum_group <- factor(df$hasSputum_group, levels = c("Sputum FU", "Sputum NFU", "No Sputum"))
+
+df %>% 
+  select(id.x, hasSputum_group)
+
+### sex ###
+fisher.test(table(df$hasSputum_group, df$sex))
+
+### age continuous ###
+df %>% 
+  ggplot(aes(hasSputum_group, age_y, fill = hasSputum_group)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  theme_bw() +
+  theme(legend.position = "none")+
+  xlab("")+
+  stat_compare_means(method = "kruskal.test", label.y = max(df$age_y) + 15) + # Kruskal-Wallis test
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("Sputum FU", "Sputum NFU"),
+    c("Sputum FU", "No Sputum"),
+    c("Sputum NFU", "No Sputum")
+  )) # Pairwise Wilcoxon tests
+kruskal.test(age_y ~ hasSputum_group, data = df)  # Replace 'df' with your dataframe
+
+### age groups ###
+fisher.test(table(df$hasSputum_group, df$age_groups))
+fisher.test(table(df$age_groups, df$hasSputum_group))
+
+# subgroup testing:
+df_1 <- df %>% 
+  filter(hasSputum_group!="Sputum FU")
+fisher.test(table(df_1$hasSputum_group, df_1$age_groups))
+
+df_2 <- df %>% 
+  filter(hasSputum_group!="Sputum NFU")
+fisher.test(table(df_2$hasSputum_group, df_2$age_groups))
+
+df_3 <- df %>% 
+  filter(hasSputum_group!="No Sputum")
+fisher.test(table(df_3$hasSputum_group, df_3$age_groups))
+
+### mutation status ###
+fisher.test(table(df$mutation_status, df$hasSputum_group))
+
+### lung function ###
+df %>% 
+  ggplot(aes(hasSputum_group, pp_fev_percent, fill = hasSputum_group)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  theme_bw() +
+  theme(legend.position = "none")+
+  xlab("")+
+  stat_compare_means(method = "kruskal.test", label.y = max(df$pp_fev_percent) + 35) + # Kruskal-Wallis test
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("Sputum FU", "Sputum NFU"),
+    c("Sputum FU", "No Sputum"),
+    c("Sputum NFU", "No Sputum")
+  )) # Pairwise Wilcoxon tests
+
+kruskal.test(pp_fev_percent ~ hasSputum_group, data = df)
+wilcox.test(pp_fev_percent ~ hasSputum_group, data = df_1)
+wilcox.test(pp_fev_percent ~ hasSputum_group, data = df_2)
+wilcox.test(pp_fev_percent ~ hasSputum_group, data = df_3)
+
+kruskal.test(pp_fvc_percent ~ hasSputum_group, data = df)
+
+### sweat chloride ###
+kruskal.test(chlorid_mmol_cl_l ~ hasSputum_group, data = df)
+
+df %>% 
+  ggplot(aes(hasSputum_group, chlorid_mmol_cl_l, fill = hasSputum_group)) +
+  geom_boxplot() +
+  geom_point(position = position_jitter(width = 0.2), alpha = 0.6) +
+  theme_bw() +
+  theme(legend.position = "none")+
+  xlab("")+
+  stat_compare_means(method = "kruskal.test", label.y = max(df$chlorid_mmol_cl_l) + 35) + # Kruskal-Wallis test
+  stat_compare_means(method = "wilcox.test", comparisons = list(
+    c("Sputum FU", "Sputum NFU"),
+    c("Sputum FU", "No Sputum"),
+    c("Sputum NFU", "No Sputum")
+  )) # Pairwise Wilcoxon tests
+
+### Sputum microbiology ###
+fisher.test(table(df$staph_pos_sputum, df$hasSputum_group))
+fisher.test(table(df$pseudo_pos_sputum, df$hasSputum_group))
+```
+
+
+
+

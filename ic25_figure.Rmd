@@ -1,0 +1,210 @@
+---
+title: "IC25 figure sputum and gut"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(tidyverse, janitor, knitr, ggplot2)
+```
+
+# Sputum
+```{r}
+ic25_sputum <- read_delim("~/Documents/Forschung/IMMProveCF/Manuscript_16S/IC25_figure/NeckaR/Melonie/output/tables/IC_25_df.csv")
+
+ic25_sputum <- ic25_sputum %>%
+  mutate(strain_name = case_when(
+    Strain == "LM0009" ~ "S. pneumoniae",
+    Strain == "LM0043" ~ "S. aureus",
+    Strain == "LM0303" ~ "P. nigrescens",
+    Strain == "LM0305" ~ "V. atypica",
+    Strain == "LM0310" ~ "R. dentocariosa",
+    Strain == "LM0330" ~ "G. adiacens",
+    Strain == "NT5002" ~ "B. uniformis",
+    Strain == "NT5015" ~ "P. micra",
+    Strain == "NT5020" ~ "P. melaninogenica",
+    Strain == "NT5025" ~ "F. nucleatum",
+    Strain == "NT5027" ~ "D. longicatena",
+    Strain == "NT5038" ~ "S. salivarius",
+    Strain == "NT5051" ~ "B. eggerthii",
+    Strain == "NT5072" ~ "S. parasanguinis",
+    Strain == "NT5017" ~ "V. parvula",
+    Strain == "NT5018" ~ "H. parainfluenzae",
+    Strain == "NT14074" ~ "L. sakei",
+    Strain == "LM0307" ~ "H. parahaemolyticus",
+    Strain == "LM0316" ~ "S. mitis",
+    Strain == "LM0315" ~ "S. sanguinis",
+    Strain == "LM0326" ~ "N. subflava",
+    Strain == "LM0318" ~ "S. oralis",
+    Strain == "LM0327" ~ "R. mucilaginosa",
+    Strain == "LM0302" ~ "N. cinerea",
+    Strain == "NT5072 - BHI" ~ "S. parasanguinis - BHI",
+    Strain == "NT5051 - mGAM" ~ "B. eggerthii - mGAM",
+    Strain == "NT5027 - PYG" ~ "D. longicatena - PYG",
+    Strain == "NT5025 - mGAM" ~ "F. nucleatum - mGAM",
+    Strain == "NT5020 - mGAM" ~ "P. melaninogenica - mGAM",
+    Strain == "NT5002 - mGAM" ~ "B. uniformis - mGAM",
+    Strain == "LM0330 - PYG" ~ "G. adiacens - PYG",
+    Strain == "LM0303 - PYG" ~ "P. nigrescens - PYG",
+    Strain == "NT5020 - BHI++" ~ "P. melaninogenica - BHI++",
+    Strain == "LM0072" ~ "P. aeruginosa PA01",
+    Strain == "LM0073" ~ "P. aeruginosa PA14",
+    Strain == "LM0052" ~ "P. aeruginosa CIP27853",
+    Strain == "LM0053" ~ "P. aeruginosa VED"
+  ))
+
+summary(as_factor(ic25_sputum$strain_name))
+
+ic25_sputum <- ic25_sputum %>%
+mutate(Band = str_c(qual, Concentration, sep="_"),
+         Band = case_when(Band == "<_1.25" ~ "< 1.25", 
+                          Band == "<_2.5" ~ "< 2.5", 
+                          Band == "=_2.5" ~ "1.25 - 2.5", 
+                          Band == "=_5" ~ "2.5 - 5", 
+                          Band == "=_10" ~ "5 - 10", 
+                          Band == ">_20" ~ "> 20", 
+                          Band == "=_20" ~ "10 - 20", 
+                          Band == ">_40" ~ "> 40", 
+                          Band == "=_40" ~ "20 - 40",
+                          Band == ">_80" ~ "> 80", 
+                          Band == "=_80" ~ "40 - 80", 
+                          Band == ">_160" ~ "> 160", 
+                          Band == "=_160" ~ "80 - 160"), 
+        Band = factor(Band, levels = c("< 1.25",
+                                       "1.25 - 2.5",
+                                       "< 2.5",
+                                       "2.5 - 5",
+                                       "5 - 10",
+                                       "10 - 20",
+                                       "> 20",
+                                       "20 - 40",
+                                       "> 40",
+                                       "40 - 80",
+                                       "> 80",
+                                       "80 - 160",
+                                       "> 160")))
+```
+
+```{r}
+#for yellow/green:
+my_colours <- c("#C3BC3FFF","#55AD89FF")
+gradient_base <- my_colours[1]
+my_gradients <- map(my_colours[2],
+                    function(x) colorRampPalette(c(gradient_base,x))(13))
+
+order <- ic25_sputum %>%
+  group_by(Drug) %>%
+  summarize(sum=sum(Concentration)) %>%
+  arrange(desc(sum))
+
+order <- as.vector(order$Drug)
+ic25_sputum <- ic25_sputum %>%
+  mutate(Drug=factor(Drug, levels = order))
+
+strain_order <- c(
+  "S. pneumoniae", "S. aureus", "P. aeruginosa CIP27853", "P. aeruginosa VED", 
+  "P. aeruginosa PA01", "P. aeruginosa PA14", "N. cinerea", "P. nigrescens", "V. atypica", 
+  "H. parahaemolyticus", "R. dentocariosa",  "S. sanguinis", "S. mitis",
+  "S. oralis", "N. subflava", "R. mucilaginosa", "G. adiacens", 
+  "L. sakei", "B. uniformis", "P. micra", "V. parvula", "P. melaninogenica", 
+  "H. parainfluenzae", "F. nucleatum", "S. salivarius", 
+  "B. eggerthii", "S. parasanguinis")
+
+ic25_sputum <- ic25_sputum %>%
+  mutate(strain_name = factor(strain_name, levels = strain_order))
+```
+
+```{r}
+ic25_sputum %>% 
+  ggplot(aes(x = strain_name, y = Drug)) +
+  geom_tile(aes(fill = Band), colour = 'white')+
+  coord_equal()+
+  #geom_text(aes(label = Band), size= 3)+
+  scale_fill_manual(values = my_gradients[[1]])+
+  theme_bw(base_size = 10) +
+  scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
+  ggtitle("") +
+ theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic")),
+       legend.title = element_text(size = 10), legend.text = element_text(size = 8))+
+theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
+guides(fill=guide_legend(ncol=2))+
+  labs(fill='IC25 [µM]')
+```
+# Gut
+```{r}
+ic25_gut <- readxl::read_xlsx("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IC25_figure/NU_P_011_MIC_CFdrugs_IC25.xlsx")
+
+ic25_gut <- ic25_gut %>% 
+  rename(Drug=Compound) %>% 
+  rename(strain_name=Strain)
+
+ic25_gut <- ic25_gut %>%
+mutate(Band = str_c(qual, Concentration, sep="_"),
+         Band = case_when(Band == "<_1.25" ~ "< 1.25", 
+                          Band == "<_2.5" ~ "< 2.5", 
+                          Band == "=_2.5" ~ "1.25 - 2.5", 
+                          Band == "=_5" ~ "2.5 - 5", 
+                          Band == "=_10" ~ "5 - 10", 
+                          Band == ">_20" ~ "> 20", 
+                          Band == "=_20" ~ "10 - 20", 
+                          Band == ">_40" ~ "> 40", 
+                          Band == "=_40" ~ "20 - 40",
+                          Band == ">_80" ~ "> 80", 
+                          Band == "=_80" ~ "40 - 80", 
+                          Band == ">_160" ~ "> 160", 
+                          Band == "=_160" ~ "80 - 160"), 
+        Band = factor(Band, levels = c("< 1.25",
+                                       "1.25 - 2.5",
+                                       "< 2.5",
+                                       "2.5 - 5",
+                                       "5 - 10",
+                                       "10 - 20",
+                                       "> 20",
+                                       "20 - 40",
+                                       "> 40",
+                                       "40 - 80",
+                                       "> 80",
+                                       "80 - 160",
+                                       "> 160")))
+
+order <- ic25_gut%>%
+  group_by(Drug) %>%
+  summarize(sum=sum(Concentration)) %>%
+  arrange(desc(sum))
+
+order <- as.vector(order$Drug)
+ic25_gut <- ic25_gut %>%
+  mutate(Drug=factor(Drug, levels = order))
+
+strain_order <- c("E. coli ED1a", "E. coli CFT073", "E. faecium", "E. faecalis", "L. lactis", "B. adolescentis", "R. gnavus", "C. aerofaciens")
+
+ic25_gut <- ic25_gut%>%
+  mutate(strain_name = factor(strain_name, levels = strain_order))
+
+```
+
+```{r}
+ic_figure_gut <- ic25_gut%>% 
+  ggplot(aes(x = strain_name, y = Drug)) +
+  geom_tile(aes(fill = Band), colour = 'white')+
+  coord_equal()+
+  scale_fill_manual(values = my_gradients[[1]])+
+  theme_bw(base_size = 10) +
+  scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
+  ggtitle("") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic")),
+       legend.title = element_text(size = 10), legend.text = element_text(size = 8))+
+  theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
+  guides(fill=guide_legend(ncol=2))+
+  labs(fill='IC25 [µM]')
+
+ ic_figure_gut
+ 
+saveRDS(ic_figure_gut,"/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/ic25_figure_gut.rds")
+```
+

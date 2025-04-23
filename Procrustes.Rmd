@@ -1,0 +1,723 @@
+---
+title: "Procrustes analysis to investigate gut-lung, vs lung-throat axis"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Goal
+Use Orthogonal Procrustes Analysis (OPA) to assess how similar the overall spatial configuration (beta diversity structure) is between:
+
+    Sputum vs. Gut
+    Throat vs. Sputum
+
+OPA will rotate, translate, and scale one ordination to best match another and quantify similarity with a Procrustes statistic (m²).
+
+# Interpretation
+
+    Procrustes statistic (m²): Lower means better alignment.
+    protest(): Gives a p-value testing if the alignment is better than expected by chance (random configuration).
+    If the alignment is significant and tight, it supports the idea that there is a shared ecological structure, aka a gut-lung or airway continuum.
+
+```{r run import script, include=FALSE}
+# run script to tidy the data and to load packages, creates phyloseq object per material and per year; load libraries
+
+ps_sputum_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+pacman::p_load(rmarkdown, tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr, vegan)
+
+metadata <- as(sample_data(ps_full), "data.frame")
+
+metadata_v1 <- metadata %>% 
+   filter(project=="IMMPIMMP") %>% 
+  filter(visit==1)
+
+id_palette <- c(IMP11="#4E79A7FF",IMP13="#A0CBE8FF",IMP15="#F28E2BFF",IMP16="#FFBE7DFF",IMP17="#59A14FFF",IMP24="#8CD17DFF", IMP25="#B6992DFF",IMP26="#F1CE63FF",IMP27="#499894FF", IMP29="#86BCB6FF", IMP32="#E15759FF",  IMP33="#FF9D9AFF", IMP35="#79706EFF", IMP5="#BAB0ACFF", IMP6="#D37295FF",IMP9="#FABFD2FF",IMP21="#B07AA1FF", IMP31="#D4A6C8FF", IMP8="black")
+
+source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_sputhr.R")
+
+dom_palette <- c(Streptococcus="#69b3a2", Staphylococcus = "#8175AA", Fusobacterium="#6FB899FF", Prevotella_7="#31A1B3FF", Rothia="#027B8EFF", Pseudomonas="#EE6AA7", Eikenella="#94D0C0FF", Haemophilus="#CCB22BFF", Achromobacter="#9F8F12FF", Gemella= "#97CFD0" , Moraxella= "#6FB899", `missing sample` = "#CFCFCF")
+```
+
+```{r subset per sample type, include=FALSE}
+material_s_t <- c("Sputum", "Stool")
+
+ps_Sputum_Stool_full <- subset_samples(ps_sputum_full, material %in% material_s_t)
+
+ps_sputum_full_sputum <- subset_samples(ps_sputum_full, material== "Sputum")
+
+id_visit_sputum <- sample_data(ps_sputum_full_sputum)$id_visit
+
+ps_Sputum_Stool_full_unique <- subset_samples(ps_sputum_full, id_visit %in% id_visit_sputum)#includes also stool samples
+ps_Sputum_Stool_full_unique <- subset_samples(ps_Sputum_Stool_full_unique, material %in% material_s_t)#includes still sputum samples which do not have a paired stool sample
+
+# find those stool samples which have a paired sputum sample
+ps_sputum_full_stool <- subset_samples(ps_sputum_full, material== "Stool")
+ps_Sputum_Stool_full_unique_3 <- subset_samples(ps_sputum_full_stool, id_visit %in% id_visit_sputum)#includes also stool samples
+id_visit_unique <- sample_data(ps_Sputum_Stool_full_unique_3)$id_visit
+
+#filter for only those samples which have both sputum and stool from the same timepoint
+ps_Sputum_Stool_full_unique_2 <- subset_samples(ps_Sputum_Stool_full_unique, id_visit %in% id_visit_unique)#includes still sputum samples which do not have a paired stool sample
+
+summary(sample_data(ps_Sputum_Stool_full_unique_2)$id) # 15 participants provided both sputum & stool samples at the same timepoint
+
+data <- as(sample_data(ps_Sputum_Stool_full_unique_2), "data.frame")
+
+tabyl(data, id, visit_cal_cor)
+
+#transform to relative abundance
+ps_Sputum_Stool_full_unique_2_relab <- transform_sample_counts(ps_Sputum_Stool_full_unique_2 , function(x) x/sum(x))
+```
+
+# Sputum vs. stool microbiome
+## Sample overview
+```{r}
+# plot sample overview
+bp_ps_relab <- plot_bar(ps_Sputum_Stool_full_unique_2_relab, "id", fill="Phylum")
+
+bp_ps_relab+
+  geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+    theme(legend.key.height= unit(3, 'mm'),
+        legend.key.width= unit(3, 'mm'),legend.text = element_text(size=8), legend.position = "bottom", 
+        axis.ticks = element_blank(), axis.text.x = element_blank())+
+  scale_x_discrete(name="Participant")+
+  scale_y_continuous(name="Relative abundance")+
+  facet_grid(rows= vars(material), cols = vars(visit_cal_cor), scales ="free_x", space ="free_x")
+```
+
+```{r}
+sputum_common  <- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Sputum")
+gut_common<- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Stool")
+
+# Create distance matrices (e.g., Bray-Curtis)
+gut_dist <- phyloseq::distance(gut_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+# Ordinate using PCoA (or use NMDS if you'd rather)
+gut_ord <- ordinate(gut_common, method = "PCoA", distance = gut_dist)
+sputum_ord <- ordinate(sputum_common, method = "PCoA", distance = sputum_dist)
+
+# Grab the first few axes (same number)
+gut_coords  <- cmdscale(gut_dist, k = 10)
+sputum_coords <- cmdscale(sputum_dist, k = 10)
+
+?cmdscale()
+?scores()
+
+# Run Procrustes analysis
+proc <- procrustes(gut_coords, sputum_coords)
+
+# Summary
+summary(proc)
+
+# Significance test
+proc_test <- protest(gut_coords, sputum_coords, permutations = 999)
+print(proc_test)
+
+# Visualization
+plot(proc)
+
+```
+
+## do it subject wise
+```{r}
+library(vegan)
+
+extract_subject_id <- function(names_vector) {
+  regmatches(names_vector, regexpr("IMP\\d+", names_vector))
+}
+
+extract_visit <- function(names_vector) {
+  regmatches(names_vector, regexpr("V\\d+", names_vector))
+}
+
+gut_meta <- data.frame(sample_id = rownames(gut_coords))
+gut_meta$subject <- extract_subject_id(gut_meta$sample_id)
+gut_meta$visit <- extract_visit(gut_meta$sample_id)
+gut_meta$pair_id <- paste0(gut_meta$subject, "_", gut_meta$visit)
+
+sputum_meta <- data.frame(sample_id = rownames(sputum_coords))
+sputum_meta$subject <- extract_subject_id(sputum_meta$sample_id)
+sputum_meta$visit <- extract_visit(sputum_meta$sample_id)
+sputum_meta$pair_id <- paste0(sputum_meta$subject, "_", sputum_meta$visit)
+
+subjects <- unique(gut_meta$subject)
+
+results <- lapply(subjects, function(subj) {
+  gut_sub <- gut_meta[gut_meta$subject == subj, ]
+  sputum_sub <- sputum_meta[sputum_meta$subject == subj, ]
+
+  shared_pair_ids <- intersect(gut_sub$pair_id, sputum_sub$pair_id)
+  
+  if (length(shared_pair_ids) >= 1) {
+    gut_mat <- gut_coords[gut_sub$sample_id[gut_sub$pair_id %in% shared_pair_ids], , drop = FALSE]
+    sputum_mat <- sputum_coords[sputum_sub$sample_id[sputum_sub$pair_id %in% shared_pair_ids], , drop = FALSE]
+
+    # make sure order is identical
+    gut_mat <- gut_mat[order(rownames(gut_mat)), ]
+    sputum_mat <- sputum_mat[order(rownames(sputum_mat)), ]
+
+    proc <- protest(gut_mat, sputum_mat)
+    return(data.frame(subject = subj, r = proc$t0, p = proc$signif))
+  } else {
+    return(NULL)
+  }
+})
+
+gut_sputum_results <- do.call(rbind, results)
+print(gut_sputum_results)
+
+```
+# Sputum vs Throat
+```{r}
+# Subset your phyloseq objects to overlapping samples
+material_s_t <- c("Sputum", "Throat")
+
+ps_sputum_throat_full <- subset_samples(ps_sputum_full, material %in% material_s_t)
+
+ps_sputum_full_sputum <- subset_samples(ps_sputum_full, material== "Sputum")
+
+id_visit_sputum <- sample_data(ps_sputum_full_sputum)$id_visit
+
+ps_sputum_throat_full_unique <- subset_samples(ps_sputum_full, id_visit %in% id_visit_sputum)#includes also stool samples
+ps_sputum_throat_full_unique <- subset_samples(ps_sputum_throat_full_unique, material %in% material_s_t)#includes still sputum samples which do not have a paired throat sample
+
+# find those throat samples which have a paired sputum sample
+ps_sputum_full_throat <- subset_samples(ps_sputum_full, material== "Throat")
+ps_sputum_throat_full_unique_3 <- subset_samples(ps_sputum_full_throat, id_visit %in% id_visit_sputum)#includes also stool samples
+id_visit_unique <- sample_data(ps_sputum_throat_full_unique_3)$id_visit
+
+#filter for only those samples which have both sputum and throat from the same timepoint
+ps_sputum_throat_full_unique_2 <- subset_samples(ps_sputum_throat_full_unique, id_visit %in% id_visit_unique)#includes still sputum samples which do not have a paired throat sample
+
+summary(sample_data(ps_sputum_throat_full_unique_2)$id) # 15 participants provided both sputum & throat samples at the same timepoint
+
+data <- as(sample_data(ps_sputum_throat_full_unique_2), "data.frame")
+
+tabyl(data, id, visit_cal_cor)
+
+#transform to relative abundance
+ps_sputum_throat_full_unique_2_relab <- transform_sample_counts(ps_sputum_throat_full_unique_2 , function(x) x/sum(x))
+```
+## Sample overview
+```{r}
+# plot sample overview
+bp_ps_relab <- plot_bar(ps_sputum_throat_full_unique_2_relab, "id", fill="Phylum")
+
+bp_ps_relab+
+  geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+    theme(legend.key.height= unit(3, 'mm'),
+        legend.key.width= unit(3, 'mm'),legend.text = element_text(size=8), legend.position = "bottom", 
+        axis.ticks = element_blank(), axis.text.x = element_blank())+
+  scale_x_discrete(name="Participant")+
+  scale_y_continuous(name="Relative abundance")+
+  facet_grid(rows= vars(material), cols = vars(visit_cal_cor), scales ="free_x", space ="free_x")
+```
+
+```{r}
+sputum_common  <- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Sputum")
+throat_common<- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Throat")
+
+# Create distance matrices (e.g., Bray-Curtis)
+throat_dist <- phyloseq::distance(throat_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+# Grab the first few axes (same number)
+throat_coords  <- cmdscale(throat_dist, k=10)
+sputum_coords <- cmdscale(sputum_dist, k=10)
+
+?cmdscale()
+?scores()
+
+# Run Procrustes analysis
+proc_resp <- procrustes(throat_coords, sputum_coords)
+?procrustes
+
+# Summary
+summary(proc_resp)
+
+# Significance test
+proc_test <- protest(throat_coords, sputum_coords, permutations = 999)
+print(proc_test)
+
+# Visualization
+plot(proc)
+
+```
+
+## subject wise on throat-sputum
+```{r}
+throat_meta <- data.frame(sample_id = rownames(throat_coords))
+throat_meta$subject <- extract_subject_id(throat_meta$sample_id)
+throat_meta$visit <- extract_visit(throat_meta$sample_id)
+throat_meta$pair_id <- paste0(throat_meta$subject, "_", throat_meta$visit)
+
+sputum_meta <- data.frame(sample_id = rownames(sputum_coords))
+sputum_meta$subject <- extract_subject_id(sputum_meta$sample_id)
+sputum_meta$visit <- extract_visit(sputum_meta$sample_id)
+sputum_meta$pair_id <- paste0(sputum_meta$subject, "_", sputum_meta$visit)
+
+subjects <- unique(throat_meta$subject)
+
+results <- lapply(subjects, function(subj) {
+  throat_sub <- throat_meta[throat_meta$subject == subj, ]
+  sputum_sub <- sputum_meta[sputum_meta$subject == subj, ]
+
+  shared_pair_ids <- intersect(throat_sub$pair_id, sputum_sub$pair_id)
+  
+  if (length(shared_pair_ids) >= 1) {
+    throat_mat <- throat_coords[throat_sub$sample_id[throat_sub$pair_id %in% shared_pair_ids], , drop = FALSE]
+    sputum_mat <- sputum_coords[sputum_sub$sample_id[sputum_sub$pair_id %in% shared_pair_ids], , drop = FALSE]
+
+    # make sure order is identical
+    throat_mat <- throat_mat[order(rownames(throat_mat)), ]
+    sputum_mat <- sputum_mat[order(rownames(sputum_mat)), ]
+
+    proc <- protest(throat_mat, sputum_mat)
+    return(data.frame(subject = subj, r = proc$t0, p = proc$signif))
+  } else {
+    return(NULL)
+  }
+})
+
+throat_sputum_results <- do.call(rbind, results)
+print(throat_sputum_results)
+```
+# compare sputum-throat to sputum-gut results
+```{r}
+gut_sputum_results$comparison <- "gut_sputum"
+throat_sputum_results$comparison <- "throat_sputum"
+
+combined <- rbind(gut_sputum_results, throat_sputum_results)
+
+# Merge by subject to keep only shared subjects
+paired_data <- merge(gut_sputum_results, throat_sputum_results, by = "subject", suffixes = c("_gut", "_throat"))
+
+# Paired t-test (or Wilcoxon if non-normal)
+wilcox.test(paired_data$r_throat, paired_data$r_gut, paired = TRUE)
+
+library(ggplot2)
+
+ggplot(paired_data, aes(x = r_gut, y = r_throat, color=subject)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(x = "Gut–Sputum Procrustes r", y = "Throat–Sputum Procrustes r",
+       title = "Per-Subject Comparison of Procrustes Correlations")
+
+```
+
+# Conclusion:
+
+Quick interpretation of Procrustes protest results:
+Comparison	Sum of Squares	Correlation (r)	p-value	Interpretation
+Throat vs Sputum	0.8172	0.4275	0.042	Significant alignment (p < 0.05) → evidence for similarity
+Gut vs Sputum	0.8424	0.3970	0.103	Not significant (p > 0.05) → weaker or noisier alignment
+Biological read:
+
+→ The throat microbiome is significantly more similar to sputum than the gut microbiome is.
+→ This is biologically intuitive: the throat and sputum (lung) are physically closer, and microbial exchange is plausible (aspiration, mucus flow).
+
+Gut-lung interactions are more complex — maybe indirect, systemic (immune-mediated), or only affecting specific taxa.
+
+But cave: P-values are decreasing the more axes I include in the rotations, but overall I have the feeling the results differ too little between stool-sputum and throat-sputum comparisons. 
+
+# Mantel test:
+```{r}
+sputum_common  <- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Sputum")
+gut_common<- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Stool")
+# Create distance matrices (e.g., Bray-Curtis)
+gut_dist <- phyloseq::distance(gut_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+mantel(gut_dist, sputum_dist, permutations = 999)
+
+sputum_common  <- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Sputum")
+throat_common<- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Throat")
+
+# Create distance matrices (e.g., Bray-Curtis)
+throat_dist <- phyloseq::distance(throat_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+mantel(throat_dist, sputum_dist, permutations = 999)
+```
+# Interpretaion of mantel test: 
+→ Mantel r is a correlation between the structure of distance matrices — so:
+
+    "Do samples that are similar in gut also tend to be similar in sputum?"
+
+→ Here, both r values are very small (~0.07 - 0.10), meaning:
+
+    There's only a very weak correspondence between the community structure of gut vs. sputum or throat vs. sputum.
+
+→ p-values ~0.10 → not formally significant, but some weak trend.
+
+# Try entenglement plot
+```{r}
+library(phyloseq)
+library(dendextend)
+
+sputum_common  <- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Sputum")
+gut_common<- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Stool")
+# Create distance matrices (e.g., Bray-Curtis)
+gut_dist <- phyloseq::distance(gut_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+# Cluster gut
+gut_clust <- hclust(gut_dist)
+gut_dend <- as.dendrogram(gut_clust)
+
+# Cluster sputum
+sputum_clust <- hclust(sputum_dist)
+sputum_dend <- as.dendrogram(sputum_clust)
+
+# Match labels
+labels(gut_dend) <- sample_data(gut_common)$id_visit
+labels(sputum_dend) <- sample_data(sputum_common)$id_visit
+
+ggplot(gut_dend)
+ggplot(sputum_dend)
+
+# Plot tanglegram
+dend_list <- dendlist(gut_dend, sputum_dend)
+tanglegram(gut_dend, sputum_dend,
+  highlight_distinct_edges = TRUE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2)))
+
+```
+
+```{r}
+sputum_common  <- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Sputum")
+throat_common<- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Throat")
+# Create distance matrices (e.g., Bray-Curtis)
+throat_dist <- phyloseq::distance(throat_common, method = "bray")
+sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
+
+# Cluster throat
+throat_clust <- hclust(throat_dist)
+throat_dend <- as.dendrogram(throat_clust)
+
+# Cluster sputum
+sputum_clust <- hclust(sputum_dist)
+sputum_dend <- as.dendrogram(sputum_clust)
+
+# Match labels
+labels(throat_dend) <- sample_data(throat_common)$id_visit
+labels(sputum_dend) <- sample_data(sputum_common)$id_visit
+
+ggplot(throat_dend)
+ggplot(sputum_dend)
+
+# Plot tanglegram
+dend_list <- dendlist(throat_dend, sputum_dend)
+tanglegram(throat_dend, sputum_dend,
+  highlight_distinct_edges = TRUE, # Turn-off dashed lines
+  common_subtrees_color_lines = FALSE, # Turn-off line colors
+  common_subtrees_color_branches = TRUE, # Color common branches 
+  main = paste("entanglement =", round(entanglement(dend_list), 2)))
+```
+
+# Do co-correlation analysis
+```{r}
+sputum_common  <- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Sputum")
+throat_common<- subset_samples(ps_sputum_throat_full_unique_2_relab, material=="Throat")
+
+for(taxon in taxa) {
+   cor(throat_common[taxon,], sputum_common[taxon,], method="spearman")
+}
+
+```
+```{r}
+# Extract OTU/ASV table
+
+ps_sputum_throat_fil  <- phyloseq::filter_taxa(ps_sputum_throat_full_unique_2_relab, function(x) sum(x) > 0, prune = T)
+
+otu_mat <- as(otu_table(ps_sputum_throat_fil), "matrix")
+
+# Ensure taxa are in rows
+if(!taxa_are_rows(ps_sputum_throat_fil)){
+  otu_mat <- t(otu_mat)
+}
+
+# Get sample data
+sample_meta <- sample_data(ps_sputum_throat_fil)
+
+# Subset to sputum and throat samples
+sputum_samples <- rownames(sample_meta[sample_meta$material == "Sputum", ])
+throat_samples <- rownames(sample_meta[sample_meta$material == "Throat", ])
+
+# Only keep taxa present in both sample sets
+taxa_shared <- intersect(rownames(otu_mat), taxa)
+
+
+
+```
+```{r}
+library(purrr)
+sputum_common  <- subset_samples(ps_sputum_throat_fil, material=="Sputum")
+throat_common<- subset_samples(ps_sputum_throat_fil, material=="Throat")
+
+results <- map_dfr(taxa_names(ps_sputum_throat_fil), function(taxon) {
+  
+  if(taxa_are_rows(throat_common)) {
+    throat_abund <- as.numeric(otu_table(throat_common)[taxon, ])
+    sputum_abund <- as.numeric(otu_table(sputum_common)[taxon, ])
+  } else {
+    throat_abund <- as.numeric(otu_table(throat_common)[, taxon])
+    sputum_abund <- as.numeric(otu_table(sputum_common)[, taxon])
+  }
+  
+  valid_idx <- which(!is.na(throat_abund) & !is.na(sputum_abund))
+  
+  tibble(
+    taxon = taxon,
+    spearman_rho = if(length(valid_idx) >= 2) cor(throat_abund[valid_idx], sputum_abund[valid_idx], method = "spearman") else NA
+  )
+})
+
+results_woNA <- results %>% 
+  filter(!is.na(spearman_rho))
+
+# Pivot to wide format
+corr_mat <- results_woNA %>% 
+  pivot_wider(
+    names_from = taxon, 
+    values_from = spearman_rho
+  ) %>% 
+  select(-taxon) %>% # if taxon is duplicated
+  as.matrix()
+
+
+# Now you can plot it
+corrplot::corrplot(corr_mat, method = "color", 
+                   tl.cex = 0.6, 
+                   na.label = " ", 
+                   col = colorRampPalette(c("blue", "white", "red"))(200))
+
+ggplot(results_woNA, aes(x = reorder(taxon, spearman_rho), y = spearman_rho)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal()
+
+corr_mat <- results_woNA %>% 
+  column_to_rownames("taxon") %>% 
+  as.matrix()
+
+corrplot::corrplot(t(corr_mat), is.corr = FALSE, method = "color")
+
+
+df <- psmelt(ps_sputum_throat_fil)
+
+df$OTU
+
+df_c <- df %>% 
+  left_join(results_woNA, by= c("OTU"="taxon"))
+
+
+df_c %>% 
+  group_by(material, OTU) %>% 
+  filter(spearman_rho >= abs(0.25)) %>% 
+ggplot(aes(y = OTU, x=material, size = Abundance, color = spearman_rho)) +
+  geom_point(alpha = 0.7) +  # Adjust the transparency for better visibility
+  scale_size_continuous(range = c(1, 5)) +  # Adjust bubble size range
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  # Color scale for correlation
+  facet_wrap(~ Genus, scales = "free") +  # Facet by material
+  theme_minimal() +
+  labs(
+    title = "Bubble Plot of ASV Abundance and Correlation by Material",
+    x = "ASV",
+    y = "Material",
+    size = "Abundance",
+    color = "Spearman Correlation"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),  # Rotate taxon labels
+    panel.grid.major = element_blank(),  # Remove gridlines for clarity
+    panel.grid.minor = element_blank()
+  )
+
+df_c_sputum <- df_c %>% 
+  filter(material=="Sputum") %>% 
+  mutate(sputum_abundance = Abundance) %>% 
+  select(OTU, Genus, id_visit, sputum_abundance, spearman_rho)%>% 
+  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
+
+df_c_throat <- df_c %>% 
+  filter(material=="Throat") %>% 
+  mutate(throat_abundance= Abundance)%>% 
+  select(OTU, Genus, id_visit, throat_abundance, spearman_rho) %>% 
+  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
+
+df_thr_spu <- df_c_sputum %>% 
+   left_join(df_c_throat, by= "unique_id" )
+
+df_thr_spu$spearman_rho.x==df_thr_spu$spearman_rho.y
+
+df_thr_spu %>% 
+  filter(!is.na(spearman_rho.x)) %>% 
+  filter(!is.na(spearman_rho.y)) %>% 
+  group_by(OTU.x) %>% 
+  ggplot(aes(x = sputum_abundance, y = throat_abundance, color = spearman_rho.x)) +
+  geom_point(alpha = 1, size = 1) + 
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  labs(
+    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
+    x = "Sputum Abundance",
+    y = "Throat Abundance",
+    color = "Spearman Correlation"
+  ) +
+  theme_minimal()+
+  scale_x_log10()+
+  scale_y_log10()
+
+df_thr_spu %>% 
+  filter(!is.na(spearman_rho.x)) %>% 
+  filter(!is.na(spearman_rho.y)) %>% 
+  filter(spearman_rho.y>=abs(0.2)) %>% 
+  ggplot(aes(x = sputum_abundance, y = throat_abundance, color = Genus.x)) +
+  geom_point(aes(size=spearman_rho.y), alpha = 1) + 
+  #scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  labs(
+    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
+    x = "Sputum Abundance",
+    y = "Throat Abundance",
+    size = "Spearman Correlation"
+  ) +
+  theme_minimal()+
+  scale_x_log10()+
+  scale_y_log10()+
+  theme(legend.position = "none")
+```
+
+
+# 
+```{r}
+# Extract OTU/ASV table
+
+ps_sputum_stool_fil  <- phyloseq::filter_taxa(ps_Sputum_Stool_full_unique_2_relab, function(x) sum(x) > 0, prune = T)
+
+sputum_common  <- subset_samples(ps_sputum_stool_fil, material=="Sputum")
+stool_common<- subset_samples(ps_sputum_stool_fil, material=="Stool")
+
+results <- map_dfr(taxa_names(ps_sputum_stool_fil), function(taxon) {
+  
+  if(taxa_are_rows(stool_common)) {
+    stool_abund <- as.numeric(otu_table(stool_common)[taxon, ])
+    sputum_abund <- as.numeric(otu_table(sputum_common)[taxon, ])
+  } else {
+    stool_abund <- as.numeric(otu_table(stool_common)[, taxon])
+    sputum_abund <- as.numeric(otu_table(sputum_common)[, taxon])
+  }
+  
+  valid_idx <- which(!is.na(stool_abund) & !is.na(sputum_abund))
+  
+  tibble(
+    taxon = taxon,
+    spearman_rho = if(length(valid_idx) >= 2) cor(stool_abund[valid_idx], sputum_abund[valid_idx], method = "spearman") else NA
+  )
+})
+
+results_woNA <- results %>% 
+  filter(!is.na(spearman_rho))
+
+# Pivot to wide format
+corr_mat <- results_woNA %>% 
+  pivot_wider(
+    names_from = taxon, 
+    values_from = spearman_rho
+  ) %>% 
+  select(-taxon) %>% # if taxon is duplicated
+  as.matrix()
+
+
+# Now you can plot it
+corrplot::corrplot(corr_mat, method = "color", 
+                   tl.cex = 0.6, 
+                   na.label = " ", 
+                   col = colorRampPalette(c("blue", "white", "red"))(200))
+
+ggplot(results_woNA, aes(x = reorder(taxon, spearman_rho), y = spearman_rho)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal()
+
+corr_mat <- results_woNA %>% 
+  column_to_rownames("taxon") %>% 
+  as.matrix()
+
+corrplot::corrplot(t(corr_mat), is.corr = FALSE, method = "color")
+
+
+df <- psmelt(ps_sputum_stool_fil)
+
+df$OTU
+
+df_c <- df %>% 
+  left_join(results_woNA, by= c("OTU"="taxon"))
+
+
+df_c %>% 
+  group_by(material, OTU) %>% 
+  filter(spearman_rho >= abs(0.25)) %>% 
+ggplot(aes(y = OTU, x=material, size = Abundance, color = spearman_rho)) +
+  geom_point(alpha = 0.7) +  # Adjust the transparency for better visibility
+  scale_size_continuous(range = c(1, 5)) +  # Adjust bubble size range
+  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  # Color scale for correlation
+  facet_wrap(~ Genus, scales = "free") +  # Facet by material
+  theme_minimal() +
+  labs(
+    title = "Bubble Plot of ASV Abundance and Correlation by Material",
+    x = "ASV",
+    y = "Material",
+    size = "Abundance",
+    color = "Spearman Correlation"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),  # Rotate taxon labels
+    panel.grid.major = element_blank(),  # Remove gridlines for clarity
+    panel.grid.minor = element_blank()
+  )
+
+df_c_sputum <- df_c %>% 
+  filter(material=="Sputum") %>% 
+  mutate(sputum_abundance = Abundance) %>% 
+  select(OTU, Genus, id_visit, sputum_abundance, spearman_rho)%>% 
+  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
+
+df_c_stool <- df_c %>% 
+  filter(material=="Stool") %>% 
+  mutate(stool_abundance= Abundance)%>% 
+  select(OTU, Genus, id_visit, stool_abundance, spearman_rho) %>% 
+  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
+
+df_thr_spu <- df_c_sputum %>% 
+   left_join(df_c_stool, by= "unique_id" )
+
+df_thr_spu$spearman_rho.x==df_thr_spu$spearman_rho.y
+
+df_thr_spu %>% 
+  filter(!is.na(spearman_rho.x)) %>% 
+  filter(!is.na(spearman_rho.y)) %>% 
+  filter(spearman_rho.y>=abs(0.2)) %>% 
+  ggplot(aes(x = sputum_abundance, y = stool_abundance, color = Genus.x)) +
+  geom_point(aes(size=spearman_rho.y), alpha = 1) + 
+  #scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  labs(
+    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
+    x = "Sputum Abundance",
+    y = "Stool Abundance",
+    color = "Spearman Correlation"
+  ) +
+  theme_minimal()+
+  scale_x_log10()+
+  scale_y_log10()+
+  theme(legend.position = "none")
+```

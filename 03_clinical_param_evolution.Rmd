@@ -1276,10 +1276,12 @@ leucos
 
 
 ```{r, fig.width=16, fig.height=12}
-p1 <- ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, Il8, calp_stool, gpt, got, hba1c, leucos, CRP, nrow = 3, ncol = 4, labels = c("d","e","f","g","h","i","j","k","l","m","n","o"))
+p1 <- ggarrange(ppfev1, ppfvc, Chloride, igG, Il6, Il8, calp_stool, gpt, got, hba1c, leucos, CRP, nrow = 3, ncol = 4, labels = c("a","b","c","d","e","f","g","h","i","j","k","l"))
 p1
 write_rds(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/clinical_evolution.rds")
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/supp_figure1.tiff", width = 14, height = 7)
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/Rev_figures/Ext_Data2.png", p1, width = 16, height = 12, dpi = 600)
 ```
 
 ```{r}
