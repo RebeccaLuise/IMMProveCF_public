@@ -814,7 +814,7 @@ df_ab <- rbind(a,b) %>% arrange(desc(r2))
 
 df_ab <- df_ab %>%
   mutate(variable_new = case_when(
-    variable == "visit_sum" ~ "Sampling time point (months)",
+    variable == "visit_sum" ~ "Months from treatment start",
     variable == "tobramycin_inhal" ~ "Tobramycin Inhalation",
     variable == "isotonic_na_cl" ~ "Isotonic NaCl Inhalation",
     variable == "saba_inhal" ~ "(SABA) Inhaler",
@@ -861,7 +861,7 @@ df_ab <- df_ab %>%
     variable == "ssri" ~ "SSRIs",
     variable == "chlorid_mmol_cl_l" ~ "Sweat chloride (mmol/l)",
     variable == "interleukin6_pg_ml" ~ "Interleukin-6 (pg/ml)",
-    variable == "calprotectin_amg_g_stuhl" ~ "Calprotectin (μg/g Stool)",
+    variable == "calprotectin_amg_g_stuhl" ~ "Fecal calprotectin (μg/g) ",
     variable == "got_asat_u_l" ~ "GOT/ASAT U/l",
     variable == "cftr_prior_v1" ~ "prior CFTR-modulator tt",
     variable == "mutation_status" ~ "Mutation (homo- vs heterozygous",
@@ -984,9 +984,9 @@ p4 <- df_ab %>%
   ggplot(aes(x = r2 * 100 , y = variable_new, color = test, group = test)) +
   geom_segment(aes(yend = variable_new, xend = 0), size = 1, position = position_dodge(width = 0.8)) +
   geom_point(size = 4, position = position_dodge(width = 0.8)) +
-  scale_color_manual(values = c( "#765085","#31A1B3FF"), labels=c("Multiple PERMANOVA", "Simple PERMANOVA")) +
+  scale_color_manual(values = c( "#31A1B3FF","#765085"), labels=c("Simple PERMANOVA", "Multiple PERMANOVA")) +
   theme_classic() +
-  theme(legend.position = "bottom", text = element_text(size = 14), axis.text = element_text(size = 14)) +
+  theme(legend.position = "bottom", text = element_text(size = 14), axis.text = element_text(size = 14), legend.text = element_text(size=14)) +
   labs(color = "Test\nType", x = "Explained variance (%)", y = "") +
   # Adjust x-axis limits with expand for padding
   scale_x_continuous(limits = c(0, 2.25), expand = expansion(mult = c(0.035, 0.25))) +

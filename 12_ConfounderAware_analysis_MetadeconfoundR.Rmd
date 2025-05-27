@@ -146,7 +146,7 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12, face="italic"), legend.position = "right")+
+  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
@@ -231,7 +231,7 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12, face="italic"), legend.position = "right")+
+  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
@@ -321,7 +321,7 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10, face="italic"), legend.position = "right")+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
@@ -352,7 +352,7 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(stool_metad_div$Ds), max(stool_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10), legend.title = element_text(size=10), legend.position = "bottom")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
@@ -387,7 +387,7 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(stool_metad_div$Ds), max(stool_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=10, face="italic"), legend.position = "right")+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1), axis.text.y=element_text(size=1), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
@@ -396,6 +396,32 @@ geom_tile(aes(fill = Ds), color = "black") +
 stool_div_hm
 
 saveRDS(stool_div_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/stool_div_hm.rds")
+```
+### atb treatment days and N observed ASVs
+```{r}
+visit_sum_palette <- c("black", "#C3BC3FFF","#6388B4FF","#BB7693FF","#55AD89FF") 
+x2labels <- c("0", "3", "6-12", "15-18", "21-24")
+
+atbx_obs <- diversity_df_stool_metadata %>% 
+  ggplot(aes(x = treatmentdays_365prior_visit, y=observed))+
+  geom_point(aes(color = visit_sum), size = 4) +
+  geom_smooth(method = "lm", color = "black", se = T) +
+  scale_color_manual(values = visit_sum_palette, labels = x2labels) +
+  ylab("Observed ASVs") +
+  xlab("N antibiotic tt days") +
+  theme_classic() +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 14),
+    axis.title.x  = ggtext::element_markdown(size = 14),
+    legend.title = element_text(size = 14),
+    text = element_text(size = 14),
+    legend.position = "bottom",
+    axis.text = element_text(size = 14)
+  ) +
+  guides(color = guide_legend(title = "Months from\ntreatment start", title.position = "left", ncol = 3)) 
+atbx_obs
+saveRDS(atbx_obs, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/atbx_obs.rds")
+
 ```
 
 ## MetadeconfoundR for Sputum glomerulated taxa
@@ -1282,8 +1308,8 @@ p1 <- metadata_features_combined_stool %>%
   scale_y_log10(
     breaks = c(0.01, 0.1, 1, 10, 100),
    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 100)) +
-  xlab("Fecal calprotectin (mg/g)") +
-  ylab("*Escherichia_Shigella* (%)") +
+  xlab("Fecal calprotectin (μg/g) ") +
+  ylab("*Escherichia-Shigella* (%)") +
   theme_classic() +
   theme(
     axis.title.y  = ggtext::element_markdown(size = 14),
@@ -1302,14 +1328,19 @@ ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_esc
 saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/cor_esch_cale_stool.rds")
 
 
+
 metadata_x_stool %>% 
-  ggplot(aes(as_factor(cortison_oral), calprotectin_amg_g_stuhl, color=cortison_oral))+
+  ggplot(aes(as_factor(cortison_oral), calprotectin_amg_g_stuhl))+
   geom_boxplot()+
-  geom_point()+
+  geom_point(aes(color=id.x))+
   scale_y_log10()+
   #scale_x_discrete(labels=xlab)+
-  stat_compare_means(method = "wilcox")+
+  stat_compare_means(method = "kruskal")+
   theme_bw()
 
-metadata_features_combined_stool$cortison_oral
+# problematic here is that calprotectin measurements from patients that haven taken oral cortisone are only available from 2 patients, while 3 patients had taken cortisone_oral in the total cohort, 3 was my cutoff to investigate the variable as it get's close to 10% of the population studied. 
 ```
+```{r}
+glimpse(metadata)
+```
+

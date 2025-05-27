@@ -116,13 +116,13 @@ sputum_observed <- sputum_observed+theme(text = element_text(size = 14))
 sputum_shannon <- sputum_shannon+theme(text = element_text(size = 14))
 sputum_barplot <- sputum_barplot+theme(text = element_text(size = 14))
 
-permanova_bubble <- permanova_bubble + theme(legend.position = "top", legend.title.position = "top", text = element_text(size = 14)) + guides(fill = guide_legend(ncol = 1), size=guide_legend(nrow = 2)) 
+permanova_bubble <- permanova_bubble + theme(legend.position = "top", legend.title.position = "top", text = element_text(size = 14))
 
 ic25 <- ic25+theme(text = element_text(size = 14))
 
 ```
 
-```{r, fig.width=16, fig.height=14}
+```{r, fig.width=16.5, fig.height=14}
 library(ggplot2)
 library(scales)
 
@@ -145,9 +145,9 @@ grid_arranged <- grid.arrange(
 
 # Print or save the arranged plot
 print(grid_arranged)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.png",grid_arranged, dpi = 300, width = 16, height = 14)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.png",grid_arranged, dpi = 300, width = 16.5, height = 14)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.pdf",grid_arranged, dpi = 300, width = 16, height = 14)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_12032024.pdf",grid_arranged, dpi = 300, width = 16.5, height = 14)
 ```
 
 # Supplementary figure for sputum

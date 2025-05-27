@@ -92,10 +92,18 @@ mutate(Band = str_c(qual, Concentration, sep="_"),
 
 ```{r}
 #for yellow/green:
-my_colours <- c("#C3BC3FFF","#55AD89FF")
-gradient_base <- my_colours[1]
+my_colours <- c("grey","#C3BC3FFF","#55AD89FF")
+gradient_base <- my_colours[1:3]
 my_gradients <- map(my_colours[2],
                     function(x) colorRampPalette(c(gradient_base,x))(13))
+
+my_gradients_less <- map(my_colours[1],
+                    function(x) colorRampPalette(c(gradient_base,x))(7))
+
+# choose best colors:
+my_gradients_less_spu <- c("#F4F3DE","#D0CFBA","#BEBDA8","#CBC789","#C3BC3FFF","#9EB757","#79B270","#55AD89")
+my_gradients_less <- c("#D0CFBA","#BEBDA8","#CBC789","#C3BC3FFF","#9EB757","#79B270","#55AD89")
+
 
 order <- ic25_sputum %>%
   group_by(Drug) %>%
@@ -119,7 +127,7 @@ ic25_sputum <- ic25_sputum %>%
   mutate(strain_name = factor(strain_name, levels = strain_order))
 ```
 
-```{r}
+```{r, fig.height=4, fig.width=12}
 ic25_sputum %>% 
   ggplot(aes(x = strain_name, y = Drug)) +
   geom_tile(aes(fill = Band), colour = 'white')+
@@ -130,13 +138,32 @@ ic25_sputum %>%
   scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
   ggtitle("") +
  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic")),
-       legend.title = element_text(size = 10), legend.text = element_text(size = 8))+
+       legend.title = element_text(size = 14), legend.text = element_text(size = 14), text = element_text(size = 14))+
 theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
 guides(fill=guide_legend(ncol=2))+
   labs(fill='IC25 [µM]')
+
+ic_figure_sputum <- ic25_sputum %>% 
+ggplot(aes(x = strain_name, y = Drug)) +
+    geom_tile(aes(fill = as.factor(Concentration)), colour = 'white')+
+    coord_equal()+
+    geom_text(aes(label = qual), size = 4, color = 'black')+
+    scale_fill_manual(values = my_gradients_less_spu)+
+   theme_bw(base_size = 10) +
+    scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
+  ggtitle("") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic"), size = 14),
+       legend.title = element_text(size = 14), legend.text = element_text(size = 14), axis.text.y = element_text(size = 14))+
+  theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
+  guides(fill=guide_legend(ncol=2))+
+  labs(fill='IC25 [µM]')
+ic_figure_sputum
+
+ggsave("figures/sputum_ic25.pdf", height = 4, width = 12)
+saveRDS(ic_figure_sputum,"/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/ic25_figure_sputum.rds")
 ```
 # Gut
-```{r}
+```{r, fig.height=4, wid}
 ic25_gut <- readxl::read_xlsx("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IC25_figure/NU_P_011_MIC_CFdrugs_IC25.xlsx")
 
 ic25_gut <- ic25_gut %>% 
@@ -188,7 +215,7 @@ ic25_gut <- ic25_gut%>%
 
 ```
 
-```{r}
+```{r, fig.height=4, fig.width=6}
 ic_figure_gut <- ic25_gut%>% 
   ggplot(aes(x = strain_name, y = Drug)) +
   geom_tile(aes(fill = Band), colour = 'white')+
@@ -197,11 +224,28 @@ ic_figure_gut <- ic25_gut%>%
   theme_bw(base_size = 10) +
   scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
   ggtitle("") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic")),
-       legend.title = element_text(size = 10), legend.text = element_text(size = 8))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic"), size = 14),
+       legend.title = element_text(size = 14), legend.text = element_text(size = 14), axis.text.y = element_text(size = 14))+
   theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
   guides(fill=guide_legend(ncol=2))+
   labs(fill='IC25 [µM]')
+
+ic_figure_gut <- ic25_gut%>% 
+  filter(strain_name!="E. faecalis") %>% 
+  ggplot(aes(x = strain_name, y = Drug)) +
+    geom_tile(aes(fill = as.factor(Concentration)), colour = 'white')+
+    coord_equal()+
+    geom_text(aes(label = qual), size = 4, color = 'black')+
+    scale_fill_manual(values = my_gradients_less)+
+   theme_bw(base_size = 10) +
+    scale_y_discrete(labels=c("Cefuroxim"="Cefuroxime"))+
+  ggtitle("") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust =1, face = c("italic"), size = 14),
+       legend.title = element_text(size = 14), legend.text = element_text(size = 14), axis.text.y = element_text(size = 14))+
+  theme(strip.background = element_blank(), strip.text.y = element_blank(), axis.title.x=element_blank(), axis.title.y=element_blank())+
+  guides(fill=guide_legend(ncol=2))+
+  labs(fill='IC25 [µM]')
+ggsave("figures/gut_ic25.pdf", height = 4, width = 6)
 
  ic_figure_gut
  

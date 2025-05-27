@@ -1,0 +1,433 @@
+---
+title: "Compare Pseudomonas and Staphylococcus results between paired throat and sputum samples in conventional microbiology results and 16S rRNA gene sequencing"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load libraries, include=FALSE}
+library(microViz)
+
+pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+
+ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patients_Run1-23_18102023.rds")
+
+md <- as(sample_data(ps_full), "data.frame")
+
+cm_results <- md %>% 
+  distinct(id_visit, .keep_all = T) %>% 
+  filter(!is.na(pseudo_pos_sputum) & !is.na(pseudo_pos_throat)) %>% 
+  select(id.x, visit.x, id_visit, pseudo_pos_sputum, pseudo_pos_throat, staph_pos_sputum, staph_pos_throat)
+
+unique(cm_results$id_visit) # 50 pairs
+````
+
+# Compare overlap of Mibi results between throat and sputum samples
+```{r Compare overlap of Mibi results}
+# Pseudomonas aeruginosa
+cm_results %>% 
+ggplot(aes(x = pseudo_pos_throat, y = pseudo_pos_sputum)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+xtabs( ~ pseudo_pos_throat + pseudo_pos_sputum + visit.x, cm_results)
+
+sjPlot::tab_xtab(var.row = cm_results$pseudo_pos_throat, var.col = cm_results$pseudo_pos_sputum, title = "Comparison of sputum vs throat detection of Pseudomonas aeruginosa in conventional microbiology", show.row.prc = TRUE)
+
+mcnemar.test(table(cm_results$pseudo_pos_throat, cm_results$pseudo_pos_sputum))
+tab1 <- table(cm_results$pseudo_pos_throat, cm_results$pseudo_pos_sputum)
+
+tab1 <- table(
+  Throat = cm_results$pseudo_pos_throat,
+  Sputum = cm_results$pseudo_pos_sputum
+)
+
+cell_fill <- c("#c9d3a2","#fcb6cb","#fcb6cb","#c9d3a2")
+
+# Create a vector of graphical parameters
+my_gp_fn <- function(...) {
+  list(fill = cell_fill)
+}
+
+# Plot with custom colors
+mosaic(tab1,
+       shade = TRUE,
+       gp = my_gp_fn,
+       labeling_args = list(set_varnames = c("Throat" = "P. aeruginosa in Throat (CM)", "Sputum"  = "P. aeruginosa in Sputum (CM)")),
+       legend = FALSE)
+p1 <- grid.grab() 
+
+# Staphylococcus aureus
+cm_results %>% 
+ggplot(aes(x = staph_pos_throat, y = staph_pos_sputum)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+xtabs( ~ staph_pos_throat + staph_pos_sputum + visit.x, cm_results)
+
+sjPlot::tab_xtab(var.row = cm_results$staph_pos_throat, var.col = cm_results$staph_pos_sputum, title = "Comparison of sputum vs throat detection of Staphylococcus aureus in conventional microbiology", show.row.prc = TRUE)
+
+mcnemar.test(table(cm_results$staph_pos_throat, cm_results$staph_pos_sputum))
+tab2 <- table(cm_results$staph_pos_throat, cm_results$staph_pos_sputum)
+
+tab2<- table(
+  Throat = cm_results$staph_pos_throat,
+  Sputum = cm_results$staph_pos_sputum
+)
+
+cell_fill <- c("#c9d3a2","#ffd2a6","#ffd2a6","#c9d3a2")
+
+# Create a vector of graphical parameters
+my_gp_fn <- function(...) {
+  list(fill = cell_fill)
+}
+
+# Plot with custom colors
+mosaic(tab2,
+       shade = TRUE,
+       gp = my_gp_fn,
+       labeling_args = list(set_varnames = c("Throat" = "S. aureus in Throat (CM)", "Sputum"  = "S. aureus in Sputum (CM)")),
+       legend = FALSE)
+
+p2 <- grid.grab() 
+
+
+# Now arrange them in a 2x2 layout
+grid.arrange(p1, p2, nrow = 1, ncol = 2)
+```
+# Visulaize
+# Compare sputum and throat in venn diagramm
+## Staphylococcus
+```{r Compare sputum and throat in venn diagramm Staphylococcus}
+library(eulerr)
+
+# Create a list with the counts
+venn_list <- list(
+  "Throat negative" = cm_results %>% filter(staph_pos_throat == FALSE) %>% pull(id_visit),
+  "Sputum negative" = cm_results %>% filter(staph_pos_sputum == FALSE) %>% pull(id_visit),
+  "Throat positive" = cm_results %>% filter(staph_pos_throat == TRUE) %>% pull(id_visit),
+  "Sputum positive" = cm_results %>% filter(staph_pos_sputum == TRUE) %>% pull(id_visit)
+)
+
+
+# 1. Create the Venn object
+venn_plot <- eulerr::venn(
+  labels = c("Throat \nnegative", "Sputum \nnegative", "Throat \npositive", "Sputum \npositive"),
+  venn_list,
+  quantities = TRUE
+  #input = "disjoint"  # optional, depending on your input
+)
+
+# 2. Plot it with colors
+plot(
+  venn_plot,
+  #labels = c("Throat \nnegative", "Sputum \nnegative", "Throat \npositive", "Sputum \npositive"),
+  fills = c("#4C9C7D", "#94D0C0FF", "#E55E00", "#F7A76D"),
+  alpha = 0.8,
+  labels = list(fontsize = 16)
+)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/ECFS 2023/Venn_spuThr_staph16S.pdf", Venn_spuThr_staph16S, width = 4, height = 4)
+```
+
+## Pseudomonas
+```{r}
+# Create a list with the counts
+venn_list <- list(
+  "Throat -" = cm_results %>% filter(pseudo_pos_throat == FALSE) %>% pull(id_visit),
+  "Sputum -" = cm_results %>% filter(pseudo_pos_sputum == FALSE) %>% pull(id_visit),
+  "Throat +" = cm_results %>% filter(pseudo_pos_throat == TRUE) %>% pull(id_visit),
+  "Sputum +" = cm_results %>% filter(pseudo_pos_sputum == TRUE) %>% pull(id_visit)
+)
+
+
+# 1. Create the Venn object
+venn_plot <- eulerr::venn(
+  labels = c("Throat \nnegative", "Sputum \nnegative", "Throat \npositive", "Sputum \npositive"),
+  venn_list,
+  quantities = TRUE
+  #input = "disjoint"  # optional, depending on your input
+)
+
+# 2. Plot it with colors
+plot(
+  venn_plot,
+  #labels = c("Throat \nnegative", "Sputum \nnegative", "Throat \npositive", "Sputum \npositive"),
+  fills = c("#4C9C7D", "#94D0C0FF","#EE6AA7", "#f4a5ca"),
+  alpha = 0.8,
+  labels = list(fontsize = 16)
+)
+
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/ECFS 2023/Venn_spuThr_pseudo16S.pdf", Venn_spuThr_pseudo16S, width = 4, height = 4)
+
+fit <- euler(c('A' = 37, 'B' = 32, "C"=13, "D"= 20, 'A&B' = 30, "A&D"=7, "C&D"=11, "B&C"=2))
+
+#specify values to use in venn diagram
+fit <- euler(c('A' = 100, 'B' = 500, 'A&B' = 75))
+
+#create venn diagram with custom colors
+plot(fit, fill=c("#4C9C7D", "#EE6AA7","#94D0C0FF", "#f4a5ca")) 
+
+
+```
+# 16S results
+```{r}
+
+ps_glom <- tax_glom(ps_full, taxrank = "Genus")
+
+ps_glom_red <- subset_samples(ps_glom, material=="Sputum"| material=="Throat")
+ps_glom_red <- subset_taxa(ps_glom_red, Genus=="Staphylococcus"| Genus=="Pseudomonas")
+ 
+df <- psmelt(ps_glom_red)
+
+df_presence_sputum <- df %>%
+  filter(material=="Sputum")%>%
+  mutate(flag = Abundance > 0,
+         flag_name = paste0(tolower(Genus), "_pos_", tolower(material), "_16S")) %>%
+  select(id_visit, flag_name, flag) %>%
+  distinct() %>%
+  pivot_wider(names_from = flag_name, values_from = flag, values_fill = FALSE)
+
+df_presence_sputum %>% 
+  count(pseudomonas_pos_sputum_16S)
+
+df_presence_sputum %>% 
+  count(staphylococcus_pos_sputum_16S)
+
+df_presence_throat <- df %>%
+  filter(material=="Throat")%>%
+  mutate(flag = Abundance > 0,
+         flag_name = paste0(tolower(Genus), "_pos_", tolower(material), "_16S")) %>%
+  select(id_visit, flag_name, flag) %>%
+  distinct() %>%
+  pivot_wider(names_from = flag_name, values_from = flag, values_fill = FALSE)
+
+df_presence_throat %>% 
+  count(pseudomonas_pos_throat_16S)
+
+df_presence_throat %>% 
+  count(staphylococcus_pos_throat_16S)
+
+df_presence <- df_presence_throat %>% 
+  full_join(df_presence_sputum, by="id_visit") 
+```
+
+# Compare overlap of 16S results between throat and sputum samples
+```{r Compare overlap of Mibi results}
+# Pseudomonas aeruginosa
+df_presence %>% 
+  count(pseudomonas_pos_sputum_16S)
+
+df_presence_overlap <- df_presence %>% 
+  filter(!is.na(pseudomonas_pos_sputum_16S), !is.na(pseudomonas_pos_throat_16S))
+
+df_presence_overlap %>%   
+ggplot(aes(x = pseudomonas_pos_throat_16S, y = pseudomonas_pos_sputum_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row = df_presence_overlap$pseudomonas_pos_throat_16S, var.col = df_presence_overlap$pseudomonas_pos_sputum_16S, title = "Comparison of sputum vs throat detection of Pseudomonas aeruginosa in 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+mcnemar.test(table(df_presence_overlap$pseudomonas_pos_throat_16S, df_presence_overlap$pseudomonas_pos_sputum_16S))
+
+chisq.test(table(df_presence_overlap$pseudomonas_pos_throat_16S, df_presence_overlap$pseudomonas_pos_sputum_16S))
+
+# create a mosaic plot
+
+library(vcd)
+
+tab3 <- table(
+  Throat = df_presence_overlap$pseudomonas_pos_throat_16S,
+  Sputum = df_presence_overlap$pseudomonas_pos_sputum_16S
+)
+
+cell_fill <- c("#b2bc82", "#fa80ad", "#fa80ad", "#b2bc82")
+cell_fill <- c("#c9d3a2","#fcb6cb","#fcb6cb","#c9d3a2")
+
+# Create a vector of graphical parameters
+my_gp_fn <- function(...) {
+  list(fill = cell_fill)
+}
+
+# Plot with custom colors
+mosaic(tab3,
+       shade = TRUE,
+       gp = my_gp_fn,
+       labeling_args = list(set_varnames = c("Throat" = "Pseudomonas in Throat (16S)", "Sputum"  = "Pseudomonas in Sputum (16S)")),
+       legend = FALSE)
+
+p3 <- grid.grab()
+
+# Staphylococcus aureus
+df_presence_overlap %>%   
+ggplot(aes(x = staphylococcus_pos_throat_16S, y = staphylococcus_pos_sputum_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row = df_presence_overlap$staphylococcus_pos_throat_16S, var.col = df_presence_overlap$staphylococcus_pos_sputum_16S, title = "Comparison of sputum vs throat detection of Staphylococcus aureus in 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+mcnemar.test(table(df_presence_overlap$staphylococcus_pos_throat_16S,  df_presence_overlap$staphylococcus_pos_sputum_16S))
+
+chisq.test(table(df_presence_overlap$staphylococcus_pos_throat_16S,  df_presence_overlap$staphylococcus_pos_sputum_16S))
+
+tab4 <- table(
+  Throat = df_presence_overlap$staphylococcus_pos_throat_16S,
+  Sputum = df_presence_overlap$staphylococcus_pos_sputum_16S
+)
+
+mosaic(tab4,
+       shade = TRUE, 
+       legend = TRUE,
+       main = "Mosaic plot: Staphylococcus presence (Throat vs Sputum)",
+       labeling_args = list(set_varnames = c("Throat", "Sputum")))
+
+
+cell_fill <- c("#c9d3a2","#ffd2a6","#ffd2a6","#c9d3a2")
+
+# Create a vector of graphical parameters
+my_gp_fn <- function(...) {
+  list(fill = cell_fill)
+}
+
+# Plot with custom colors
+mosaic(tab4,
+       shade = TRUE,
+       gp = my_gp_fn,
+       labeling_args = list(set_varnames = c("Throat" = "Staphylococcus in Throat (16S)", "Sputum"  = "Staphylococcus in Sputum (16S)")),
+       legend = FALSE)
+p4 <- grid.grab()
+```
+
+
+```{r, fig.height=7, fig.width=7}
+p_comb <- grid.arrange( p3, p4,p1, p2, nrow = 2, ncol = 2)
+p_comb <- as_ggplot(p_comb)
+
+p_combLong <- grid.arrange( p3,p1, p4, p2, nrow = 1, ncol = 4)
+p_combLong <- as_ggplot(p_combLong)
+saveRDS(p_comb, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/mosaic_throat_sputum_16S_CM_staph_pseudo.rds")
+saveRDS(p_combLong, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/mosaic_throat_sputum_16S_CM_staph_pseudo_long.rds")
+```
+
+# Compare 16S AND CM
+## in Sputum
+```{r}
+md <- md %>% 
+  left_join(df_presence, by="id_visit")
+
+md_comp_sputum <- 
+  md %>% 
+  filter(!is.na(pseudo_pos_sputum), !is.na(pseudomonas_pos_sputum_16S)) %>% 
+  distinct(id_visit, .keep_all = T)
+
+md_comp_sputum %>%   
+ggplot(aes(x = pseudo_pos_sputum, y = pseudomonas_pos_sputum_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row =md_comp_sputum$pseudomonas_pos_sputum_16S, var.col = md_comp_sputum$pseudo_pos_sputum, title = "Comparison of Pseudomonas in Sputum CM vs. 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+tab5 <- table(
+  CM = md_comp_sputum$pseudo_pos_sputum,
+  `16S` = md_comp_sputum$pseudomonas_pos_sputum_16S)
+
+mosaic(tab5,
+       shade = TRUE, 
+       legend = TRUE,
+       main = "Mosaic plot: Pseudomonas presence in sputum (CM vs 16S)",
+       labeling_args = list(set_varnames = c("CM", "16S")))
+
+md_comp_sputum %>%   
+ggplot(aes(x = staph_pos_sputum, y = staphylococcus_pos_sputum_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row =md_comp_sputum$staphylococcus_pos_sputum_16S, var.col = md_comp_sputum$staph_pos_sputum, title = "Comparison of Staphylococcus in Sputum CM vs. 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+tab6 <- table(
+  CM = md_comp_sputum$staph_pos_sputum,
+  `16S` = md_comp_sputum$staphylococcus_pos_sputum_16S)
+
+mosaic(tab6,
+       shade = FALSE, 
+       legend = TRUE,
+       main = "Mosaic plot: Staphylococcus presence in sputum (CM vs 16S)",
+       labeling_args = list(set_varnames = c("CM", "16S")))
+```
+
+## in Throat
+```{r}
+md_comp_throat <- 
+  md %>% 
+  filter(!is.na(pseudo_pos_throat), !is.na(pseudomonas_pos_throat_16S)) %>% 
+  distinct(id_visit, .keep_all = T)
+
+md_comp_throat %>%   
+ggplot(aes(x = pseudo_pos_throat, y = pseudomonas_pos_throat_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row =md_comp_throat$pseudomonas_pos_throat_16S, var.col = md_comp_throat$pseudo_pos_throat, title = "Comparison of Pseudomonas in throat CM vs. 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+tab7 <- table(
+  CM = md_comp_throat$pseudo_pos_throat,
+  `16S` = md_comp_throat$pseudomonas_pos_throat_16S)
+
+mosaic(tab7,
+       shade = TRUE, 
+       legend = TRUE,
+       main = "Mosaic plot: Pseudomonas presence in throat (CM vs 16S)",
+       labeling_args = list(set_varnames = c("CM", "16S")))
+
+md_comp_throat %>%   
+ggplot(aes(x = staph_pos_throat, y = staphylococcus_pos_throat_16S)) +
+  geom_jitter(width = 0.2, height = 0.2) +
+  theme_minimal()
+
+sjPlot::tab_xtab(var.row =md_comp_throat$staphylococcus_pos_throat_16S, var.col = md_comp_throat$staph_pos_throat, title = "Comparison of Staphylococcus in throat CM vs. 16S rRNA gene sequencing", show.row.prc = TRUE)
+
+tab8 <- table(
+  CM = md_comp_throat$staph_pos_throat,
+  `16S` = md_comp_throat$staphylococcus_pos_throat_16S)
+
+mosaic(tab8,
+       shade = FALSE, 
+       legend = TRUE,
+       main = "Mosaic plot: Staphylococcus presence in throat (CM vs 16S)",
+       labeling_args = list(set_varnames = c("CM", "16S")))
+```
+
+# calculate accuracy, sensitivity and specificty for above
+```{r}
+get_metrics <- function(tab) {
+  tn <- tab[1,1]
+  fn <- tab[1,2]
+  fp <- tab[2,1]
+  tp <- tab[2,2]
+  
+  total <- sum(tab)
+  acc <- (tp + tn) / total
+  sens <- tp / (tp + fn)
+  spec <- tn / (tn + fp)
+  
+  data.frame(Accuracy = round(acc, 2),
+             Sensitivity = round(sens, 2),
+             Specificity = round(spec, 2))
+}
+
+t1 <- get_metrics(tab1)
+t2 <- get_metrics(tab2)
+t3 <- get_metrics(tab3)
+t4 <- get_metrics(tab4)
+t5 <- get_metrics(tab5)
+t6 <- get_metrics(tab6)
+t7 <- get_metrics(tab7)
+t8 <- get_metrics(tab8)
+
+rbind(t1,t2,t3,t4,t5,t6,t7,t8)
+```
+

@@ -44,7 +44,7 @@ hm_div_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscrip
 hm_div_stool
 
 star <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_stool.rds")
-star <- star+ggtitle("")
+star <- star+ggtitle("")+theme(text = element_text(size = 14))
 
 stool_shannon <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_shannon.rds")
 stool_observed <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/stool_observed.rds")
@@ -54,6 +54,12 @@ bubble<-  readRDS("/Users/rebecca//Documents/Forschung/IMMProveCF/R_analysis/rds
 stool_combined_permanova_barplot <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_combined_permanova_barplot.rds")
 
 lolli <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/stool_permanova_lollipop_plot.rds")
+
+atbx_obs<- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/atbx_obs.rds")
+
+boxplot_ecoli <- readRDS("figures/E_coli_boxplot.rds")
+
+ic25 <- readRDS("figures/ic25_figure_gut.rds")
 ```
 
 # harmonize font size
@@ -64,70 +70,26 @@ hm_div_stool <- hm_div_stool +
   scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F))+  # Set the title here
   theme(
     axis.text.x = element_text(size = 14, angle = 40, hjust = 1, vjust = 1.05), 
-    axis.text.y = element_text(size = 14, face = "italic"), 
+    axis.text.y = element_text(size = 14), 
     legend.title = element_text(size = 14),  # Style the title here
-    legend.position = "right"
+    legend.position = "bottom"
   )
 
 
 tax_stool_legend <- tax_stool_legend+ theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=16, face="italic"), legend.title = element_text(size=14), legend.position = "bottom")
 
-cor <- cor + theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=14, face="italic"), legend.title = element_text(size=14), legend.position = "right")+guides(color=guide_legend(nrow = 5, title = "Month from \ntreatment start")) 
+cor <- cor + 
+theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), 
+      legend.title = element_text(size=14), legend.position = "bottom")+
+  guides(color=guide_legend(nrow = 2, title = "Months from \ntreatment start")) 
 
-bubble <- bubble+ theme(legend.position = "top", legend.title.position = "top") + guides( size=guide_legend(nrow = 2),fill = guide_legend(nrow = 2))
+bubble <- bubble+ theme(legend.position = "top", legend.title.position = "top") +  guides(fill = guide_legend(nrow = 2, position = "top",override.aes = list(size = 4)),size = guide_legend(nrow = 2, position = "top"))
 
-lolli <- lolli+guides(color=guide_legend(nrow = 2, position = "top")) 
+lolli <- lolli+guides(color=guide_legend(nrow = 2, position = "bottom")) 
+ic25 <- ic25+guides(fill=guide_legend(nrow = 4, position = "right")) 
 ```
+
 # arrange figure
-```{r, fig.width=16, fig.height=10}
-
-library(gridExtra)
-
-grid_arranged <- grid.arrange(
-  tax_stool_legend + labs(tag = "A") ,
-  metad_stool + labs(tag = "B") ,
-  hm_div_stool + labs(tag = "D"),
-  cor+ labs(tag = "C"),
-  ncol = 4, nrow = 4,
-  heights = c(1, 1, 0.75, 0.75),
-  widths=c(1.25,1.15,1.5,1.5),
-  layout_matrix = rbind(c(1,1,2,2),
-                        c(1,1,2,2),
-                        c(4,3,2,2),
-                        c(4,3,2,2))
-                       )
-
-# Print or save the arranged plot
-print(grid_arranged)
-
-#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure.png",grid_arranged, dpi = 300, width = 16, height = 10)
-```
-
-```{r, fig.width=16, fig.height=12}
-
-library(gridExtra)
-
-grid_arranged <- grid.arrange(
-  star+ labs(tag = "a") ,
-  bubble + labs(tag = "b") ,
-  stool_combined_permanova_barplot+ labs(tag = "c"),
-  hm_div_stool+ labs(tag = "d"),
-  metad_stool+ labs(tag = "e"),
-  cor+ labs(tag = "f"),
-  ncol = 3, nrow = 3,
-  heights = c(1.25, 1 , 1.25),
-  widths=c(0.9,1,1.3),
-  layout_matrix = rbind(c(1,2,3),
-                        c(4,5,5),
-                        c(6,5,5))
-                       )
-
-# Print or save the arranged plot
-print(grid_arranged)
-
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure2.png",grid_arranged, dpi = 300, width = 16, height = 12)
-```
-
 ```{r, fig.width=17, fig.height=8}
 
 library(gridExtra)
@@ -138,6 +100,7 @@ grid_arranged <- grid.arrange(
   lolli+ labs(tag = "c"),
   hm_div_stool+ labs(tag = "d"),
   cor+ labs(tag = "e"),
+  
   ncol = 3, nrow = 2,
   heights = c(1.1, 0.8),
   widths=c(1.1,1,1.3),
@@ -148,9 +111,32 @@ grid_arranged <- grid.arrange(
 # Print or save the arranged plot
 print(grid_arranged)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure3.png",grid_arranged, dpi = 300, width = 16, height = 10)
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/Figure3.pdf",grid_arranged, dpi = 300, width = 17, height = 8)
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/stool_figure3.png",grid_arranged, dpi = 300, width = 16, height = 10)
+#ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/Figure3.pdf",grid_arranged, dpi = 300, width = 17, height = 8)
 ```
+
+```{r, fig.width=16, fig.height=12}
+grid_arranged <- grid.arrange(
+  star+ labs(tag = "a") ,
+  bubble + labs(tag = "b") ,
+  boxplot_ecoli+ labs(tag = "c"),
+  lolli+ labs(tag = "d"),
+  cor+ labs(tag = "f"),
+  hm_div_stool+ labs(tag = "e"),
+  ic25,
+  ncol = 3, nrow = 3,
+  heights = c(1.1, 1.1,0.9),
+  widths=c(1.2,1,0.9),
+  layout_matrix = rbind(c(1,2,3),
+                        c(4,6,5),
+                        c(4,7,7)
+                       ))
+
+# Print or save the arranged plot
+print(grid_arranged)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/pdf_figures/Figure3.png",grid_arranged, dpi = 600, width = 16, height = 12)
+```
+
 
 # Supplementary figure
 ```{r, fig.width=16, fig.height=10}

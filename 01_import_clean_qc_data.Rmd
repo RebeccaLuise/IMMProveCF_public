@@ -399,7 +399,7 @@ clinicaldata_clean <- clinicaldata_clean%>%
     mutate(across(c(laba_inhal,saba_inhal,dn_ase,mannitol, anticholinergic,cortison_inhal, ppi, adek, vitamin_d, nsaid,acetylcystein, calcium, omega_3_fs, augentropfen),
         ~recode(., "1"="2", "3"="1", "0"="0")))
          
-#unclear <- isotonic__cl,hypertonic__cl,saba_inhal,cortison_sal,antihistaminikum,sensp_a1_4lung,pancreatic_enzymes, orale_zusatzhrung,phyto_homeo_oral
+#unclear <- isotonic__cl,hypertonic__cl,saba_inhal,cortison_nasal,antihistaminikum,sensp_a1_4lung,pancreatic_enzymes, orale_zusatzhrung,phyto_homeo_oral
 
 # omit columns from data which only have NA's or 0
 #only 0 cortison_dermal,X_cl_oral,fols_a_ure

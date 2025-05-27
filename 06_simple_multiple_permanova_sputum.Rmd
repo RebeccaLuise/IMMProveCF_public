@@ -366,8 +366,8 @@ ggplot(aes(x = comparison, y = timepoint)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 14), axis.text.y = element_text(size = 14), legend.title.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14)) +
   labs(fill = "p value", size = "Explained variance (%)") +
   ylab("Months from treatment start")+
-  xlab("Months from treatment start")#+
-  #ggtitle("sputum: PERMANOVA between sample timepoints") 
+  xlab("Months from treatment start")+
+  guides(fill = guide_legend(nrow = 3, position = "top",override.aes = list(size = 4)),size = guide_legend(nrow = 2, position = "top"))
 p1
 saveRDS(p1, "~/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_sputum.rds")
 
@@ -669,7 +669,7 @@ df_ab <- rbind(a,b) %>% arrange(desc(r2))
 
 df_ab <- df_ab %>%
   mutate(variable_new = case_when(
-    variable == "visit_sum" ~ "Sampling time point",
+    variable == "visit_sum" ~ "Months from treatment start",
     variable == "tobramycin_inhal" ~ "Tobramycin inhalation",
     variable == "isotonic_na_cl" ~ "Isotonic NaCl inhalation",
     variable == "saba_inhal" ~ "SABA inhalation",
@@ -716,7 +716,7 @@ df_ab <- df_ab %>%
     variable == "ssri" ~ "SSRIs",
     variable == "chlorid_mmol_cl_l" ~ "Sweat chloride (mmol/l)",
     variable == "interleukin6_pg_ml" ~ "Interleukin-6 (pg/ml)",
-    variable == "calprotectin_amg_g_stuhl" ~ "Calprotectin (μg/g Stool)",
+    variable == "calprotectin_amg_g_stuhl" ~ "Fecal calprotectin (μg/g) ",
     variable == "got_asat_u_l" ~ "GOT/ASAT (U/l)",
     variable == "cftr_prior_v1" ~ "prior CFTR-modulator tt",
     variable == "mutation_status" ~ "Mutation (homo- vs heterozygous)",
@@ -798,9 +798,9 @@ df_ab %>%
   filter(pr_f <= 0.1) %>%
   pivot_wider(names_from = test, values_from = r2, values_fill = 0) %>%
   ggplot(aes(y = variable_new)) +
-  geom_segment(aes(x = `Simple PERMANOVA` * 100, xend = `2. PERMANOVA combined` * 100, yend = variable_new), color = "grey") +
+  geom_segment(aes(x = `Simple PERMANOVA` * 100, xend = `Multiple PERMANOVA` * 100, yend = variable_new), color = "grey") +
   geom_point(aes(x = `Simple PERMANOVA` * 100), color = "#31A1B3FF", size = 4) +
-  geom_point(aes(x = `2. PERMANOVA combined` * 100), color = "#765085", size = 4) +
+  geom_point(aes(x = `Multiple PERMANOVA` * 100), color = "#765085", size = 4) +
   theme_bw() +
   labs(x = "Explained variance (%)", y = "Variable")
 

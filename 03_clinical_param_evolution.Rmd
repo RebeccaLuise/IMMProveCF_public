@@ -1289,7 +1289,90 @@ ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Comm
 stats_table <- rbind(lmm_chloride,lmm_ppfev,lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c, lmm_crp)
 #install.packages("writexl")
 library(writexl)
-write_xlsx(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Submission_CHM/SuppMaterial/Supplementary_table_2.xlsx")
+
 kable(stats_table)
+```
+
+```{r}
+get_summary_stats <- function(df, variable, visit_col = "visit_cal_9") {
+  df %>%
+    filter(!is.na(.data[[variable]])) %>%
+    group_by(.data[[visit_col]]) %>%
+    summarise(
+      Median = median(.data[[variable]], na.rm = TRUE),
+      IQR = IQR(.data[[variable]], na.rm = TRUE)
+    ) %>%
+    rename(!!visit_col := 1) %>%
+    mutate(Months_after_ETI_start = case_when(
+      !!sym(visit_col) == "1" ~ "Baseline (Intercept)",
+      !!sym(visit_col) == "2" ~ "3",
+      !!sym(visit_col) == "3" ~ "6",
+      !!sym(visit_col) == "4" ~ "9",
+      !!sym(visit_col) == "5" ~ "12",
+      !!sym(visit_col) == "6" ~ "15",
+      !!sym(visit_col) == "7" ~ "18",
+      !!sym(visit_col) == "8" ~ "21",
+      !!sym(visit_col) == "9" ~ "24"
+    ))
+}
+
+# Get median and IQR for sweat chloride
+chloride_summaries <- get_summary_stats(full_metadata_distinct, "chlorid_mmol_cl_l")
+
+# Add it to results table
+lmm_chloride <- lmm_chloride %>%
+  left_join(chloride_summaries, by = "Months_after_ETI_start")
+
+ppfev_summaries <- get_summary_stats(full_metadata_distinct, "pp_fev_percent")
+lmm_ppfev <- lmm_ppfev %>%
+  left_join(ppfev_summaries, by = "Months_after_ETI_start")
+
+ppfvc_summaries <- get_summary_stats(full_metadata_distinct, "pp_fvc_percent")
+lmm_ppfvc <- lmm_ppfvc %>%
+  left_join(ppfvc_summaries, by = "Months_after_ETI_start")
+
+igg_summaries <- get_summary_stats(full_metadata_distinct, "ig_g_g_l")
+lmm_igg <- lmm_igg %>%
+  left_join(igg_summaries, by = "Months_after_ETI_start")
+
+il6_summaries <- get_summary_stats(full_metadata_distinct, "interleukin6_pg_ml")
+lmm_il6 <- lmm_il6 %>%
+  left_join(il6_summaries, by = "Months_after_ETI_start")
+
+il8_summaries <- get_summary_stats(full_metadata_distinct, "interleukin8_pg_ml")
+lmm_il8 <- lmm_il8 %>%
+  left_join(il8_summaries, by = "Months_after_ETI_start")
+
+cal_summaries <- get_summary_stats(full_metadata_distinct, "calprotectin_amg_g_stuhl")
+lmm_calp<- lmm_calp %>%
+  left_join(cal_summaries, by = "Months_after_ETI_start")
+
+leuko_summaries <- get_summary_stats(full_metadata_distinct, "leukozyten_nl")
+lmm_leukos<- lmm_leukos %>%
+  left_join(leuko_summaries, by = "Months_after_ETI_start")
+
+gpt_summaries <- get_summary_stats(full_metadata_distinct, "gpt_alat_u_l")
+lmm_gpt<- lmm_gpt%>%
+  left_join(gpt_summaries, by = "Months_after_ETI_start")
+
+got_summaries <- get_summary_stats(full_metadata_distinct, "got_asat_u_l")
+lmm_got<- lmm_got%>%
+  left_join(got_summaries, by = "Months_after_ETI_start")
+
+hb_summaries <- get_summary_stats(full_metadata_distinct, "hb_a1c_percent")
+lmm_hba1c<- lmm_hba1c%>%
+  left_join(hb_summaries, by = "Months_after_ETI_start")
+
+crp_summaries <- get_summary_stats(full_metadata_distinct, "crp_mg_l")
+lmm_crp<- lmm_crp%>%
+  left_join(crp_summaries, by = "Months_after_ETI_start")
+
+stats_table <- rbind(lmm_chloride,lmm_ppfev, lmm_ppfvc,lmm_igg,lmm_leukos, lmm_il6, lmm_il8, lmm_calp, lmm_gpt, lmm_got, lmm_hba1c, lmm_crp)
+
+stats_table <- stats_table %>% 
+  select(-visit_cal_9) %>% 
+  select(Parameter, Months_after_ETI_start, N_obs, Total_N_obs, Median, IQR, everything())
+
+write_xlsx(stats_table, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/Supplementary_table_2.xlsx")
 ```
 

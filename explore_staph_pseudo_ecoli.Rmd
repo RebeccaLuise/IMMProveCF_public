@@ -1,0 +1,212 @@
+---
+title: "Untitled"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ps <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
+
+data <- as(sample_data(ps), "data.frame")
+```
+
+# Transformations
+```{r}
+
+ps_full_sputum <- subset_samples(ps, material== "Sputum")
+ps_full_stool <- subset_samples(ps, material== "Stool")
+ps_full_throat <- subset_samples(ps, material== "Throat")
+
+ps_full_sputum <- tax_filter(ps_full_sputum, min_prevalence = 1) # has 632 taxa
+
+set.seed(100)
+ps_full_sputum_rar <- rarefy_even_depth(ps_full_sputum, rngseed=FALSE, sample.size=8000, replace=T, trimOTUs = T, verbose = T) # has 597 taxa
+ps_sputum_filtered <- tax_filter(ps_full_sputum, min_prevalence = 0.25) # has 101 taxa
+ps_sputum_filtered_rar <- tax_filter(ps_full_sputum_rar, min_prevalence = 0.25) # has 39 taxa
+
+ps_full_throat <- tax_filter(ps_full_throat, min_prevalence = 1) # removes 0s, has 2237 taxa
+ps_full_throat_rar <- rarefy_even_depth(ps_full_throat, rngseed=FALSE, sample.size=5500, replace=T, trimOTUs = T, verbose = T)
+ps_throat_filtered <- tax_filter(ps_full_throat, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 107 taxa
+ps_throat_filtered_rar <- tax_filter(ps_full_throat_rar, min_prevalence = 0.25) # has 70 taxa
+
+
+ps_full_stool <- tax_filter(ps_full_stool, min_prevalence = 1) # removes 0s, has 2341 taxa
+ps_full_stool_rar <- rarefy_even_depth(ps_full_stool, rngseed=FALSE, sample.size=6500, replace=T, trimOTUs = T, verbose = T) # has 1935 taxa
+ps_stool_filtered <- tax_filter(ps_full_stool, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 124 taxa
+ps_stool_filtered_rar <- tax_filter(ps_full_stool_rar, min_prevalence = 0.25) # has to be prevalent in 20% of samples = 123 taxa
+
+ps_full_relab <- transform_sample_counts(ps, function(x) x/sum(x))
+ps_sputum_filtered_relab <- transform_sample_counts(ps_sputum_filtered, function(x) x/sum(x))
+ps_throat_filtered_relab <- transform_sample_counts(ps_throat_filtered, function(x) x/sum(x))
+ps_stool_filtered_relab <- transform_sample_counts(ps_stool_filtered, function(x) x/sum(x))
+
+```
+
+```{r}
+
+ps_spu <- psmelt(ps_sputum_filtered_relab)
+
+view(ps_spu)
+
+ps_spu <- ps_spu %>% 
+  filter(id.x!="8") %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>%
+  group_by(id.x, Genus) %>%
+  mutate(baseline_abundance = Abundance[visit_cal_9 == "1"],  # Get baseline at first visit
+         delta_abundance = Abundance - baseline_abundance) %>%
+  ungroup()
+
+ps_spu %>% 
+  group_by(id.x) %>%  # Group by patient
+  mutate(has_followUp = n() > 1) %>%  # Check if the patient has more than one visit
+  ungroup() %>% 
+  filter(has_followUp) %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  arrange(id.x, visit_cal_9) %>% 
+  ggplot(aes(x = visit_cal_9, y = delta_abundance)) +
+  geom_point(aes(group = interaction(id.x, Genus), color = Genus)) +
+  geom_line(aes(group = interaction(id.x, Genus), color = id.x), alpha = 0.5) +  
+  geom_smooth(aes(group = Genus, color = Genus), method = "lm") +
+  scale_color_manual(values = c("Pseudomonas" = "pink", "Staphylococcus" = "orange")) +  # Custom colors
+  theme_bw()+
+  facet_wrap(~id.x)
+
+
+# this might work if I calculate the delta in abundance from baseline
+
+  ps_spu %>% 
+  group_by(id.x) %>%  # Group by patient
+  mutate(has_followUp = n() > 1) %>%  # Check if the patient has more than one visit
+  ungroup() %>% 
+  filter(has_followUp) %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  arrange(id.x, visit_cal_9) %>% 
+  ggplot(aes(x = visit_cal_9, y = Abundance, color = Genus)) +
+  geom_point()+
+  geom_boxplot()+
+    scale_y_log10()+
+    theme_classic()+
+    scale_color_manual(values = c("Pseudomonas" = "pink", "Staphylococcus" = "orange"))+   # Custom colors
+geom_line(by=id)
+  
+  ps_spu %>% 
+  group_by(id.x) %>%  
+  mutate(has_followUp = n() > 1) %>%  
+  ungroup() %>% 
+  filter(has_followUp) %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  arrange(id.x, visit_cal_9) %>% 
+  ggplot(aes(x = visit_cal_9, y = Abundance, color = Genus)) +
+    #geom_boxplot() +
+    #geom_point(aes(group = interaction(visit_cal_9, Genus))) +
+  geom_line(aes(group = interaction(id.x, Genus)), alpha = 0.3) +   # individual trajectories
+  geom_line(aes(y=median(Abundance), x=visit_cal_cor, color=Genus), linewidth = 3) +                      
+  scale_y_log10() +
+  theme_classic() +
+  scale_color_manual(values = c("Pseudomonas" = "pink", "Staphylococcus" = "orange"))
+
+```
+
+```{r}
+# Step 1: Median line data
+median_df <- ps_spu %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  group_by(Genus, visit_cal_9) %>% 
+  summarise(mean_abundance = mean(Abundance, na.rm = TRUE), .groups = "drop")
+
+# Step 2: Plot with both individual lines and median line
+ps_spu %>% 
+  group_by(id.x) %>%  
+  mutate(has_followUp = n() > 1) %>%  
+  ungroup() %>% 
+  filter(has_followUp) %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  arrange(id.x, visit_cal_9) %>% 
+  ggplot(aes(x = visit_cal_9, y = Abundance, color = Genus)) +
+  geom_line(aes(group = interaction(id.x, Genus)), alpha = 0.3, linewidth=1) +  # patient trajectories
+  geom_line(data = median_df, 
+            aes(x = visit_cal_9, y = mean_abundance, color = Genus, group = Genus),
+            linewidth = 2) +  # median line
+  scale_y_log10() +
+  theme_classic() +
+  scale_color_manual(values = c("Pseudomonas" = "#EE6AA7", "Staphylococcus" = "#E55E00"))
+
+ps_spu %>% 
+  group_by(id.x) %>%  
+  mutate(has_followUp = n() > 1) %>%  
+  ungroup() %>% 
+  filter(has_followUp) %>% 
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>% 
+  arrange(id.x, visit_cal_9) %>% 
+  ggplot(aes(x = visit_cal_9, y = Abundance, color = Genus)) +
+  geom_line(aes(group = interaction(id.x, Genus)), alpha = 0.3, linewidth=1) +  # patient trajectories
+  geom_line(data = median_df, 
+          aes(x = visit_cal_9, y = mean_abundance, color = Genus, group = Genus),
+          linewidth = 2) +  # median line
+  #scale_y_log10() +
+  theme_classic() +
+  scale_color_manual(values = c("Pseudomonas" = "pink", "Staphylococcus" = "orange"))#+
+  #facet_grid(~id.x, scales = "free", space = "free")
+
+```
+
+```{r}
+
+visit_sum_palette <- c("black", "#C3BC3FFF", "#6388B4FF", "#BB7693FF", "#55AD89FF", "#8176AA")
+x2labels <- c("0", "3", "6-12", "15-18", "21-24", "Control")
+ps_st <- psmelt(ps_stool_filtered_relab)
+
+
+# Create a data frame for the annotation of the fdr obtained from the fdr adjusted metadeconfoundR readout
+# Define your p-values
+fdr_results <- data.frame(
+  group1 = c("1", "1", "1", "1", "1"),
+  group2 = c("2", "3-5", "6-7", "8-10", "Control"),
+  p.adj = c(0.95, 0.051, 0.047, 0.0537, 2.37e-9)  # FDR values
+)
+
+# Assign significance labels
+fdr_results$y.position = log10(c(80, 85, 90, 95, 100))  # adjust according to your data range
+fdr_results  <- fdr_results %>% 
+  mutate(label = case_when(p.adj <= 0.001 ~"***", p.adj <= 0.01 ~ "**", p.adj <= 0.05 ~"*",
+                   p.adj <= 0.1 ~ ".", p.adj >0.1 ~ "ns") ) # or ** if needed
+
+
+p1 <- ps_st %>% 
+  filter(Genus=="Escherichia_Shigella") %>% 
+ggplot(aes(y = Abundance * 100 + 0.01, x=visit_sum)) +
+  geom_boxplot(aes(fill = visit_sum), outlier.shape = NA, alpha = 0.65) +
+      geom_jitter(width = 0.1) +
+      scale_fill_manual(values = visit_sum_palette, labels = x2labels) +
+  scale_y_log10(
+    breaks = c(0.01, 0.1, 1, 10, 100),
+    labels = c("0", "0.1", "1", "10", "100"), limits = c(0.005, 1500)) +
+  xlab("Months from treatment start") +
+  ylab("*Escherichia-Shigella* (%)") +
+  theme_classic() +
+  scale_x_discrete(labels = x2labels) +
+  theme(
+    axis.title.y  = ggtext::element_markdown(size = 14),
+    axis.title.x  = ggtext::element_markdown(size = 14),
+    legend.title = element_text(size = 14),
+    text = element_text(size = 14),
+    legend.position = "none",
+    axis.text = element_text(size = 14)
+  )+
+  stat_pvalue_manual(fdr_results, 
+                     label = "label", 
+                     tip.length = 0.01,
+                     step.increase = 0.08, 
+                     size = 6)
+
+p1
+
+saveRDS(p1, "figures/E_coli_boxplot.rds")
+```
+
+

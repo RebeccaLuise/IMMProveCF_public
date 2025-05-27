@@ -1,0 +1,133 @@
+---
+title: "Combine gut-lung axis figure"
+author: "Rebecca L. Knoll"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+venn1_woLables <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/venn_spu_st_thr.rds")
+
+bc <- readRDS( "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/bc_across_datasets.rds")
+
+proc_throat <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/procrustes_spu_throat.rds")
+
+proc_stool <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/procrustes_spu_stool.rds")
+
+spu_thr_cor <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_spu_thr.rds")
+
+spu_st_cor <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_spu_st.rds")
+
+mosaics <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/mosaic_throat_sputum_16S_CM_staph_pseudo.rds")
+
+staph_pseudo_cor <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_staph_pseudo_spu_thr.rds")
+
+pcoa <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/pcoa_all_cf.rds")
+
+perm <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/permanova_all_cf.rds")
+
+alpha <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/congruence_alpha_div.rds")
+
+asv_prop <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/shared_proportion_asvs_counts.rds")
+
+comb_long <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/mosaic_throat_sputum_16S_CM_staph_pseudo_long.rds")
+
+hm_comb <- readRDS( "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/shared_asvs_heatmap.rds")
+
+```
+
+```{r,fig.width=16, fig.height=24}
+grid_arranged <- grid.arrange(
+  pcoa+ labs(tag = "a"), #1
+  perm +theme(legend.position = "top")+ guides(fill = guide_legend(nrow = 3, position = "top",override.aes = list(size = 4)),size = guide_legend(nrow = 2, position = "top"))+  labs(tag = "b"), #2
+  bc+theme(legend.position = "bottom")+ labs(tag = "e"), #3
+  asv_prop+ labs(tag = "f"), #4
+  proc_throat + labs(tag = "c"), #5
+  proc_stool + labs(tag = "d"), #6
+  alpha+labs(tag = "h"), #7
+  hm_comb+theme(legend.position = "top") +guides(color = guide_legend(nrow = 2, position = "bottom",override.aes = list(size = 4)))+ labs(tag = "g"), #8
+  staph_pseudo_cor+theme(legend.position = "bottom") + labs(tag = "i"), #9
+  comb_long+ labs(tag = "j"), #10
+ 
+  ncol = 6, nrow = 6,
+  heights = c(0.5, 0.5, 0.8, 1,0.6,0.8),
+  widths=c(1,1,1,1,0.7,0.7),
+  layout_matrix = rbind(c(1,1,2,2,5,5),
+                        c(1,1,2,2,6,6),
+                        c(3,3,3,4,4,4),
+                        c(8,8,8,8,8,8),
+                        c(7,7,7,7,7,7),
+                        c(9,10,10,10,10,10)
+                        )
+                       )
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/supp_fig_niche_comparison.pdf",grid_arranged, dpi = 300, width = 16, height = 24)
+```
+
+```{r,fig.width=16, fig.height=22}
+grid_arranged <- grid.arrange(
+  pcoa+ labs(tag = "a"), #1
+  perm +theme(legend.position = "top")+guides(fill = guide_legend(nrow = 2, position = "top",override.aes = list(size = 4)),size = guide_legend(nrow = 2, position = "top"))+  labs(tag = "b"), #2
+  venn1_woLables+ labs(tag = "c"), #3
+  bc+theme(legend.position = "bottom")+ labs(tag = "d"), #4
+  asv_prop+ labs(tag = "e"), #5
+  proc_throat + labs(tag = "g"), #6
+  proc_stool + labs(tag = "h"), #7
+  alpha+labs(tag = "f"),
+  spu_thr_cor+theme(legend.position = "top") +guides(color = guide_legend(nrow = 2, position = "bottom",override.aes = list(size = 4)))+ labs(tag = "i"), #8
+  spu_st_cor+theme(legend.position = "top")+guides(color = guide_legend(nrow = 2, position = "bottom",override.aes = list(size = 4)),shape = guide_legend(nrow = 1, position = "top", title = "Spearman rho")) + labs(tag = "j"), #9
+  staph_pseudo_cor+theme(legend.position = "bottom") + labs(tag = "k"), #10
+  comb_long+ labs(tag = "l"), #11
+ 
+  ncol = 6, nrow = 6,
+  heights = c(1.2, 0.9, 0.4, 0.4,1.2,0.6),
+  widths=c(1,1,1,1,0.8,0.8),
+  layout_matrix = rbind(c(1,1,2,2,3,3),
+                        c(4,4,4,5,5,5),
+                        c(8,8,8,8,6,6),
+                        c(8,8,8,8,7,7),
+                        c(9,9,10,10,11,11),
+                        c(12,12,12,12,12,12)
+                        
+                        )
+                       )
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/supp_fig_niche_comparison.pdf",grid_arranged, dpi = 300, width = 16, height = 24)
+```
+
+
+```{r, fig.width=16, fig.height=22}
+library(gridExtra)
+
+grid_arranged <- grid.arrange(
+  pcoa+ labs(tag = "a"), #1
+  perm +theme(legend.position = "top")+guides(fill = guide_legend(nrow = 4, position = "top",override.aes = list(size = 4)),size = guide_legend(nrow = 3, position = "top"))+  labs(tag = "b"), #2
+  venn1_woLables+ labs(tag = "c"), #3
+  bc+theme(legend.position = "bottom")+ labs(tag = "d"), #4
+  asv_prop+ labs(tag = "e"), #5
+  proc_throat + labs(tag = "f"), #6
+  proc_stool + labs(tag = "g"), #7
+  spu_thr_cor+theme(legend.position = "top") +guides(color = guide_legend(nrow = 2, position = "bottom",override.aes = list(size = 4)))+ labs(tag = "h"), #8
+  spu_st_cor+theme(legend.position = "top")+guides(color = guide_legend(nrow = 2, position = "bottom",override.aes = list(size = 4)),shape = guide_legend(nrow = 1, position = "top", title = "Spearman rho")) + labs(tag = "i"), #9
+  staph_pseudo_cor+theme(legend.position = "bottom") + labs(tag = "j"), #10
+  mosaics+ labs(tag = "k"), #11
+ 
+  ncol = 6, nrow = 5,
+  heights = c(1.2, 0.8, 0.6, 0.6,1),
+  #widths=c(1,1,1),
+  layout_matrix = rbind(c(1,1,2,2,3,3),
+                        c(4,4,4,5,5,5),
+                        c(6,6,8,8,9,9),
+                        c(7,7,8,8,9,9),
+                        c(10,10,11,11,11,11)
+                        
+                        )
+                       )
+
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/supp_fig_niche_comparison.pdf",grid_arranged, dpi = 300, width = 16, height = 22)
+```
+

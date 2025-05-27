@@ -120,3 +120,41 @@ saveRDS(p3, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sp
 
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_barplot.png", width = 20, height = 7)
 ```
+
+# error bar plot
+
+```{r}
+spu_df <- psmelt(ps_sputum_relab)
+
+spu_df_summary <- spu_df %>%
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>%
+  group_by(Genus, visit_sum) %>%
+  summarise(
+    mean_abundance = mean(Abundance, na.rm = TRUE),
+    sd_abundance = sd(Abundance, na.rm = TRUE),
+    n = n(),
+    se_abundance = sd_abundance / sqrt(n)
+  )
+
+spu_df_summary %>% 
+ggplot( aes(x = visit_sum, y = mean_abundance, colour = Genus)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mean_abundance - se_abundance,
+                    ymax = mean_abundance + se_abundance),
+                width = 0.2)+
+  theme_classic()+
+  geom_line(by="id")
+
+library(dplyr)
+library(ggplot2)
+
+spu_df %>%
+  filter(Genus %in% c("Staphylococcus", "Pseudomonas")) %>%
+  ggplot(aes(x = visit_sum, y = Abundance, colour = Genus, group = id)) +
+  geom_line(alpha = 0.3, color="black") +          # faint lines to show individual trends
+  geom_point() +                    # points per observation
+  theme_minimal()
+
+
+```
+
