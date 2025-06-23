@@ -1894,6 +1894,7 @@ saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/re
 
 # Create the main plot
 tax_stool <- effect_table_sig_all %>%
+  mutate(label= case_when(fdr=="."~"'", T~fdr)) %>% 
   mutate(taxa = gsub("ASV\\d{3}_", "", taxa)) %>% 
   mutate(taxa = gsub("ASV\\d{2}_", "", taxa)) %>% 
   mutate(taxa = gsub("ASV\\d{1}_", "", taxa)) %>% 
@@ -1907,16 +1908,16 @@ tax_stool <- effect_table_sig_all %>%
                     values = c("-1" = "#746999", "1" = "#69b3a2"),
                     labels = c("decreased", "increased")) +
   scale_color_manual(name = "", labels = c(". fdr < 0.1", "* fdr < 0.05", "non-significant"), values = c("gray22", "gray1", "gray85")) +
-  geom_text(aes(label = fdr), size=8) +
+  geom_text(aes(label = label), size=8,nudge_y = -0.2) +
   theme_pubclean() +
   theme(
-    axis.text.x = element_text(size = 12),
-    axis.title.x = element_text(size = 12),
+    axis.text.x = element_text(size = 14),
+    axis.title.x = element_text(size = 14),
     legend.position = "none",
-    axis.text.y = element_text(face = "italic", size = 12),
-    legend.text = element_text(size = 12),
-    legend.title = element_text(size = 12),
-    legend.key = element_rect(size = 12),
+    axis.text.y = element_text(face = "italic", size = 14),
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    legend.key = element_rect(size = 14),
     legend.key.size = unit(1.5, 'lines')
   ) +
   scale_x_discrete(labels = c("3", "6-12", "15-18", "21-24", "Control")) +

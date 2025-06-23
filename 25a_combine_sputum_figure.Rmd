@@ -22,9 +22,9 @@ library(scales)
 dom_spu <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/alluvial_dominantGenus.rds")
 tax_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum.rds")
 tax_sputum_woLegend <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/da_sputum_woLegend.rds")
-metad_sputum <-  readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metad.rds")
+metad_sputum <-  readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/sputum_metaD_25percentprevalence.rds")
 staph <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/cor_staph_chloride_sputum.rds")
-hm_div_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/hm_div_sputum.rds")
+hm_div_sputum <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/sputum_div_hm.rds")
 star <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/starplot_sputum.rds")
 permanova_bubble <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/PERMANOVA_timepoints_sputum.rds")
 permanova_univariate <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/sputum_univariate_permanova_stratified.rds")
@@ -98,7 +98,7 @@ dom_spu <- dom_spu +
   scale_fill_manual(values = dom_palette, labels= dom_palette_labels)
 
 
-tax_sputum <- tax_sputum+theme(legend.text = element_text(size = 14))
+tax_sputum <- tax_sputum+theme(legend.text = element_text(size = 12), axis.text.x = element_text(size = 14),axis.text.y = element_text(size = 14))+theme_pubclean(base_size = 14)
 
 star <- star + theme(axis.text= element_text(size = 14), legend.title.position = "top", legend.position = "top", axis.title = element_text(size=14), legend.text = element_text(size = 14), legend.title =  element_text(size = 14))
 
@@ -107,7 +107,7 @@ sputum_lolli <- sputum_lolli+ theme(axis.text= element_text(size = 14), axis.tit
 
 metad_sputum <- metad_sputum + theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=14, face="italic"), legend.title = element_text(size=14), legend.position = "bottom")
   
-hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 14), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
+hm_div_sputum <- hm_div_sputum + theme(legend.position = "bottom", text = element_text(size = 14), legend.box = "horizontal") + scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F),labels = scales::number_format(accuracy = 0.1))+
   guides(title.position = "left")
 
 staph <- staph +theme(text = element_text(size = 14),legend.text = element_text(size = 14), axis.text = element_text(size = 14), axis.title = element_text(size=14), legend.title =  element_text(size = 14), legend.position = "right")+ guides(color=guide_legend(nrow = 5, title = "Month from \ntreatment start")) 
@@ -166,35 +166,18 @@ grid_arranged <- grid.arrange(
                        )
 
 ```
-```{r, fig.height=12, fig.width=6}
-sputum_barplot
-grid_arranged <- grid.arrange(
-  sputum_shannon + labs(tag = "a") ,
-  sputum_observed + labs(tag = "b") ,
-  tax_sputum_woLegend + labs(tag = "c"), #+ggtitle(""),
-  NULL,
-  hm_div_sputum + labs(tag = "d") + theme(legend.position = "right"),
-  ncol = 2, nrow = 4,
-  heights = c(0.95, 1.75, 0.25, 1),
-  #widths=c(1,1.75),
-  layout_matrix = rbind(c(1,2),
-                        c(3,3),
-                        c(4,4),
-                        c(5,5))
-                       )
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/sputum_figure_supp.png",grid_arranged, dpi = 300, width = 6, height = 12)
-```
 
-```{r, fig.height=18, fig.width=16}
+
+```{r, fig.height=18, fig.width=16.5}
 grid_arranged <- grid.arrange(
   sputum_shannon + labs(tag = "a") ,
   sputum_observed + labs(tag = "b") ,
   metad_sputum + labs(tag = "c") +ggtitle(""),
-  tax_sputum + labs(tag = "d"), #+ggtitle(""),
-  hm_div_sputum + labs(tag = "e") + theme(legend.position = "right"),
+  tax_sputum + labs(tag = "d")+theme(legend.position = "none"), #+ggtitle(""),
+  hm_div_sputum + labs(tag = "e") + theme(legend.position = "bottom"),
   sputum_barplot+theme(legend.position = "bottom"), 
   ncol = 3, nrow = 4,
-  heights = c(0.75, 1.2, 0.65, 1),
+  heights = c(0.75, 1.2, 1, 1),
   widths=c(1,1,2.5),
   layout_matrix = rbind(c(1,2,3),
                         c(4,4,3),
@@ -203,5 +186,5 @@ grid_arranged <- grid.arrange(
                        )
 ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/041224_sputum_figure_supp.png",grid_arranged, dpi = 300, width = 16, height = 18)
 
-ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Revision/pdf_figures/supp_figure2.pdf",grid_arranged, dpi = 300, width = 16, height = 18)
+ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/Nature_Communications/Revision/Rev_figures/supp_figure2.pdf",grid_arranged, dpi = 300, width = 16, height = 18)
 ```

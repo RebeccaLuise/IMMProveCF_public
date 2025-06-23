@@ -79,7 +79,7 @@ metadata_x_sputum_selected <- diversity_df_sputum_metadata %>%
 
 
 xlabels= c("tobramycin_inhal" = "Tobramycin inhalation", "isotonic_na_cl"="Isotonic NaCl inhalation", "saba_inhal"="(SABA) inhalation", "cortison_inhal" = "Cortisone inhalation", "antihistaminikum"="Oral antihistamine", "orale_zusatznahrung"="Oral nutritional supplement", "laxantien"= "Laxatives", "antidiabetic_oral"="Antidiabetic medication oral", "ab_15dprior_visit"="Antibiotic 15 days before visit", "hb_a1c_percent"="Hb A1c %", "interleukin8_pg_ml"="Interleukin-8 (pg/ml)", "leukozyten_nl"="Leukocyte count /nl", "pp_fev_percent"="Lung function (ppFEV1)", "total_reads"="Total reads", "sex"="Sex", "age_y"="Age", "levofloxacin_inhal"="Levofloxacin inhalation", "azetronam_inhal"="Aztreonam inhalation", "anticholinergic"="Anticholinergic inhalation", "dn_ase"="DNAse inhalation", "cortison_nasal"="Cortisone nasal spray", "nasenspray"= "nasal spray", "ursodesoxychols_a_ure"="Ursodeoxycholic acid", "tranexams_a_ure"="Tranexamic acid", "acetylcystein"="Acetylcysteine", "furosemid"="Furosemide", "treatmentdays_365prior_visit"="N antibiotic tt days", "crp_mg_l"="CRP mg/l", "ig_g_g_l"="IgG g/l", "gpt_alat_u_l"="GPT/ALAT U/l", "pp_fvc_percent"= "Lung function (ppFVC)", "delta_ETI_merged"="N ETI treatment days", "id.y"="ID", "BMI"="BMI", "colistin_inhal"="Colistin inhalation",
-"hypertonic_na_cl"="Hypertonic Saline inhalation", "laba_inhal"= "Long-Acting Beta-Agonist (LABA) Inhalation", "mannitol"="Mannitol inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous)", "azithromycin_oral"="Azithromycin oral", "dpi_colistin" =  "DPI Colistin inhalation", "bristol"="Bristol score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
+"hypertonic_na_cl"="Hypertonic Saline inhalation", "laba_inhal"= "LABA inhalation", "mannitol"="Mannitol inhalation", "cortison_oral"= "Cortisone", "na_cl_oral"="Sodium suppl.", "ppi"="PPI", "nsaid"="NSAIDs", "insulin"="Insulin", "ssri"="SSRIs", "chlorid_mmol_cl_l"="Sweat chloride (mmol/l)", "interleukin6_pg_ml"="Interleukin-6 (pg/ml)", "calprotectin_amg_g_stuhl"= "Calprotectin (μg/g Stool)", "got_asat_u_l"="GOT/ASAT U/l", "cftr_prior_v1"="prior CFTR-modulator tt", "mutation_status"= "Mutation (homo- vs heterozygous)", "azithromycin_oral"="Azithromycin oral", "dpi_colistin" =  "DPI Colistin inhalation", "bristol"="Bristol score", "basic_nutrition"="Basic nutrition", "staph_pos_throat"= "Staphylococcus positive throat", "staph_pos_sputum" = "Staphylococcus positive sputum", "pseudo_pos_sputum"= "Pseudomonas positive sputum", "pseudo_pos_throat" = "Pseudomonas positive throat")
 
 # create a dataframe for the investigated metadata
 # Split each string at the equal sign
@@ -146,12 +146,29 @@ geom_tile(aes(fill = Ds), color = "black") +
             scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12), legend.position = "right")+
+  theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1), axis.text.y=element_text(size=14), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
   scale_y_discrete(labels = ylabels)
 
+tab_sputum_2 <- BuildHeatmap(sputum_metad_div,intermedData = T,showConfounded = F, q_cutoff = 0.1, d_cutoff = 0.1)
+
+sputum_div_hm <- tab_sputum_2 %>% 
+  ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
+  geom_tile() +
+  theme_minimal(base_size = 14)+
+geom_tile(aes(fill = Ds), color = "black") + 
+            scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+                limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
+  geom_text(aes(label=stars), color = "black", size = 5)+
+  theme(axis.text.x=element_text(size=14, angle = 40, hjust = 1), axis.text.y=element_text(size=14), legend.position = "bottom", legend.text = element_text(size=12))+
+  xlab("")+
+  ylab("")+
+  scale_x_discrete(labels = xlabels)+
+  scale_y_discrete(labels = ylabels)
+
+saveRDS(sputum_div_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/sputum_div_hm.rds")
 
 metadata %>% 
   rownames_to_column(var="x_sample_id")%>% 
@@ -228,7 +245,7 @@ throat_div_hm <- tab_throat_2%>%
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
-            scale_fill_gradient2(name= "Effect size (Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+            scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=12, angle = 40, hjust = 1), axis.text.y=element_text(size=12), legend.position = "right")+
@@ -472,7 +489,13 @@ sputum_metad_glom <- sputum_metad_glom %>%
 
 hm_05 <- BuildHeatmap(sputum_metad_glom, intermedData = T, showConfounded = F, q_cutoff = 0.05, d_cutoff = 0.45)
 
-view(hm_05)
+hm_05 <- hm_05 %>%
+  mutate(feature = case_when(
+    grepl("\\.", featureNames) ~ gsub("\\.", " ", featureNames),
+    TRUE ~ featureNames  # if no dot, keep the original
+  ))%>%
+  mutate(feature = gsub("X Eubacterium  nodatum group", "Eubacterium nodatum group", feature)) %>% 
+  mutate(feature = gsub("Prevotella_7", "Prevotella (7)", feature))
 
 sputum_hm <- hm_05 %>% 
   filter(metaVariable!="age_y") %>% 
@@ -481,15 +504,14 @@ sputum_hm <- hm_05 %>%
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
-            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+            scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_glom$Ds), max(sputum_metad_glom$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
-  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "bottom")+
+  theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.text = element_text(size=12), legend.position = "bottom")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
-  scale_y_discrete(labels = ylabels)+
-  ggtitle("Sputum")
+  scale_y_discrete(labels = ylabels, position = "right")
 sputum_hm
 #ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/figures/sputum_metaD_randomVarID.pdf", width = 18, height = 21)
 saveRDS(sputum_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/sputum_metaD_25percentprevalence.rds")
@@ -1134,21 +1156,27 @@ throat_metad_glom <- throat_metad_glom %>%
 
 view(hm_05)
 
-throat_hm <- hm_05 %>% 
+throat_hm <- hm_05 %>%
+  mutate(feature = case_when(
+    grepl("\\.", featureNames) ~ gsub("\\.", " ", featureNames),
+    TRUE ~ featureNames  # if no dot, keep the original
+  ))%>%
+  mutate(feature = gsub("X Eubacterium  brachy group", "Eubacterium brachy group", feature)) %>% 
+  mutate(feature = gsub("X Eubacterium  nodatum group", "Eubacterium nodatum group", feature)) %>%
+  mutate(feature = gsub("Prevotella_7", "Prevotella (7)", feature)) %>% 
   filter(metaVariable!="colistin_inhal") %>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
-            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+            scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(sputum_metad_div$Ds), max(sputum_metad_div$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "right")+
   xlab("")+
   ylab("")+
   scale_x_discrete(labels = xlabels)+
-  scale_y_discrete(labels = ylabels)+
-  ggtitle("Throat")
+  scale_y_discrete(labels = ylabels)
 throat_hm 
 
 saveRDS(throat_hm, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/outputs/throat_metaD_25percentprevalence.rds")
@@ -1205,12 +1233,19 @@ stool_metad_glom <- stool_metad_glom %>%
 view(hm_05)
 
 stool_hm <- hm_05 %>% 
+  mutate(feature = case_when(
+    grepl("\\.", featureNames) ~ gsub("\\.", " ", featureNames),
+    TRUE ~ featureNames  # if no dot, keep the original
+  ))%>%
+  mutate(feature = gsub("X Eubacterium  nodatum group", "Eubacterium nodatum group", feature)) %>% 
+  mutate(feature = gsub("X Ruminococcus  torques group", "Ruminococcus torques group", feature)) %>%
+  mutate(feature = gsub("X Eubacterium  eligens group", "Eubacterium eligens group", feature)) %>%
   #filter(metaVariable!="levofloxacin_inhal") %>% 
   ggplot(aes(x=metaVariable,y=feature,fill=Ds))+
   geom_tile() +
   theme_minimal()+
 geom_tile(aes(fill = Ds), color = "black") + 
-            scale_fill_gradient2(name= "Effect size\n(Cliff's delta)", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
+            scale_fill_gradient2(name= "Effect size", low = "#746999", high = "#69b3a2", mid = "white", midpoint = 0, guide = guide_colorbar(raster = F), 
                 limits = c(min(stool_metad_glom$Ds), max(stool_metad_glom$Ds))) + 
   geom_text(aes(label=stars), color = "black", size = 5)+
   theme(axis.text.x=element_text(size=10, angle = 40, hjust = 1, vjust = 1.05), axis.text.y=element_text(size=10, face="italic"), legend.title = element_text(size=10), legend.position = "right")+
