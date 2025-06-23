@@ -11,6 +11,9 @@ output:
     df_print: paged
     toc_float: yes
 ---
+
+From this script we present in the manuscript only the linear model results in Figure 4c (manuscript version 20th June 2025). 
+
 ```{r setup 2, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```

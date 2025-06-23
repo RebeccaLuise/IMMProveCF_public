@@ -1,5 +1,5 @@
 ---
-title: "Procrustes analysis to investigate gut-lung, vs lung-throat axis"
+title: "Cross-habitat microbial colonization structure in pwCF (gut-respiratory vs lung-throat axis)"
 author: "Rebecca L. Knoll"
 date: "`r Sys.Date()`"
 output: html_document
@@ -9,20 +9,18 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Goal
-Use Orthogonal Procrustes Analysis (OPA) to assess how similar the overall spatial configuration (beta diversity structure) is between:
+# Outline
+- Procrustes
+- Mantel test (not included in manuscript)
+- Co-correlation analyses (not included in manuscript)
+- Venn diagram of shared ASVs (not included in manuscript)
+- Ordination on generalist vs specialist taxa across habitats (not included in manuscript)
+- Distance dissimilarities between paired and unpaired samples
+- Congruence of alpha diversity metrics between sample types
+- Shared ASVs between sampling types
+- PERMANOVA: variance explained by sampling type vs time point of sampling
 
-    Sputum vs. Gut
-    Throat vs. Sputum
-
-OPA will rotate, translate, and scale one ordination to best match another and quantify similarity with a Procrustes statistic (m²).
-
-# Interpretation
-
-    Procrustes statistic (m²): Lower means better alignment.
-    protest(): Gives a p-value testing if the alignment is better than expected by chance (random configuration).
-    If the alignment is significant and tight, it supports the idea that there is a shared ecological structure, aka a gut-lung or airway continuum.
-
+# Load libraries and data sets and select paired samples and filter phyloseq
 ```{r run import script, include=FALSE}
 # run script to tidy the data and to load packages, creates phyloseq object per material and per year; load libraries
 
@@ -37,8 +35,6 @@ metadata <- as(sample_data(ps_full), "data.frame")
 metadata_v1 <- metadata %>% 
    filter(project=="IMMPIMMP") %>% 
   filter(visit==1)
-
-id_palette <- c(IMP11="#4E79A7FF",IMP13="#A0CBE8FF",IMP15="#F28E2BFF",IMP16="#FFBE7DFF",IMP17="#59A14FFF",IMP24="#8CD17DFF", IMP25="#B6992DFF",IMP26="#F1CE63FF",IMP27="#499894FF", IMP29="#86BCB6FF", IMP32="#E15759FF",  IMP33="#FF9D9AFF", IMP35="#79706EFF", IMP5="#BAB0ACFF", IMP6="#D37295FF",IMP9="#FABFD2FF",IMP21="#B07AA1FF", IMP31="#D4A6C8FF", IMP8="black")
 
 source("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/IMMProveCF/functions_sputhr.R")
 ```
@@ -89,6 +85,22 @@ bp_ps_relab+
   facet_grid(rows= vars(material), cols = vars(visit_cal_cor), scales ="free_x", space ="free_x")
 ```
 
+# Procrustes 
+## Goal
+Use Orthogonal Procrustes Analysis (OPA) to assess how similar the overall spatial configuration (beta diversity structure) is between:
+
+    Sputum vs. Gut
+    Throat vs. Sputum
+
+OPA will rotate, translate, and scale one ordination to best match another and quantify similarity with a Procrustes statistic (m²).
+
+## Interpretation
+
+    Procrustes statistic (m²): Lower means better alignment.
+    protest(): Gives a p-value testing if the alignment is better than expected by chance (random configuration).
+    If the alignment is significant and tight, it supports the idea that there is a shared ecological structure, aka a gut-lung or airway continuum.
+
+## Sputum vs Stool    
 ```{r}
 sputum_common  <- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Sputum")
 gut_common<- subset_samples(ps_Sputum_Stool_full_unique_2_relab, material=="Stool")
@@ -117,9 +129,9 @@ print(proc_test_paired)
 
 # Visualization
 plot(proc)
-
 ```
-## unpaired data set comparison
+
+### unpaired data set comparison
 ```{r}
  set.seed(42)
 
@@ -173,7 +185,6 @@ m12_values
 # Plot histogram
 m12_df <- data.frame(m12 = m12_values)
 
-
 p14 <- ggplot(m12_df, aes(x = m12)) +
   geom_histogram(bins = 50, fill = "#765085", color = "white", alpha=0.4) +
   geom_vline(xintercept = paired_proc_stat_gut, color = "#31A1B3", size = 1.2) +
@@ -190,8 +201,7 @@ p14
 saveRDS(p14, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/procrustes_spu_stool.rds")
 ```
 
-
-# Sputum vs Throat
+## Sputum vs Throat
 ```{r}
 # Subset your phyloseq objects to overlapping samples
 material_s_t <- c("Sputum", "Throat")
@@ -222,7 +232,8 @@ tabyl(data, id, visit_cal_cor)
 #transform to relative abundance
 ps_sputum_throat_full_unique_2_relab <- transform_sample_counts(ps_sputum_throat_full_unique_2 , function(x) x/sum(x))
 ```
-## Sample overview
+
+### Sample overview
 ```{r}
 # plot sample overview
 bp_ps_relab <- plot_bar(ps_sputum_throat_full_unique_2_relab, "id", fill="Phylum")
@@ -265,7 +276,7 @@ plot(proc_resp)
 
 ```
 
-## unpaired data set comparison
+### unpaired data set comparison
 ```{r}
  set.seed(42)
 
@@ -333,14 +344,13 @@ p13
 saveRDS(p13, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/procrustes_spu_throat.rds")
 ```
 
-
 ```{r, fig.height=3, fig.width=8}
 ggarrange(p13,p14, nrow = 1)
 
 ggsave("figures/procrustes_paired_unpaired_comb.pdf", height = 3, width = 8)
 ```
 
-# Conclusion:
+## Conclusion:
 
 Quick interpretation of Procrustes protest results:
 Comparison	Sum of Squares	Correlation (r)	p-value	Interpretation
@@ -352,8 +362,6 @@ Biological read:
 → This is biologically intuitive: the throat and sputum (lung) are physically closer, and microbial exchange is plausible (aspiration, mucus flow).
 
 Gut-lung interactions are more complex — maybe indirect, systemic (immune-mediated), or only affecting specific taxa.
-
-But cave: P-values are decreasing the more axes I include in the rotations, but overall I have the feeling the results differ too little between stool-sputum and throat-sputum comparisons. 
 
 # Mantel test:
 ```{r}
@@ -374,7 +382,7 @@ sputum_dist <- phyloseq::distance(sputum_common, method = "bray")
 
 mantel(throat_dist, sputum_dist, permutations = 999)
 ```
-# Interpretaion of mantel test: 
+## Interpretaion of mantel test: 
 → Mantel r is a correlation between the structure of distance matrices — so:
 
     "Do samples that are similar in gut also tend to be similar in sputum?"
@@ -385,10 +393,11 @@ mantel(throat_dist, sputum_dist, permutations = 999)
 
 → p-values ~0.10 → not formally significant, but some weak trend.
 
-# Do co-correlation analysis
-
+# Co-correlation analysis
+## Sputum vs. throat
 ```{r}
 library(purrr)
+library(MicEco)
 
 ps_venn(ps_sputum_throat_full_unique_2_relab, group = "material")
 list <- ps_venn(ps_sputum_throat_full_unique_2_relab, group = "material", plot = F)
@@ -537,7 +546,6 @@ genus_colors <- c(
   `[Eubacterium] brachy group` = "#D7BDE2" # lavender blush
 )
 
-
 log_breaks <- c(1e-4, 1e-3, 1e-2, 1e-1)
 
 log_labels <- c("0%", "0.1%", "1%", "10%")
@@ -594,24 +602,7 @@ p10 <- final_df %>%
 p10
 saveRDS(p10, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_spu_thr.rds")
 
-  final_df %>% 
-  filter(id_visit==id_visit) %>% 
-  filter(throat_asv==sputum_asv) %>% 
- #filter(!is.na(spearman_rho)) %>% 
-  filter(abs(spearman_rho)< 0.25) %>% 
-  ggplot(aes(x = sputum_abund, y = throat_abund,  color = Genus.x)) +
-  geom_point(aes(size=spearman_rho), alpha = 1) + 
-  #scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  labs(
-    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
-    x = "Sputum Abundance",
-    y = "Throat Abundance",
-    size = "Spearman Correlation"
-  ) +
-  theme_minimal()+
-  scale_x_log10()+
-  scale_y_log10()#+
-  theme(legend.position = "none")
+  
 ```
 
 # plot Sputum/Throat congruence for Staphylococcus/Pseudomonas
@@ -658,13 +649,10 @@ p15
 saveRDS(p15, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_staph_pseudo_spu_thr.rds")
 ```
 
-
-
+# Sputum vs. Stool
 ```{r}
 ps_venn(ps_Sputum_Stool_full_unique_2_relab, group = "material")
 list <- ps_venn(ps_Sputum_Stool_full_unique_2_relab, group = "material", plot = F)
-
-list$Sputum__Stool
 
 # subset phyloseq for the shared ASVs
 ps_shared <- prune_taxa(taxa_names(ps_Sputum_Stool_full_unique_2_relab) %in% list$Sputum__Stool, ps_Sputum_Stool_full_unique_2_relab)
@@ -743,7 +731,6 @@ corrplot::corrplot(corr_mat, method = "color",
                    na.label = " ", 
                    col = colorRampPalette(c("blue", "white", "red"))(200))
 
-
 corr_mat_high <- results%>% 
   filter(abs(spearman_rho)>0.35)%>% 
   pivot_wider(
@@ -817,7 +804,6 @@ genus_colors_new <- c(
   Streptococcus = "#69b3a2",         
   ASV62_Veillonella="#EEB22BFF",
   ASV20_Veillonella="#D4A6C8"
-  
 )
 
 log_breaks <- c(1e-4, 1e-3, 1e-2, 1e-1)
@@ -841,13 +827,11 @@ size_labels <- c(
   "5" = "≥ 0.4"
 )
 
-
 final_df %>% filter(abs(spearman_rho) > 0.25) %>% filter(stool_asv == sputum_asv) %>% count(stool_asv)
 
 final_df %>% filter(abs(spearman_rho) > 0.25) %>% filter(stool_asv == sputum_asv) %>% filter(stool_Genus=="Streptococcus") %>% select(stool_asv, stool_abund, sputum_asv, sputum_abund, spearman_rho )
 
 p11 <- final_df %>% 
-  #filter(id_visit == id_visit) %>%
   filter(stool_asv == sputum_asv) %>% 
   filter(!is.na(spearman_rho)) %>% 
   filter(abs(spearman_rho) > 0.25) %>%
@@ -872,158 +856,49 @@ p11 <- final_df %>%
 p11
 
 saveRDS(p11, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/correlation_spu_st.rds")
-
-  final_df %>% 
-  #filter(id_visit==id_visit) %>% 
-  filter(stool_asv==sputum_asv) %>% 
- #filter(!is.na(spearman_rho)) %>% 
-  filter(abs(spearman_rho)< 0.25) %>% 
-  ggplot(aes(x = sputum_abund, y = stool_abund,  color = Genus.x)) +
-  geom_point(aes(size=spearman_rho), alpha = 1) + 
-  #scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  labs(
-    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
-    x = "Sputum Abundance",
-    y = "Stool Abundance",
-    size = "Spearman Correlation"
-  ) +
-  theme_minimal()+
-  scale_x_log10()+
-  scale_y_log10()#+
-  theme(legend.position = "none")
 ```
-```{r, fig.width= 16, fig.height=5}
-ggarrange(p10, p11, nrow=1)
-ggsave("figures/asv_co_correlation_abundance_pairedSamples.pdf", height = 5, width = 16)
-```
-
-
+# Venn plot of shared ASVs
+## overall the whole data set
 ```{r}
-# Extract OTU/ASV table
+library(eulerr)
+library(microViz)
+ps_full_fil<- tax_filter(ps_full, min_prevalence = 1)
+ps_full_fil <- subset_samples(ps_full_fil, project=="IMP" ) # work with CF samples only
+summary(as_factor(sample_data(ps_full_fil)$material))
+ps_venn(ps_full_fil, group = "material")
 
-ps_sputum_stool_fil  <- phyloseq::filter_taxa(ps_Sputum_Stool_full_unique_2_relab, function(x) sum(x) > 0, prune = T)
+list <- ps_venn(ps_full_fil, group = "material", plot = F)
 
-sputum_common  <- subset_samples(ps_sputum_stool_fil, material=="Sputum")
-stool_common<- subset_samples(ps_sputum_stool_fil, material=="Stool")
+# Fit a diagram with proportional circles
+combo <- c(Sputum = 168, Stool = 1973, Throat=1631,  "Sputum&Stool" = 17, "Sputum&Throat" = 257, "Sputum&Stool&Throat" = 190, "Throat&Stool" = 159)
+fit1 <- euler(combo)
 
-results <- map_dfr(taxa_names(ps_sputum_stool_fil), function(taxon) {
-  
-  if(taxa_are_rows(stool_common)) {
-    stool_abund <- as.numeric(otu_table(stool_common)[taxon, ])
-    sputum_abund <- as.numeric(otu_table(sputum_common)[taxon, ])
-  } else {
-    stool_abund <- as.numeric(otu_table(stool_common)[, taxon])
-    sputum_abund <- as.numeric(otu_table(sputum_common)[, taxon])
-  }
-  
-  valid_idx <- which(!is.na(stool_abund) & !is.na(sputum_abund))
-  
-  tibble(
-    taxon = taxon,
-    spearman_rho = if(length(valid_idx) >= 2) cor(stool_abund[valid_idx], sputum_abund[valid_idx], method = "spearman") else NA
-  )
-})
+# Investigate the fit
+fit1
 
-results_woNA <- results %>% 
-  filter(!is.na(spearman_rho))
+venn1 <- plot(fit1, quantities = T,
+     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
+     labels = list(col = "black", font = 2, cex=2.5, ps=2.5))
 
-# Pivot to wide format
-corr_mat <- results_woNA %>% 
-  pivot_wider(
-    names_from = taxon, 
-    values_from = spearman_rho
-  ) %>% 
-  select(-taxon) %>% # if taxon is duplicated
-  as.matrix()
+venn1 <- plot(fit1, 
+     quantities = list(cex = 2),  # increase font size here
+     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
+     labels = list(col = "black", font = 2, cex = 2.5), outside=T)
 
+venn1 <- as_ggplot(venn1)
+venn1
+ggsave("figures/venn_all.pdf")
 
-# Now you can plot it
-corrplot::corrplot(corr_mat, method = "color", 
-                   tl.cex = 0.6, 
-                   na.label = " ", 
-                   col = colorRampPalette(c("blue", "white", "red"))(200))
+venn1_woLables <- plot(fit1,
+     quantities = list(cex = 2),
+     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
+     labels = FALSE)  # Turn off default labels
 
-ggplot(results_woNA, aes(x = reorder(taxon, spearman_rho), y = spearman_rho)) +
-  geom_col() +
-  coord_flip() +
-  theme_minimal()
-
-corr_mat <- results_woNA %>% 
-  column_to_rownames("taxon") %>% 
-  as.matrix()
-
-corrplot::corrplot(t(corr_mat), is.corr = FALSE, method = "color")
-
-
-df <- psmelt(ps_sputum_stool_fil)
-
-df$OTU
-
-df_c <- df %>% 
-  left_join(results_woNA, by= c("OTU"="taxon"))
-
-
-df_c %>% 
-  group_by(material, OTU) %>% 
-  filter(spearman_rho >= abs(0.25)) %>% 
-ggplot(aes(y = OTU, x=material, size = Abundance, color = spearman_rho)) +
-  geom_point(alpha = 0.7) +  # Adjust the transparency for better visibility
-  scale_size_continuous(range = c(1, 5)) +  # Adjust bubble size range
-  scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +  # Color scale for correlation
-  facet_wrap(~ Genus, scales = "free") +  # Facet by material
-  theme_minimal() +
-  labs(
-    title = "Bubble Plot of ASV Abundance and Correlation by Material",
-    x = "ASV",
-    y = "Material",
-    size = "Abundance",
-    color = "Spearman Correlation"
-  ) +
-  theme(
-    axis.text.x = element_text(angle = 90, hjust = 1),  # Rotate taxon labels
-    panel.grid.major = element_blank(),  # Remove gridlines for clarity
-    panel.grid.minor = element_blank()
-  )
-
-df_c_sputum <- df_c %>% 
-  filter(material=="Sputum") %>% 
-  mutate(sputum_abundance = Abundance) %>% 
-  select(OTU, Genus, id_visit, sputum_abundance, spearman_rho)%>% 
-  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
-
-df_c_stool <- df_c %>% 
-  filter(material=="Stool") %>% 
-  mutate(stool_abundance= Abundance)%>% 
-  select(OTU, Genus, id_visit, stool_abundance, spearman_rho) %>% 
-  mutate(unique_id = paste(OTU, id_visit, sep = "_"))
-
-df_thr_spu <- df_c_sputum %>% 
-   left_join(df_c_stool, by= "unique_id" )
-
-df_thr_spu$spearman_rho.x==df_thr_spu$spearman_rho.y
-
-df_thr_spu %>% 
-  filter(!is.na(spearman_rho.x)) %>% 
-  filter(!is.na(spearman_rho.y)) %>% 
-  filter(spearman_rho.y>=abs(0.2)) %>% 
-  ggplot(aes(x = sputum_abundance, y = stool_abundance, color = Genus.x)) +
-  geom_point(aes(size=spearman_rho.y), alpha = 1) + 
-  #scale_color_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
-  labs(
-    title = "Abundance vs Correlation of Shared ASVs Between Body Sites",
-    x = "Sputum Abundance",
-    y = "Stool Abundance",
-    color = "Spearman Correlation"
-  ) +
-  theme_minimal()+
-  scale_x_log10()+
-  scale_y_log10()+
-  theme(legend.position = "none")
+venn1_woLables<- as_ggplot(venn1_woLables)
+saveRDS(venn1_woLables, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/venn_spu_st_thr.rds")
 ```
-
 # Ordination on generalist taxa across the data set
 The idea is that ASVs shared across all 3 sample types are considered generalists, the others would be habitat-specific hence specialists
-
 ```{r}
 # Assume your full phyloseq object is: ps_full_fil
 # Extract metadata
@@ -1101,11 +976,9 @@ p2 <- plot_ordination(ps_specific_rel, ord_specific, color = "material") +
 
 library(patchwork)
 p1 + p2
-
-
 ```
+
 ```{r}
-# Assume you've already created a phyloseq object:
 # ps_shared = only ASVs shared across all three body sites
 
 # Calculate Bray-Curtis distance
@@ -1130,7 +1003,7 @@ res_shared <- as_tibble(res_shared, rownames = "term") %>%
   mutate(data_set = "Shared ASVs", 
          formula = "BC_dist ~ material + visit_sum + id.x",
          N = nrow(metadata_shared))
-
+res_shared
 ```
 
 ```{r}
@@ -1160,7 +1033,9 @@ res_specific <- as_tibble(res_specific, rownames = "term") %>%
          formula = "BC_dist ~ material + visit_sum + id.x",
          N = nrow(metadata_specific))
 
+res_specific 
 ```
+
 # repeat this analysis for true triplets (where a patient provided all 3 sample types at the same time point)
 ```{r}
 library(dplyr)
@@ -1235,8 +1110,8 @@ ASV_specific_triplets_count <- as.data.frame(table(asvs_specific_all)) %>%
 # Subset phyloseq object to those ASVs
 ps_shared_triplets <- prune_taxa(ASV_shared_triplets_count$ASV, ps_paired_triplets)
 
+
 # Subset phyloseq object to those ASVs
-ps_specific_triplets <- prune_taxa(!ASV_shared_triplets_count$ASV, ps_paired_triplets)
 # Get all taxa names from the full paired dataset
 all_taxa <- taxa_names(ps_paired_triplets)
 
@@ -1266,6 +1141,7 @@ p4 <- plot_ordination(ps_specific_triplets_rel, ord_specific_t, color = "materia
 library(patchwork)
 p3 + p4
 ```
+
 ```{r}
 # Calculate Bray-Curtis distance
 set.seed(100)
@@ -1289,7 +1165,7 @@ res_shared_t <- as_tibble(res_shared_t, rownames = "term") %>%
   mutate(data_set = "shared ASVs in triplets", 
          formula = "BC_dist ~ material + visit_sum + id.x",
          N = nrow(metadata_shared_t))
-
+res_shared_t
 ```
 
 ```{r}
@@ -1315,14 +1191,14 @@ res_specific_t <- as_tibble(res_specific_t, rownames = "term") %>%
   mutate(data_set = "specific ASVs in triplets", 
          formula = "BC_dist ~ material + visit_sum + id.x",
          N = nrow(metadata_specific_t))
-
+res_specific_t 
 ```
 
 ```{r}
 res_df <- rbind(res_shared, res_specific, res_shared_t, res_specific_t)
 
 # Add to existing results object
-res_comb <- rbind(res_comb[, 1:9], res_df)
+res_comb <- rbind(res_df[, 1:9], res_df)
 
 # Add significance label again
 res_comb <- res_comb %>%
@@ -1337,66 +1213,7 @@ res_comb <- res_comb %>%
 res_comb <- res_comb %>% 
   mutate(ylab = paste(data_set, ", N=", N, sep = ""))
 
-permanova_all_shared_specific <- res_comb %>%
-  ggplot(aes(y = term, x = ylab)) +
-  geom_point(aes(fill = Significance, size = R2 * 100), shape = 21, color = "black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
-  scale_size_continuous(range = c(4, 12)) +
-  theme_minimal(base_size = 14) +
-  scale_y_discrete(labels = c("id.x" = "ID", "material" = "Sample type", "visit_sum" = "Months from\ntreatment start")) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
-    axis.text.y = element_text(size = 16),
-    legend.title.position = "top",
-    axis.title = element_text(size = 16),
-    legend.text = element_text(size = 16),
-    legend.title = element_text(size = 16)
-  ) +
-  labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("") +
-  xlab("")
-
-p1 <- p1 + geom_point(size = 4, alpha = 0.7) +
-  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  theme_classic(base_size = 14) +
-  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
-  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
-  stat_ellipse()
-p1
-
-p2 <- p2 + geom_point(size = 4, alpha = 0.7) +
-  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  theme_classic(base_size = 14) +
-  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
-  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
-  stat_ellipse()
-p2
-
-p3 <- p3 + geom_point(size = 4, alpha = 0.7) +
-  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  theme_classic(base_size = 14) +
-  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
-  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
-  stat_ellipse()
-p3
-
-p4 <- p4 + geom_point(size = 4, alpha = 0.7) +
-  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  theme_classic(base_size = 14) +
-  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
-  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
-  stat_ellipse()
-p4
-
-ggarrange(p1,p2,p3,p4,common.legend = T)
-
-summary(res_comb$data_set)
 res_comb %>%
-  filter(data_set=="shared ASVs in triplets" |data_set=="specific ASVs in triplets"|data_set== "Shared ASVs"| data_set=="specific ASVs") %>% 
   ggplot(aes(y = term, x = ylab)) +
   geom_point(aes(fill = Significance, size = R2 * 100), shape = 21, color = "black") +
   scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
@@ -1417,7 +1234,6 @@ res_comb %>%
 ```
 
 # heatmap of shared ASVs across sites
-
 ```{r}
 library(phyloseq)
 library(dplyr)
@@ -1455,48 +1271,6 @@ ggplot(aes(x = x_sample_id, y = Genus_asv, fill = Abundance)) +
     y = "Shared ASVs (detected in >4 triplets)",
     title = "Heatmap of shared ASV relative abundances per body site"
   )
-```
-
-# Venn plot of shared ASVs
-## overall the whole data set
-```{r}
-library(MicEco)
-ps_full_fil<- tax_filter(ps_full, min_prevalence = 1)
-ps_full_fil <- subset_samples(ps_full_fil, project=="IMP" ) # work with CF samples only
-summary(as_factor(sample_data(ps_full_fil)$material))
-ps_venn(ps_full_fil, group = "material")
-
-list <- ps_venn(ps_full_fil, group = "material", plot = F)
-
-# Fit a diagram with proportional circles
-combo <- c(Sputum = 168, Stool = 1973, Throat=1631,  "Sputum&Stool" = 17, "Sputum&Throat" = 257, "Sputum&Stool&Throat" = 190, "Throat&Stool" = 159)
-fit1 <- euler(combo)
-
-# Investigate the fit
-fit1
-
-venn1 <- plot(fit1, quantities = T,
-     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
-     labels = list(col = "black", font = 2, cex=2.5, ps=2.5))
-
-venn1 <- plot(fit1, 
-     quantities = list(cex = 2),  # increase font size here
-     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
-     labels = list(col = "black", font = 2, cex = 2.5), outside=T)
-
-
-venn1 <- as_ggplot(venn1)
-venn1
-ggsave("figures/venn_all.pdf")
-
-venn1_woLables <- plot(fit1,
-     quantities = list(cex = 2),
-     fills = list(fill = c("#CCB22BFF", "#A68A7BFF", "#6FB899FF"), alpha = 0.8),
-     labels = FALSE)  # Turn off default labels
-
-venn1_woLables<- as_ggplot(venn1_woLables)
-saveRDS(venn1_woLables, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/venn_spu_st_thr.rds")
-
 ```
 
 # Jaccard distance across data set, to quantify overlap
@@ -1570,61 +1344,6 @@ p4 <- ggplot(jaccard_plot_df, aes(x = x_order, y = JaccardDist, fill = data_set)
 p4
 
 ggsave( "figures/jaccard_across_type.pdf", p4,height = 4, width = 8)
-```
-
-```{r}
-run_permutation_test <- function(jaccard_cross_type_df, n_perm = 1000, seed = 42) {
-  set.seed(seed)
-  
-  jaccard_cross_type_df_split <- split(jaccard_cross_type_df, jaccard_cross_type_df$comparison)
-
-  results <- purrr::map_dfr(names(jaccard_cross_type_df_split), function(comp) {
-    df <- jaccard_cross_type_df_split[[comp]]
-    
-    paired <- df %>% filter(data_set == "paired")
-    unpaired <- df %>% filter(data_set != "paired")
-
-    if (nrow(paired) < 5 || nrow(unpaired) < 5) {
-      return(data.frame(comparison = comp, p_perm = NA, observed_estimate = NA))
-    }
-
-    # Combine paired with a random sample of unpaired (equal size)
-    unpaired_sample <- unpaired %>% sample_n(nrow(paired))
-    observed_jaccard_cross_type_df <- bind_rows(paired, unpaired_sample)
-    
-    model_obs <- try(lmerTest::lmer(JaccardDist ~ data_set + (1 | id.x.x), data = observed_jaccard_cross_type_df), silent = TRUE)
-    if (inherits(model_obs, "try-error")) return(data.frame(comparison = comp, p_perm = NA, observed_estimate = NA))
-
-    obs_est <- fixef(model_obs)["data_setunpaired, different time point"]  # or "data_setunpaired", depends on factor level order
-
-    # Permutation test: shuffle jaccard_cross_type_df_set labels
-    perm_estimates <- numeric(n_perm)
-    for (i in seq_len(n_perm)) {
-      permuted_jaccard_cross_type_df <- observed_jaccard_cross_type_df
-      permuted_jaccard_cross_type_df$data_set <- sample(permuted_jaccard_cross_type_df$data_set)
-
-      model_perm <- try(lmer(JaccardDist ~ data_set + (1 | id.x.x), data = permuted_jaccard_cross_type_df), silent = TRUE)
-      perm_estimates[i] <- if (!inherits(model_perm, "try-error")) fixef(model_perm)["data_setunpaired, different time point"] else NA
-    }
-
-    perm_estimates <- na.omit(perm_estimates)
-    p_perm <- mean(abs(perm_estimates) >= abs(obs_est))
-
-    # Plotting (optional)
-    hist(perm_estimates, breaks = 40,
-         xlab = "Estimate (data_setpaired)")
-    abline(v = obs_est, col = "red", lwd = 2)
-
-    data.frame(comparison = comp, p_perm = p_perm, observed_estimate = obs_est)
-  })
-
-  return(results)
-}
-
-# 🚀 Run on your jaccard_cross_type_df
-results_df <- run_permutation_test(jaccard_cross_type_df, n_perm = 1000)
-print(results_df)
-
 ```
 
 # BC dissimilarity accross data sets
@@ -1705,463 +1424,6 @@ ggarrange(p4, p3,nrow = 1,common.legend = TRUE, legend = "bottom")
 
 ggsave( "figures/jaccard_bc_across_type.pdf", height = 4, width = 12)
 ```
-```{r}
-
-PCA_all <- plot_ordination(ps_full_fil_relab, ordinate(ps_full_fil_relab, "MDS"), color = "material")
-
-xlabels <- c("Sputum","Throat","Stool")
-
-p1 <- PCA_all +
-  geom_point(size = 4, alpha = 0.7) +
-  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
-  theme_classic(base_size = 14) +
-  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
-  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
-  stat_ellipse()
-p1
-saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/pcoa_all_cf.rds")
-```
-
-# PERMANOVA for BC per comparison
-```{r}
-
-# 1. Full data set
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_full_fil_relab ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_full_fil_relab),"data.frame")
-
-### stratified PERMANOVA per id
-res_all <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+delta_ETI_merged+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-res_all <- as_tibble(res_all, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "All", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-
-#2. Sputum Throat data set
-ps_relab_spu_thr <- subset_samples(ps_full_fil_relab, material=="Sputum" | material=="Throat")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_spu_thr ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_spu_thr),"data.frame")
-
-### stratified PERMANOVA per id
-res_spu_thr <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+delta_ETI_merged+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-res_spu_thr <- as_tibble(res_spu_thr, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Sputum-Throat", formula = "BC_dist ~ material+visit_sum+id.x",N=nrow(metadata))
-
-
-#2. Sputum Throat data set
-ps_relab_spu_st<- subset_samples(ps_full_fil_relab, material=="Sputum" | material=="Stool")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_spu_st ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_spu_st),"data.frame")
-
-### stratified PERMANOVA per id
-res_spu_st <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+delta_ETI_merged+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_spu_st <- as_tibble(res_spu_st, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Sputum-Stool", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-#2. Stool Throat data set
-ps_relab_st_thr <- subset_samples(ps_full_fil_relab, material=="Stool" | material=="Throat")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_st_thr ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_st_thr),"data.frame")
-
-### stratified PERMANOVA per id
-res <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-#vegan::adonis2(formula = BC_dist ~ material+delta_ETI_merged+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_st_thr <- as_tibble(res, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Stool-Throat", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-res_comb <- rbind(res_all, res_spu_thr, res_spu_st,res_st_thr)
-res_comb
-
-# Sputum alone
-ps_relab_spu<- subset_samples(ps_full_fil_relab, material=="Sputum")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_spu ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_spu),"data.frame")
-
-### stratified PERMANOVA per id
-res_spu<- vegan::adonis2(formula = BC_dist ~ visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_spu<- as_tibble(res_spu, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Sputum", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
- # THROAT alone
-ps_relab_thr<- subset_samples(ps_full_fil_relab, material=="Throat")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_thr ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_thr),"data.frame")
-
-### stratified PERMANOVA per id
-res_thr<- vegan::adonis2(formula = BC_dist ~ visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_thr<- as_tibble(res_thr, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Throat", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-# STOOL alone
-ps_relab_st<- subset_samples(ps_full_fil_relab, material=="Stool")
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_relab_st ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_relab_st),"data.frame")
-
-### stratified PERMANOVA per id
-res_st<- vegan::adonis2(formula = BC_dist ~ visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_st<- as_tibble(res_st, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "Stool", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-res_comb <- rbind(res_all, res_spu_thr, res_spu_st,res_st_thr, res_spu, res_thr, res_st)
-res_comb <- res_comb %>% mutate(Significance = case_when(
-    `Pr(>F)` <= 0.001 ~ "≤ 0.001",
-    `Pr(>F)` <= 0.01 ~ "≤ 0.01",
-    `Pr(>F)` <= 0.05 ~ "≤ 0.05",
-    TRUE ~ "ns"
-  ))
-res_comb$data_set <- factor(res_comb$data_set, levels=c("All", "Sputum-Throat" , "Sputum-Stool" , "Stool-Throat",        "Sputum"    ,    "Throat",
-        "Stool"))
-
-res_comb <- res_comb %>% 
-  mutate(ylab= paste(data_set, N, sep = ", N="))
-
-res_comb$ylab <- factor(res_comb$ylab,
-                        levels = unique(res_comb$ylab[order(res_comb$data_set)]))
-
-custom_labels= c("ID", "Sample type", "Months from\ntreatment start")
-p2 <- res_comb %>% 
-  ggplot(aes(y = term, x = ylab)) +
-  geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
-  scale_size_continuous(range = c(4, 12)) +  # Adjust the range for better visualization
-  theme_minimal(base_size = 14) +
-  scale_y_discrete(labels=custom_labels)+
-  #scale_y_discrete(labels=custom_labels)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 16), axis.text.y = element_text(size = 16), legend.title.position = "top", axis.title = element_text(size=16), legend.text = element_text(size = 16), legend.title =  element_text(size = 16)) +
-  labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("")+
-  xlab("")+
-   guides(fill = guide_legend(override.aes = list(size = 4)), fill = "none")
-p2
-
-res_comb
-
-```
-
-# PERMANOVA for the paired data set
-```{r}
-# 1. Sputum-Throat
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_sputum_throat_full_unique_2_relab ,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_sputum_throat_full_unique_2_relab ),"data.frame")
-
-### stratified PERMANOVA per id
-res_spu_thr_p <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_spu_thr_p <- as_tibble(res_spu_thr_p, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "paired Sputum-Throat", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-#2. Sputum Stool paired
-# calculate BC_distance
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_Sputum_Stool_full_unique_2_relab,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_Sputum_Stool_full_unique_2_relab),"data.frame")
-
-### stratified PERMANOVA per id
-res_spu_st_p <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_spu_st_p <- as_tibble(res_spu_st_p, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "paired Sputum-Stool", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-#2. Stool Throat data set paired
-ps_st_thr_paired <-  subset_samples(ps_full_fil_relab,x_sample_id%in%shared_asv_long_thr_st_pairs$pairs)
-
-set.seed(100)
-BC_dist<- phyloseq::distance(ps_st_thr_paired,
-                             method="bray", weighted=F)
-#extract metadata
-metadata<- as(sample_data(ps_st_thr_paired),"data.frame")
-
-### stratified PERMANOVA per id
-res_st_thr_p <- vegan::adonis2(formula = BC_dist ~ material+visit_sum+id.x , data = metadata, permutations = 999, by = "margin", strata = metadata$id.x)
-
-res_st_thr_p <- as_tibble(res_st_thr_p, rownames = "term") %>%
-        filter(term != "Residual", term!="Total") %>%
-        mutate(data_set = "paired Stool-Throat", formula = "BC_dist ~ material+visit_sum+id.x", N=nrow(metadata))
-
-res_comb_p <- rbind(res_all, res_spu, res_thr, res_st, res_spu_thr_p, res_spu_st_p,res_st_thr_p)
-res_comb_p
-
-res_comb_p <- res_comb_p %>% mutate(Significance = case_when(
-    `Pr(>F)` <= 0.001 ~ "≤ 0.001",
-    `Pr(>F)` <= 0.01 ~ "≤ 0.01",
-    `Pr(>F)` <= 0.05 ~ "≤ 0.05",
-    TRUE ~ "ns"
-  ))
-res_comb_p$data_set <- factor(res_comb_p$data_set, levels=c("All", "paired Sputum-Throat" , "paired Sputum-Stool", "paired Stool-Throat","Sputum", "Throat", "Stool"))
-
-res_comb_p <- res_comb_p %>% 
-  mutate(ylab= paste(data_set, N, sep = ", N="))
-
-res_comb_p$ylab <- factor(res_comb_p$ylab,
-                    levels = unique(res_comb_p$ylab[order(res_comb_p$data_set)]))
-
-custom_labels= c("ID", "Sample type", "Months from\ntreatment start")
-p2 <- res_comb_p %>% 
-  ggplot(aes(y = term, x = ylab)) +
-  geom_point(aes(fill= Significance, size = R2*100), shape = 21, color="black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
-  scale_size_continuous(range = c(4, 12)) +  # Adjust the range for better visualization
-  theme_minimal(base_size = 14) +
-  scale_y_discrete(labels=custom_labels)+
-  #scale_y_discrete(labels=custom_labels)+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 16), axis.text.y = element_text(size = 16), legend.title.position = "top", axis.title = element_text(size=16), legend.text = element_text(size = 16), legend.title =  element_text(size = 16)) +
-  labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("")+
-  xlab("")+
-   guides(fill = guide_legend(override.aes = list(size = 4)), fill = "none")
-p2
-
-res_comb_p
-
-```
-
-# Simple PERMANOVA instead of multiple
-```{r}
-# List of variables to test individually
-terms_to_test <- c("material", "visit_cal_9", "id.x")
-
-# Function to run single-term PERMANOVA
-run_single_term_permanova <- function(term, distance_matrix, metadata, dataset_label) {
-  formula_str <- as.formula(paste("distance_matrix ~", term))
-  result <- vegan::adonis2(formula_str, data = metadata, permutations = 999, strata = metadata$id.x)
-  
-  result_tbl <- as_tibble(result, rownames = "term") %>%
-    filter(term == term) %>%
-    mutate(
-      data_set = dataset_label,
-      formula = paste("BC_dist ~", term),
-      N = nrow(metadata),
-      term = term  # Correct the overwritten 'model' name
-    )
-  return(result_tbl)
-}
-
-
-
-## All samples
-
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_full_fil_relab, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_full_fil_relab), "data.frame")
-res_all <- lapply(terms_to_test, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "All")
-})
-res_all <- bind_rows(res_all)
-res_all<- res_all %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 2 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 34 ~ "ID"))
-
-# single sample types
-terms_to_test_single <- c("visit_cal_9", "id.x")
-
-## Sputum
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_relab_spu, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_relab_spu), "data.frame")
-res_spu_list <- lapply(terms_to_test_single, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "Sputum")
-})
-res_spu<- bind_rows(res_spu_list)
-res_spu<- res_spu %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 18 ~ "ID"))
-
-## Throat
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_relab_thr, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_relab_thr), "data.frame")
-res_thr_list <- lapply(terms_to_test_single, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "Throat")
-})
-res_thr <- bind_rows(res_thr_list)
-res_thr <- res_thr %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 34 ~ "ID"))
-
-## Stool
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_relab_st, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_relab_st), "data.frame")
-res_st_list <- lapply(terms_to_test_single, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "Stool")
-})
-res_st <- bind_rows(res_st_list)
-res_st <- res_st %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 34 ~ "ID"))
-
-# Apply to each paired dataset
-## Sputum-throat
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_sputum_throat_full_unique_2_relab, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_sputum_throat_full_unique_2_relab), "data.frame")
-res_spu_thr_p_list <- lapply(terms_to_test, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "paired Sputum-Throat")
-})
-res_spu_thr_p <- bind_rows(res_spu_thr_p_list)
-res_spu_thr_p <- res_spu_thr_p %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 14 ~ "ID"))
-
-# For Sputum-Stool
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_Sputum_Stool_full_unique_2_relab, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_Sputum_Stool_full_unique_2_relab), "data.frame")
-
-res_spu_st_p_list <- lapply(terms_to_test, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "paired Sputum-Stool")
-})
-res_spu_st_p <- bind_rows(res_spu_st_p_list)
-
-res_spu_st_p <- res_spu_st_p %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 17 ~ "ID"))
-
-# For Stool-Throat
-ps_st_thr_paired <- subset_samples(ps_full_fil_relab, x_sample_id %in% shared_asv_long_thr_st_pairs$pairs)
-set.seed(100)
-BC_dist <- phyloseq::distance(ps_st_thr_paired, method = "bray", weighted = FALSE)
-metadata <- as(sample_data(ps_st_thr_paired), "data.frame")
-
-res_st_thr_p_list <- lapply(terms_to_test, function(term) {
-  run_single_term_permanova(term, BC_dist, metadata, "paired Stool-Throat")
-})
-res_st_thr_p <- bind_rows(res_st_thr_p_list)
-
-res_st_thr_p <- res_st_thr_p %>% 
-  filter(term=="Model") %>% 
-  mutate(term = case_when(
-    Df == 1 ~ "Sample type",
-    Df == 8 ~ "Sample time point",
-    Df == 34 ~ "ID"))
-
-# Combine all results
-res_comb_p <- rbind(res_all, res_spu, res_thr, res_st, res_spu_thr_p, res_spu_st_p, res_st_thr_p)
-
-# Add significance
-res_comb_p <- res_comb_p %>% mutate(Significance = case_when(
-  `Pr(>F)` <= 0.001 ~ "≤ 0.001",
-  `Pr(>F)` <= 0.01 ~ "≤ 0.01",
-  `Pr(>F)` <= 0.05 ~ "≤ 0.05",
-  TRUE ~ "ns"
-))
-
-# Set factor levels
-res_comb_p$data_set <- factor(res_comb_p$data_set,
-                              levels = c("All", "paired Sputum-Throat", "paired Sputum-Stool", "paired Stool-Throat",
-                                         "Sputum", "Throat", "Stool"))
-
-res_comb_p <- res_comb_p %>% 
-  mutate(ylab = paste(data_set, N, sep = ", N=")) %>%
-  mutate(ylab = factor(ylab, levels = unique(ylab[order(data_set)])))
-
-# Plot
-custom_labels = c("Time point","Sample type")
-p2 <- res_comb_p %>% 
-  filter(term!="ID") %>% 
-  ggplot(aes(y = term, x = ylab)) +
-  geom_point(aes(fill = Significance, size = R2 * 100), shape = 21, color = "black") +
-  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
-  scale_size_continuous(range = c(3, 15)) +
-  theme_minimal(base_size = 14) +
-  scale_y_discrete(labels = custom_labels) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
-        axis.text.y = element_text(size = 16),
-        legend.title.position = "top",
-        axis.title = element_text(size = 16),
-        legend.text = element_text(size = 16),
-        legend.title = element_text(size = 16)) +
-  labs(fill = "p value", size = "Explained variance (%)") +
-  ylab("") +
-  xlab("") +
-  guides(fill = guide_legend(override.aes = list(size = 4)), fill = "none")
-
-p2
-
-
-saveRDS(p2, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/permanova_all_cf.rds")
-```
-
 
 # Congruence of alpha diversity across sample type
 ```{r}
@@ -2260,7 +1522,7 @@ model_results <- alpha_cross_df %>%
   filter(data_set_type == "paired, same time point") %>%
   group_by(comparison) %>%
   group_map(~ {
-    model <- lmer(Shannon ~ Shannon_2 + (1 | id.x)+ (1 | visit_cal_cor), data = .x)
+    model <- lmerTest::lmer(Shannon ~ Shannon_2 + (1 | id.x)+ (1 | visit_cal_cor), data = .x)
     tidy_model <- broom.mixed::tidy(model)
     slope_row <- tidy_model %>% filter(term == "Shannon_2")
     tibble(
@@ -2306,7 +1568,7 @@ model_results <- alpha_cross_df %>%
   filter(data_set_type == "paired, same time point") %>%
   group_by(comparison) %>%
   group_map(~ {
-    model <- lmer(Observed ~ Observed_2 + (1 | id.x)+ (1 | visit_cal_cor), data = .x)
+    model <- lmerTest::lmer(Observed ~ Observed_2 + (1 | id.x)+ (1 | visit_cal_cor), data = .x)
     tidy_model <- broom.mixed::tidy(model)
     slope_row <- tidy_model %>% filter(term == "Observed_2")
     tibble(
@@ -2351,13 +1613,8 @@ saveRDS(p5p6, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_file
 
 ```
 
-```{r, fig.width=12, fig.height=4}
-ggarrange(p5,p6, nrow = 1)
-ggsave("figures/combined_alpha_congruence.pdf", width = 12, height = 3)
-```
-
 # Shared ASVs between paired samples
-```{r}
+```{r, eval=FALSE, include=FALSE}
 ps_bin <- transform_sample_counts(ps_full_fil , function(x) x/sum(x))
 
 # Extract OTU/ASV table and sample data
@@ -2501,7 +1758,7 @@ ggplot(shared_long_counts, aes(x = comparison, y = SharedProp)) +
 ```
 
 # Proportion of ASVs in unpaired samples
-```{r}
+```{r, eval=FALSE, include=FALSE}
 # choose unpaired samples
 alpha_cross_df %>% 
   filter(data_set_type=="unpaired, different time point")
@@ -2676,8 +1933,7 @@ ggplot(shared_long_counts_unpar, aes(x = comparison, y = SharedProp)) +
   labs(title = "Proportion of Reads from Shared ASVs in unpaired samples", y = "Proportion", x = "Comparison")
 ```
 
-```{r}
-
+```{r, eval=FALSE}
 shared_long$data_set_type <- "paired"
 
 a <- shared_long %>% 
@@ -2799,7 +2055,6 @@ shared_asvs_comb_counts$Site <- factor(
 )
 
 shared_asvs_comb_counts <- droplevels(shared_asvs_comb_counts)
-
 
 p16 <- shared_asvs_comb_counts %>% 
   ggplot(aes(x = Site, y = SharedProp*100, fill=data_set_type)) +
@@ -2998,5 +2253,220 @@ hm3
 hm_comb <- ggarrange(hm1, hm2, hm3, common.legend = T, nrow = 1, legend = "bottom")
 
 saveRDS(hm_comb, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/shared_asvs_heatmap.rds")
+```
+
+# PCoA on sample type
+```{r}
+PCA_all <- plot_ordination(ps_full_fil_relab, ordinate(ps_full_fil_relab, "MDS"), color = "material")
+
+xlabels <- c("Sputum","Throat","Stool")
+
+p1 <- PCA_all +
+  geom_point(size = 4, alpha = 0.7) +
+  scale_color_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
+  #scale_fill_manual(values=c("#CCB22BFF",  "#6FB899FF","#A68A7BFF"),labels = xlabels) +
+  theme_classic(base_size = 14) +
+  theme(text = element_text(size = 18), legend.position = "bottom", legend.text = element_text(size = 16), legend.title = element_blank()) +
+  guides(color = guide_legend(title = "Sample type", title.position = "left", nrow = 1))+
+  stat_ellipse()
+p1
+saveRDS(p1, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/pcoa_all_cf.rds")
+```
+
+# Simple PERMANOVA on paired and unpaired data sets
+```{r}
+# List of variables to test individually
+terms_to_test <- c("material", "visit_cal_9", "id.x")
+
+# Function to run single-term PERMANOVA
+run_single_term_permanova <- function(term, distance_matrix, metadata, dataset_label) {
+  formula_str <- as.formula(paste("distance_matrix ~", term))
+  result <- vegan::adonis2(formula_str, data = metadata, permutations = 999, strata = metadata$id.x)
+  
+  result_tbl <- as_tibble(result, rownames = "term") %>%
+    filter(term == term) %>%
+    mutate(
+      data_set = dataset_label,
+      formula = paste("BC_dist ~", term),
+      N = nrow(metadata),
+      term = term  # Correct the overwritten 'model' name
+    )
+  return(result_tbl)
+}
+
+## All samples
+
+set.seed(100)
+BC_dist <- phyloseq::distance(ps_full_fil_relab, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_full_fil_relab), "data.frame")
+res_all <- lapply(terms_to_test, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "All")
+})
+res_all <- bind_rows(res_all)
+res_all<- res_all %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 2 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 34 ~ "ID"))
+
+# single sample types
+terms_to_test_single <- c("visit_cal_9", "id.x")
+
+## Sputum
+set.seed(100)
+ps_relab_spu<- subset_samples(ps_full_fil_relab, material=="Sputum")
+BC_dist <- phyloseq::distance(ps_relab_spu, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_relab_spu), "data.frame")
+res_spu_list <- lapply(terms_to_test_single, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "Sputum")
+})
+res_spu<- bind_rows(res_spu_list)
+res_spu<- res_spu %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 18 ~ "ID"))
+
+## Throat
+set.seed(100)
+set.seed(100)
+ps_relab_thr<- subset_samples(ps_full_fil_relab, material=="Throat")
+BC_dist <- phyloseq::distance(ps_relab_thr, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_relab_thr), "data.frame")
+res_thr_list <- lapply(terms_to_test_single, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "Throat")
+})
+res_thr <- bind_rows(res_thr_list)
+res_thr <- res_thr %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 34 ~ "ID"))
+
+## Stool
+set.seed(100)
+set.seed(100)
+ps_relab_st<- subset_samples(ps_full_fil_relab, material=="Stool")
+BC_dist <- phyloseq::distance(ps_relab_st, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_relab_st), "data.frame")
+res_st_list <- lapply(terms_to_test_single, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "Stool")
+})
+res_st <- bind_rows(res_st_list)
+res_st <- res_st %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 34 ~ "ID"))
+
+# Apply to each paired dataset
+## Sputum-throat
+set.seed(100)
+BC_dist <- phyloseq::distance(ps_sputum_throat_full_unique_2_relab, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_sputum_throat_full_unique_2_relab), "data.frame")
+res_spu_thr_p_list <- lapply(terms_to_test, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "paired Sputum-Throat")
+})
+res_spu_thr_p <- bind_rows(res_spu_thr_p_list)
+res_spu_thr_p <- res_spu_thr_p %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 14 ~ "ID"))
+
+# For Sputum-Stool
+set.seed(100)
+BC_dist <- phyloseq::distance(ps_Sputum_Stool_full_unique_2_relab, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_Sputum_Stool_full_unique_2_relab), "data.frame")
+
+res_spu_st_p_list <- lapply(terms_to_test, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "paired Sputum-Stool")
+})
+res_spu_st_p <- bind_rows(res_spu_st_p_list)
+
+res_spu_st_p <- res_spu_st_p %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 17 ~ "ID"))
+
+# For Stool-Throat
+ps_st_thr_paired <- subset_samples(ps_full_fil_relab, x_sample_id %in% shared_asv_long_thr_st_pairs$pairs)
+set.seed(100)
+BC_dist <- phyloseq::distance(ps_st_thr_paired, method = "bray", weighted = FALSE)
+metadata <- as(sample_data(ps_st_thr_paired), "data.frame")
+
+res_st_thr_p_list <- lapply(terms_to_test, function(term) {
+  run_single_term_permanova(term, BC_dist, metadata, "paired Stool-Throat")
+})
+res_st_thr_p <- bind_rows(res_st_thr_p_list)
+
+res_st_thr_p <- res_st_thr_p %>% 
+  filter(term=="Model") %>% 
+  mutate(term = case_when(
+    Df == 1 ~ "Sample type",
+    Df == 8 ~ "Sample time point",
+    Df == 34 ~ "ID"))
+
+# Combine all results
+res_comb_p <- rbind(res_all, res_spu, res_thr, res_st, res_spu_thr_p, res_spu_st_p, res_st_thr_p)
+
+# Add significance
+res_comb_p <- res_comb_p %>% mutate(Significance = case_when(
+  `Pr(>F)` <= 0.001 ~ "≤ 0.001",
+  `Pr(>F)` <= 0.01 ~ "≤ 0.01",
+  `Pr(>F)` <= 0.05 ~ "≤ 0.05",
+  TRUE ~ "ns"
+))
+
+# Set factor levels
+res_comb_p$data_set <- factor(res_comb_p$data_set,
+                              levels = c("All", "paired Sputum-Throat", "paired Sputum-Stool", "paired Stool-Throat",
+                                         "Sputum", "Throat", "Stool"))
+
+res_comb_p <- res_comb_p %>% 
+  mutate(ylab = paste(data_set, N, sep = ", N=")) %>%
+  mutate(ylab = factor(ylab, levels = unique(ylab[order(data_set)])))
+
+# Plot
+custom_labels = c("Time point","Sample type")
+p2 <- res_comb_p %>% 
+  filter(term!="ID") %>% 
+  ggplot(aes(y = term, x = ylab)) +
+  geom_point(aes(fill = Significance, size = R2 * 100), shape = 21, color = "black") +
+  scale_fill_manual(values = c("≤ 0.001" = "#765085", "≤ 0.01" = "#31A1B3FF", "≤ 0.05" = "#B9A8D0", "ns" = "grey")) +
+  scale_size_continuous(range = c(3, 15)) +
+  theme_minimal(base_size = 14) +
+  scale_y_discrete(labels = custom_labels) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 16),
+        axis.text.y = element_text(size = 16),
+        legend.title.position = "top",
+        axis.title = element_text(size = 16),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 16)) +
+  labs(fill = "p value", size = "Explained variance (%)") +
+  ylab("") +
+  xlab("") +
+  guides(fill = guide_legend(override.aes = list(size = 4)), fill = "none")
+
+p2
+
+
+saveRDS(p2, "/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/permanova_all_cf.rds")
+```
+
+```{r, fig.width=12, fig.height=4}
+ggarrange(p5,p6, nrow = 1)
+ggsave("figures/combined_alpha_congruence.pdf", width = 12, height = 3)
+```
+
+```{r}
+sessionInfo()
 ```
 

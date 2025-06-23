@@ -11,6 +11,9 @@ output:
     df_print: paged
     toc_float: yes
 ---
+
+This script was used to run initial comparisons between the gut-sputum axis, none of the results are displayed in the latest manuscript version (June 20th 2025), but we refer to the negative results of the linear models between BC distances, such as that distance in sputum samples does not predict changes in stool samples, whereas there is such significant association found in the sputum_throat comparison.
+
 ```{r setup 2, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
