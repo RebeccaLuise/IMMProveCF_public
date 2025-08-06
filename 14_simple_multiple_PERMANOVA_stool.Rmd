@@ -17,12 +17,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r load libraries and run functions script}
-library(microViz)
+#library(microViz)
 
-pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+pacman::p_load(tidyverse, phyloseq,  janitor, microbiome, knitr, ggplot2, ggpubr)
 
 library(dendextend)
-#library(vegan)
+library(vegan)
 
 ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
 

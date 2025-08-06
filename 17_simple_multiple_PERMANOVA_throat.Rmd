@@ -17,12 +17,11 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r load libraries and run functions script}
-library(microViz)
 
-pacman::p_load(tidyverse, phyloseq, magrittr, janitor, microbiome, knitr, lubridate, naniar, readxl, ggplot2, ggpubr)
+pacman::p_load(tidyverse, phyloseq, janitor,  knitr,  ggplot2, ggpubr)
 
 library(dendextend)
-#library(vegan)
+library(vegan)
 
 ps_full <- readRDS("/Users/rebecca/Documents/Forschung/IMMProveCF/R_analysis/rds_files/ps_IMProveCF_patientsAndControls_Run1-23_18102023.rds")
 
@@ -655,7 +654,6 @@ p2
 saveRDS(p2, "/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_public/figures/sputum_univariate_permanova_stratified_vertical.rds")
 ```
 
-
 ```{r}
 results_filtered_fdr <- results_filtered %>% 
   arrange(desc(r2)) %>%
@@ -689,7 +687,6 @@ variables_p_sig
   metadata.p <- metadata_to_test %>% 
   select(id.y, any_of(variables_p_sig))  # has 213 samples
 
-  
 metadata.p_woNA <- metadata.p %>% na.omit() # this tests on 94 samples, as only 99 throat samples have corresponding sweat chloride measures and thus are included when all NA containing variables are omitted
 
 pat_N <- as_data_frame(tabyl(metadata.p_woNA,id.y)) %>% 
@@ -815,15 +812,14 @@ ggsave("/Users/rebecca/Documents/Forschung/IMMProveCF/Manuscript_16S/IMMProveCF_
 perm_result_df$test <- "Multiple PERMANOVA"
 
 perm_result_df <- perm_result_df %>% 
-  #select(-c(sum_of_sqs, df, f)) %>% 
+  select(-c(sum_of_sqs, df, f)) %>% 
   mutate(variable=case_when(variable=="total_reads"~"Total Reads", T~variable))
 
 results_filtered$test <- "Simple PERMANOVA"
 results_filtered <- results_filtered %>% 
   select(-c(fdr, y))
 
-df_ab <- rbind(perm_result_df, results_filtered)
-
+df_ab <- rbind(perm_result_df ,results_filtered )
 
 p4 <- df_ab %>% 
   filter(pr_f <= 0.1) %>% 
